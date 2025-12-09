@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+/* Design tokens / theme */
+@layer theme {
+  :root {
+    --color-brand-primary: #1a73e8;
+    --color-brand-accent: #f1bb6f;
+  }
+
+  /* Optionally map to Tailwind tokens */
+  :root {
+    --color-brand-bg: var(--color-brand-primary);
+  }
+}
+
+/* Custom component primitives shared by widgets */
+@layer components {
+  .widget-surface {
+    @apply bg-white/80 backdrop-blur-md rounded-xl shadow-lg;
+  }
+
+  .widget-title {
+    @apply text-xs font-semibold tracking-wide text-slate-700;
+  }
+
+  .widget-body {
+    @apply text-[11px] text-slate-600 leading-snug;
+  }
+}
+
+/* Utility classes specific to widgets */
+@layer utilities {
+  .widget-border-accent {
+    border-color: var(--color-brand-accent);
+  }
+}

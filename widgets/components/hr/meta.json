@@ -1,0 +1,9 @@
+{
+  "id": "heart-rate-indicator",
+  "name": "Heart Rate Indicator",
+  "description": "Displays current heart rate.",
+  "entry": "index.html",
+  "width": 260,
+  "height": 140,
+  "dataBindings": ["vehicle.heartRate"]
+}

@@ -1,0 +1,9 @@
+{
+  "id": "speed-indicator",
+  "name": "Speed Indicator",
+  "description": "Displays current vehicle speed.",
+  "entry": "index.html",
+  "width": 260,
+  "height": 140,
+  "dataBindings": ["vehicle.speed"]
+}

@@ -1,0 +1,22 @@
+{
+  "name": "widgets-core",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "css:watch": "tailwindcss -i ./tailwind.css -o ./dist.css --watch",
+    "css:build": "tailwindcss -i ./tailwind.css -o ./dist.css --minify",
+    "dev": "concurrently \"npm run css:watch\" \"npm run serve\"",
+    "serve": "live-server ./ --open=./components/ --port=4400",
+    "build": "npm run css:build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.17",
+    "concurrently": "^9.2.1",
+    "live-server": "^1.2.2",
+    "tailwindcss": "^4.1.17"
+  }
+}
