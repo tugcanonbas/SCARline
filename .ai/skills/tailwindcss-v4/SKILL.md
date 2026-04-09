@@ -1,5 +1,5 @@
 ---
-name: "TailwindCSS v4 Architect"
+name: "tailwindcss-v4"
 description: "Rules for developing and customizing styling using Tailwind CSS v4."
 license: "Apache-2.0"
 ---

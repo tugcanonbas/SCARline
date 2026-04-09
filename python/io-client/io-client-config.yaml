@@ -1,0 +1,22 @@
+rabbitmq:
+  host: rabbitmq
+  port: 5672
+  user: scarline
+  password: scarline
+
+sensors:
+  - driver: logitech_g29
+    enabled: true
+    config:
+      sample_rate: 100
+      device_path: /dev/input/event0
+      force_feedback: true
+  - driver: usb_camera
+    enabled: true
+    config:
+      sample_rate: 30
+      device_index: 0
+
+health_check:
+  port: 8081
+  interval: 10

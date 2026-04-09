@@ -1,0 +1,28 @@
+{
+  "name": "@scarline/admin-panel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "sync": "svelte-kit sync",
+    "build": "svelte-kit sync && vite build",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "lint": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@sveltejs/adapter-node": "^5.2.12",
+    "@sveltejs/kit": "^2.16.0",
+    "@scarline/contracts": "workspace:*",
+    "lucide-svelte": "^0.475.0",
+    "svelte": "^5.25.0",
+    "tailwindcss": "^4.0.12"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "svelte-check": "^4.1.4",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.2"
+  }
+}

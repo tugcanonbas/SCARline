@@ -1,0 +1,181 @@
+{
+  "vhosts": [
+    {
+      "name": "/"
+    }
+  ],
+  "users": [
+    {
+      "name": "scarline",
+      "password_hash": "cJ4zII0xk/XaQ7rxEKMTC6PCUNF5NSOSB62XC3PLw5KWQfQA",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": "administrator",
+      "limits": {}
+    }
+  ],
+  "permissions": [
+    {
+      "user": "scarline",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "parameters": [],
+  "policies": [],
+  "queues": [
+    {
+      "name": "scarline.core-api.events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-message-ttl": 300000,
+        "x-dead-letter-exchange": "scarline.dlx"
+      }
+    },
+    {
+      "name": "scarline.core-api.commands",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-message-ttl": 300000,
+        "x-dead-letter-exchange": "scarline.dlx"
+      }
+    },
+    {
+      "name": "scarline.sim-bridge.commands",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-message-ttl": 300000,
+        "x-dead-letter-exchange": "scarline.dlx"
+      }
+    },
+    {
+      "name": "scarline.io-client.commands",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-message-ttl": 300000,
+        "x-dead-letter-exchange": "scarline.dlx"
+      }
+    },
+    {
+      "name": "scarline.export.commands",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-message-ttl": 300000,
+        "x-dead-letter-exchange": "scarline.dlx"
+      }
+    },
+    {
+      "name": "scarline.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "scarline.events",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "scarline.commands",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "scarline.dlx",
+      "vhost": "/",
+      "type": "fanout",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": [
+    {
+      "source": "scarline.events",
+      "vhost": "/",
+      "destination": "scarline.core-api.events",
+      "destination_type": "queue",
+      "routing_key": "events.#",
+      "arguments": {}
+    },
+    {
+      "source": "scarline.commands",
+      "vhost": "/",
+      "destination": "scarline.core-api.commands",
+      "destination_type": "queue",
+      "routing_key": "commands.session.*",
+      "arguments": {}
+    },
+    {
+      "source": "scarline.commands",
+      "vhost": "/",
+      "destination": "scarline.core-api.commands",
+      "destination_type": "queue",
+      "routing_key": "commands.widget.*",
+      "arguments": {}
+    },
+    {
+      "source": "scarline.commands",
+      "vhost": "/",
+      "destination": "scarline.core-api.commands",
+      "destination_type": "queue",
+      "routing_key": "commands.export.*",
+      "arguments": {}
+    },
+    {
+      "source": "scarline.commands",
+      "vhost": "/",
+      "destination": "scarline.sim-bridge.commands",
+      "destination_type": "queue",
+      "routing_key": "commands.simulator.*",
+      "arguments": {}
+    },
+    {
+      "source": "scarline.commands",
+      "vhost": "/",
+      "destination": "scarline.io-client.commands",
+      "destination_type": "queue",
+      "routing_key": "commands.io.*",
+      "arguments": {}
+    },
+    {
+      "source": "scarline.commands",
+      "vhost": "/",
+      "destination": "scarline.export.commands",
+      "destination_type": "queue",
+      "routing_key": "commands.export.*",
+      "arguments": {}
+    },
+    {
+      "source": "scarline.dlx",
+      "vhost": "/",
+      "destination": "scarline.dlq",
+      "destination_type": "queue",
+      "routing_key": "",
+      "arguments": {}
+    }
+  ]
+}

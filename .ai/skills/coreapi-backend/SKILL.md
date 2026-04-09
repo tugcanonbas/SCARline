@@ -1,5 +1,5 @@
 ---
-name: "CoreAPI Backend Developer"
+name: "coreapi-backend"
 description: "Rules for developing endpoints and handling state in the Fastify-based SCARline CoreAPI."
 license: "Apache-2.0"
 ---

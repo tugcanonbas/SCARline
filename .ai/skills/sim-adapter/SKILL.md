@@ -1,5 +1,5 @@
 ---
-name: "Simulator Protocol Adapter"
+name: "sim-adapter"
 description: "Rules for implementing the WebSocket protocol linking a simulator (e.g., CARLA) to the SCARline Sim-Bridge."
 license: "Apache-2.0"
 ---

@@ -1,5 +1,5 @@
 ---
-name: "Widget Developer"
+name: "widget-developer"
 description: "Guidelines and strict rules for creating and modifying SCARline Dashboard Widgets."
 license: "Apache-2.0"
 ---
@@ -60,7 +60,7 @@ To receive data, subscribe to the exact keys defined in your `widget.json` bindi
 
 ```javascript
 // Strict rule: Only bind to keys declared in widget.json
-window.SCARline.onData("vehicle.speed", (value) => {
+window.SCARline.onBinding("vehicle.speed", (value) => {
     document.getElementById("speed-display").innerText = Math.round(value);
 });
 ```
@@ -69,9 +69,10 @@ window.SCARline.onData("vehicle.speed", (value) => {
 To respond to actions initiated by the researcher (e.g., manual highlights):
 
 ```javascript
-// Strict rule: Only listen to actions declared in the widget.json triggers array
-window.SCARline.onTrigger("highlight", (payload) => {
-    document.getElementById("container").classList.add("text-red-500");
+window.SCARline.onTrigger((event) => {
+    if (event.triggerType) {
+        document.getElementById("container").classList.add("text-red-500");
+    }
 });
 ```
 

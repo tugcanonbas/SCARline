@@ -1,0 +1,23 @@
+{
+  "id": "time",
+  "name": "Time",
+  "description": "Simple clock widget with optional external time binding.",
+  "version": "1.0.0",
+  "category": "general",
+  "entry": "index.html",
+  "bindings": [
+    {
+      "key": "clock.now",
+      "type": "string",
+      "label": "Clock Time",
+      "description": "Current formatted time."
+    }
+  ],
+  "triggers": [],
+  "ui": {
+    "minWidth": 220,
+    "minHeight": 100,
+    "preferredWidth": 280,
+    "preferredHeight": 140
+  }
+}

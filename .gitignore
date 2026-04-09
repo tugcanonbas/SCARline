@@ -66,8 +66,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
 parts/
 sdist/
 var/
@@ -198,6 +196,22 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+### Node / Monorepo ###
+node_modules/
+.pnpm-store/
+.turbo/
+.svelte-kit/
+.vite/
+coverage/
+dist/
+build/
+*.tsbuildinfo
+
+### SCARline runtime ###
+.scarline.yaml
+.scarline-runtime/
+exports/
+
 # pytype static type analyzer
 .pytype/
 
@@ -220,5 +234,14 @@ poetry.toml
 
 # LSP config files
 pyrightconfig.json
+
+# Python dependency/vendor library folders (scoped to python tree only)
+python/**/lib/
+python/**/lib64/
+python/**/site-packages/
+
+# Keep SvelteKit source libraries tracked
+!apps/**/src/lib/
+!apps/**/src/lib/**
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,linux,python

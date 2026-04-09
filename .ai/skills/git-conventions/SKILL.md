@@ -1,5 +1,5 @@
 ---
-name: "Git & Conventional Commits"
+name: "git-conventions"
 description: "Rules for committing code to the repository using the Conventional Commits specification."
 license: "Apache-2.0"
 ---

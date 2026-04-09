@@ -1,0 +1,14 @@
+{
+  "name": "@scarline/desktop-overlay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/main.mjs",
+  "scripts": {
+    "dev": "electron .",
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^35.1.4"
+  }
+}

@@ -1,0 +1,348 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_FILE="${SCARLINE_CONFIG:-${ROOT_DIR}/.scarline.yaml}"
+RUNTIME_DIR="${ROOT_DIR}/.scarline-runtime"
+PID_DIR="${RUNTIME_DIR}/pids"
+LOG_DIR="${RUNTIME_DIR}/logs"
+SOCKET_PATH="/tmp/scarline.sock"
+
+mkdir -p "${PID_DIR}" "${LOG_DIR}"
+
+parse_yaml() {
+  local file="$1"
+  local prefix="$2"
+  local s='[[:space:]]*'
+  local w='[a-zA-Z0-9_]*'
+  local fs
+  fs="$(printf '\034')"
+  sed -ne "s|^\($s\)\($w\)$s:$s[\"']\(.*\)[\"']$s\$|\1$fs\2$fs\3|p" \
+      -e "s|^\($s\)\($w\)$s:$s\(.*\)$s\$|\1$fs\2$fs\3|p" "$file" |
+  awk -F"$fs" '{
+    indent = length($1) / 2;
+    key[indent] = $2;
+    for (i in key) {
+      if (i > indent) {
+        delete key[i];
+      }
+    }
+    if (length($3) > 0) {
+      path = "";
+      for (i = 0; i < indent; i++) {
+        path = path key[i] "_";
+      }
+      gsub(/\\/, "\\\\", $3);
+      gsub(/"/, "\\\"", $3);
+      gsub(/\$/, "\\$", $3);
+      gsub(/`/, "\\`", $3);
+      printf("%s%s%s=\"%s\"\n", "'"${prefix}"'", path, $2, $3);
+    }
+  }'
+}
+
+load_config() {
+  if [[ -f "${CONFIG_FILE}" ]]; then
+    eval "$(parse_yaml "${CONFIG_FILE}" "SCARLINE_")"
+  else
+    eval "$(parse_yaml "${ROOT_DIR}/.scarline.yaml.example" "SCARLINE_")"
+  fi
+
+  export SCARLINE_PORT="${SCARLINE_platform_port:-8088}"
+  export SCARLINE_ENV="${SCARLINE_platform_env:-production}"
+  export SCARLINE_DATA_DIR="${SCARLINE_platform_data_directory:-${RUNTIME_DIR}}"
+  export POSTGRES_DB="scarline"
+  export POSTGRES_USER="scarline"
+  export POSTGRES_PASSWORD="${SCARLINE_database_password:-scarline}"
+  export RABBITMQ_USER="${SCARLINE_rabbitmq_user:-scarline}"
+  export RABBITMQ_PASSWORD="${SCARLINE_rabbitmq_password:-scarline}"
+  export CARLA_SERVER_PORT="${SCARLINE_carla_server_port:-2000}"
+  export CARLA_SERVER_PATH="${SCARLINE_carla_server_path:-}"
+  export OVERLAY_TRANSPARENT_ENABLED="${SCARLINE_overlay_transparent_enabled:-true}"
+}
+
+compose_files() {
+  local files=(-f "${ROOT_DIR}/docker-compose.yml")
+  if [[ "${DEV_MODE:-false}" == "true" ]]; then
+    files+=(-f "${ROOT_DIR}/docker-compose.dev.yml")
+  fi
+  if [[ "${WIDGET_TEST_MODE:-false}" == "true" ]]; then
+    files+=(-f "${ROOT_DIR}/docker-compose.widget-test.yml")
+  fi
+  printf '%s\n' "${files[@]}"
+}
+
+compose() {
+  local files=()
+  local previous_ifs="${IFS}"
+  IFS=$'\n'
+  files=($(compose_files))
+  IFS="${previous_ifs}"
+
+  docker compose "${files[@]}" "$@"
+}
+
+require_cmd() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "Missing required command: $1" >&2
+    exit 1
+  fi
+}
+
+validate_prerequisites() {
+  require_cmd docker
+  require_cmd awk
+  require_cmd sed
+
+  if [[ "${NO_CARLA:-false}" == "true" ]]; then
+    return 0
+  fi
+
+  if [[ -n "${CARLA_SERVER_PATH}" && ! -e "${CARLA_SERVER_PATH}" ]]; then
+    echo "Configured CARLA path does not exist: ${CARLA_SERVER_PATH}" >&2
+    exit 1
+  fi
+}
+
+start_carla() {
+  if [[ "${NO_CARLA:-false}" == "true" ]]; then
+    return 0
+  fi
+
+  if [[ -z "${CARLA_SERVER_PATH}" || ! -e "${CARLA_SERVER_PATH}" ]]; then
+    echo "CARLA server path not configured; skipping CARLA startup" >&2
+    return 0
+  fi
+
+  if [[ -f "${PID_DIR}/carla.pid" ]] && kill -0 "$(cat "${PID_DIR}/carla.pid")" 2>/dev/null; then
+    return 0
+  fi
+
+  echo "Starting CARLA Server"
+  nohup "${CARLA_SERVER_PATH}" -carla-rpc-port="${CARLA_SERVER_PORT}" -quality-level="${SCARLINE_carla_quality:-Epic}" \
+    > "${LOG_DIR}/carla.log" 2>&1 &
+  echo $! > "${PID_DIR}/carla.pid"
+}
+
+stop_carla() {
+  if [[ -f "${PID_DIR}/carla.pid" ]]; then
+    local pid
+    pid="$(cat "${PID_DIR}/carla.pid")"
+    if kill -0 "${pid}" 2>/dev/null; then
+      kill "${pid}" || true
+      sleep 2
+      kill -9 "${pid}" 2>/dev/null || true
+    fi
+    rm -f "${PID_DIR}/carla.pid"
+  fi
+}
+
+start_overlay_desktop() {
+  if [[ "${NO_OVERLAY:-false}" == "true" || "${OVERLAY_TRANSPARENT_ENABLED}" != "true" ]]; then
+    return 0
+  fi
+
+  if ! command -v pnpm >/dev/null 2>&1; then
+    echo "pnpm not installed; skipping transparent overlay launch" >&2
+    return 0
+  fi
+
+  if [[ -f "${PID_DIR}/overlay.pid" ]] && kill -0 "$(cat "${PID_DIR}/overlay.pid")" 2>/dev/null; then
+    return 0
+  fi
+
+  echo "Starting desktop overlay shell"
+  nohup pnpm --dir "${ROOT_DIR}/apps/desktop-overlay" dev > "${LOG_DIR}/overlay-desktop.log" 2>&1 &
+  echo $! > "${PID_DIR}/overlay.pid"
+}
+
+stop_overlay_desktop() {
+  if [[ -f "${PID_DIR}/overlay.pid" ]]; then
+    local pid
+    pid="$(cat "${PID_DIR}/overlay.pid")"
+    kill "${pid}" 2>/dev/null || true
+    rm -f "${PID_DIR}/overlay.pid"
+  fi
+}
+
+start_ipc_server() {
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "python3 not installed; skipping process manager IPC server" >&2
+    return 0
+  fi
+
+  if [[ -f "${PID_DIR}/ipc.pid" ]] && kill -0 "$(cat "${PID_DIR}/ipc.pid")" 2>/dev/null; then
+    return 0
+  fi
+
+  nohup python3 "${ROOT_DIR}/infra/process-manager/ipc_server.py" "${SOCKET_PATH}" "${RUNTIME_DIR}" \
+    > "${LOG_DIR}/process-manager-ipc.log" 2>&1 &
+  echo $! > "${PID_DIR}/ipc.pid"
+}
+
+open_admin_ui() {
+  if [[ "${NO_BROWSER:-false}" == "true" ]]; then
+    return 0
+  fi
+
+  local url="http://localhost:${SCARLINE_PORT}"
+
+  case "$(uname -s)" in
+    Darwin)
+      if command -v open >/dev/null 2>&1; then
+        open "${url}" >/dev/null 2>&1 || true
+      fi
+      ;;
+    Linux)
+      if command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "${url}" >/dev/null 2>&1 || true
+      fi
+      ;;
+  esac
+}
+
+stop_ipc_server() {
+  if [[ -f "${PID_DIR}/ipc.pid" ]]; then
+    local pid
+    pid="$(cat "${PID_DIR}/ipc.pid")"
+    kill "${pid}" 2>/dev/null || true
+    rm -f "${PID_DIR}/ipc.pid"
+  fi
+  rm -f "${SOCKET_PATH}"
+}
+
+wait_for_health() {
+  local attempts=0
+  local max_attempts=24
+  while (( attempts < max_attempts )); do
+    if compose ps --format json >/dev/null 2>&1; then
+      return 0
+    fi
+    attempts=$((attempts + 1))
+    sleep 5
+  done
+
+  echo "Timed out waiting for docker compose services" >&2
+  return 1
+}
+
+notify_core_api() {
+  local path="$1"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsS -X POST "http://127.0.0.1:${SCARLINE_PORT}/api/system/${path}" >/dev/null 2>&1 || true
+  fi
+}
+
+start_stack() {
+  validate_prerequisites
+  compose up --build -d postgres rabbitmq schema-bootstrap
+  wait_for_health
+  compose up --build -d core-api sim-bridge admin-panel overlay-web docs io-client nginx
+  if [[ "${NO_CARLA:-false}" == "true" ]]; then
+    compose up --build -d mock-simulator
+  else
+    compose up --build -d mock-simulator carla-client
+  fi
+  start_carla
+  start_overlay_desktop
+  start_ipc_server
+  notify_core_api "ready"
+  open_admin_ui
+  echo "SCARline started on http://localhost:${SCARLINE_PORT}"
+}
+
+stop_stack() {
+  notify_core_api "shutdown"
+  stop_ipc_server
+  stop_overlay_desktop
+  stop_carla
+  compose down
+}
+
+show_status() {
+  compose ps || true
+  if [[ -f "${PID_DIR}/carla.pid" ]]; then
+    echo "carla-server: host pid $(cat "${PID_DIR}/carla.pid")"
+  fi
+  if [[ -f "${PID_DIR}/overlay.pid" ]]; then
+    echo "overlay-desktop: host pid $(cat "${PID_DIR}/overlay.pid")"
+  fi
+}
+
+show_logs() {
+  local component="${1:-}"
+  if [[ -n "${component}" ]]; then
+    compose logs -f "${component}"
+  else
+    compose logs -f
+  fi
+}
+
+reset_db() {
+  compose run --rm \
+    -e POSTGRES_HOST=postgres \
+    -e POSTGRES_PORT=5432 \
+    -e POSTGRES_DB="${POSTGRES_DB}" \
+    -e POSTGRES_USER="${POSTGRES_USER}" \
+    -e POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
+    schema-bootstrap /bin/sh /workspace/infra/database/scripts/reset_dev.sh
+}
+
+main() {
+  if [[ $# -lt 1 ]]; then
+    echo "Usage: ./scarline <start|stop|restart|status|logs|reset-db> [options]" >&2
+    exit 1
+  fi
+
+  load_config
+
+  local cmd="$1"
+  shift || true
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dev)
+        DEV_MODE="true"
+        SCARLINE_ENV="development"
+        ;;
+      --no-carla)
+        NO_CARLA="true"
+        ;;
+      --no-overlay)
+        NO_OVERLAY="true"
+        ;;
+      --widget-test)
+        WIDGET_TEST_MODE="true"
+        ;;
+    esac
+    shift || true
+  done
+
+  case "${cmd}" in
+    start)
+      start_stack
+      ;;
+    stop)
+      stop_stack
+      ;;
+    restart)
+      stop_stack || true
+      start_stack
+      ;;
+    status)
+      show_status
+      ;;
+    logs)
+      show_logs "${1:-}"
+      ;;
+    reset-db)
+      reset_db
+      ;;
+    *)
+      echo "Unknown command: ${cmd}" >&2
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"

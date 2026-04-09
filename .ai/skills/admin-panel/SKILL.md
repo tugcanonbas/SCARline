@@ -1,5 +1,5 @@
 ---
-name: "Admin Panel Developer"
+name: "admin-panel"
 description: "Guidelines and strict rules for developing the SvelteKit-based SCARline Admin Panel."
 license: "Apache-2.0"
 ---
@@ -34,8 +34,8 @@ SCARline aims for a highly professional, clinical, yet dynamic UI suitable for a
 The UI must restrict access depending on the logged-in JWT role:
 
 - **Researcher**: Full access to design studies, edit configs, view analysis.
-- **Lab Admin**: Full access + System configurations (Simulator Paths, API Keys).
+- **Admin**: Full access + System configurations (Simulator Paths, API Keys).
 - **Study Operator**: Restricted to viewing active studies and running the "Active Study Controls" dashboard (Triggering widgets). Cannot edit designs.
-- **Student**: View-only mode for historical data and study designs.
+- **Viewer**: View-only mode for historical data and study designs.
 
 *Rule: Check permissions in SvelteKit `+page.server.ts` loaders before rendering sensitive pages.*

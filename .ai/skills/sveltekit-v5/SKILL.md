@@ -1,5 +1,5 @@
 ---
-name: "Svelte 5 & SvelteKit Developer"
+name: "sveltekit-v5"
 description: "Rules for modern Svelte 5 development using Runes and SvelteKit patterns."
 license: "Apache-2.0"
 ---

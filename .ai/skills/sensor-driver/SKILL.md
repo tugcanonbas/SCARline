@@ -1,5 +1,5 @@
 ---
-name: "I/O Sensor Driver Developer"
+name: "sensor-driver"
 description: "Guidelines and rules for writing Python integrations connecting physical hardware to SCARline."
 license: "Apache-2.0"
 ---

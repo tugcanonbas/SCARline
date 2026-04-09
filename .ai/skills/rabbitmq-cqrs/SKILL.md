@@ -1,5 +1,5 @@
 ---
-name: "RabbitMQ CQRS Architect"
+name: "rabbitmq-cqrs"
 description: "Rules for defining, routing, and processing messages using RabbitMQ and CQRS in SCARline."
 license: "Apache-2.0"
 ---
@@ -13,32 +13,37 @@ When generating, modifying, or reviewing inter-service communication or message 
 - **No Direct Component Calls**: Services must never use HTTP REST to command another service to change state (except Process Manager OS-level scripts). All state changes must flow through RabbitMQ.
 - **Separation of Concerns**: Differentiate strictly between **Commands** (asking for an action) and **Events** (declaring an action occurred).
 
-## 2. Topic Exchange Exclusively
+## 2. Topic Exchanges
 
-All messages are published to a single `topic` exchange named `scarline.exchange`. Direct or Fanout exchanges are not used.
+SCARline uses dedicated durable exchanges for commands and events:
+
+- Commands: `scarline.commands`
+- Events: `scarline.events`
+- Dead letters: `scarline.dlx`
+
+Backend services integrate with each other through RabbitMQ only. Frontend clients connect to CoreAPI over WebSocket and never consume RabbitMQ directly.
 
 ## 3. Routing Key Schema
 
 You must structure routing keys according to this strict pattern:
 
 ### Commands (Imperative)
-Format: `{system}.{target}.{action}`
+Format: `commands.{target}.{action}`
 
-- `{system}`: Usually `study` or `system`.
 - `{target}`: The component/domain being addressed (e.g., `session`, `simulator`, `widget`).
 - `{action}`: The imperative verb (e.g., `start`, `stop`, `highlight`).
 
-**Examples**: `study.session.start`, `system.simulator.spawn_vehicle`.
+**Examples**: `commands.session.start`, `commands.simulator.spawn-vehicle`.
 
 ### Events (Declarative)
-Format: `events.{system}.{domain}.{action}`
+Format: `events.{studyId}.{runId}.{modality}.{eventType}`
 
-- Always prefixed with `events.`.
-- `{system}`: Usually `study` or `system`.
-- `{domain}`: The domain the event originated from (e.g., `telemetry`, `sensor`, `ui`).
-- `{action}`: Past-tense verb or state change identifier.
+- `studyId`: A study UUID or `system`
+- `runId`: A session UUID or `global`
+- `modality`: Domain grouping such as `driving`, `health`, `study`, or `system`
+- `eventType`: Specific event type such as `vehicle.telemetry` or `session.started`
 
-**Examples**: `events.study.telemetry.vehicle_update`, `events.study.session.started`.
+**Examples**: `events.system.global.system.component.status`, `events.550e8400.6ba7b810.driving.vehicle.telemetry`.
 
 ## 4. Universal Message Envelope
 
@@ -49,7 +54,7 @@ All JSON payloads sent to RabbitMQ must match this exact envelope structure:
   "id": "uuid-v4",
   "timestamp": "ISO-8601 string",
   "routingKey": "The exact routing key used for publishing",
-  "producer": "carla-client | coreapi | admin-panel | io-client",
+  "producer": "carla-client | core-api | sim-bridge | io-client",
   "payload": {
     // Dynamic data specific to the message
   },

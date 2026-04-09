@@ -1,0 +1,36 @@
+{
+  "id": "speedometer",
+  "name": "Speedometer",
+  "description": "Displays vehicle speed and highlights when triggered.",
+  "version": "1.0.0",
+  "category": "driving",
+  "entry": "index.html",
+  "bindings": [
+    {
+      "key": "vehicle.speed",
+      "type": "number",
+      "label": "Vehicle Speed",
+      "unit": "km/h",
+      "description": "Current vehicle speed."
+    },
+    {
+      "key": "vehicle.speedLimit",
+      "type": "number",
+      "label": "Speed Limit",
+      "unit": "km/h",
+      "description": "Current road speed limit."
+    }
+  ],
+  "triggers": [
+    {
+      "action": "highlight",
+      "description": "Highlights the current speed readout."
+    }
+  ],
+  "ui": {
+    "minWidth": 240,
+    "minHeight": 240,
+    "preferredWidth": 320,
+    "preferredHeight": 320
+  }
+}
