@@ -9,6 +9,8 @@ export function createRealtimeStore() {
   const telemetry = writable<TelemetryPayload>({});
   const events = writable<EventPayload[]>([]);
   const widgets = writable<WidgetPayload[]>([]);
+  const systemHealth = writable<Record<string, unknown>[]>([]);
+  const sensorStatus = writable<Record<string, unknown>[]>([]);
   const socketState = writable<SocketState>('idle');
 
   let socket: WebSocket | null = null;
@@ -39,6 +41,10 @@ export function createRealtimeStore() {
         pushMessage(events, message.data);
       } else if (message.channel === 'widget.updates') {
         pushMessage(widgets, message.data);
+      } else if (message.channel === 'system.health') {
+        pushMessage(systemHealth, message.data);
+      } else if (message.channel === 'sensor.status') {
+        pushMessage(sensorStatus, message.data);
       }
     };
 
@@ -58,6 +64,8 @@ export function createRealtimeStore() {
     telemetry,
     events,
     widgets,
+    systemHealth,
+    sensorStatus,
     socketState,
     connect,
     disconnect

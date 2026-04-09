@@ -31,10 +31,13 @@ test('scarline launcher advertises required commands and IPC socket', async () =
   assert.match(script, /open_admin_ui/);
 });
 
-test('nginx root redirect preserves the incoming host and port', async () => {
+test('nginx exposes PRD-aligned single-domain routing', async () => {
   const config = await readFile(path.join(root, 'infra/nginx/default.conf'), 'utf8');
   assert.match(config, /absolute_redirect off;/);
-  assert.match(config, /return 302 \/dashboard;/);
+  assert.match(config, /return 302 \/admin\/dashboard;/);
+  assert.match(config, /location \/admin\//);
+  assert.match(config, /location \/docs\//);
+  assert.match(config, /location \/overlay\//);
 });
 
 test('scarline preserves CARLA paths and skips CARLA validation in --no-carla mode', async () => {

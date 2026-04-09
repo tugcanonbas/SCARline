@@ -96,6 +96,72 @@ async function scanWidgetsDir(config: CoreApiConfig): Promise<string[]> {
   }
 }
 
+function toCommandFailure(error: unknown): {
+  status: number;
+  code: string;
+  message: string;
+} {
+  if (error instanceof Error) {
+    if (error.message.startsWith('NOT_FOUND:')) {
+      return {
+        status: 404,
+        code: 'NOT_FOUND',
+        message: error.message.slice('NOT_FOUND:'.length).trim()
+      };
+    }
+
+    if (error.message.startsWith('CONFLICT:')) {
+      return {
+        status: 409,
+        code: 'STATE_CONFLICT',
+        message: error.message.slice('CONFLICT:'.length).trim()
+      };
+    }
+
+    return {
+      status: 500,
+      code: 'COMMAND_FAILED',
+      message: error.message
+    };
+  }
+
+  return {
+    status: 500,
+    code: 'COMMAND_FAILED',
+    message: 'Command handling failed'
+  };
+}
+
+async function runCommand<T>(
+  reply: FastifyReply,
+  fn: () => Promise<T>
+): Promise<{
+  success: boolean;
+  data: T | null;
+  error: { code: string; message: string; details: Record<string, unknown> } | null;
+}> {
+  try {
+    const data = await fn();
+    return {
+      success: true,
+      data,
+      error: null
+    };
+  } catch (error) {
+    const failure = toCommandFailure(error);
+    reply.code(failure.status);
+    return {
+      success: false,
+      data: null,
+      error: {
+        code: failure.code,
+        message: failure.message,
+        details: {}
+      }
+    };
+  }
+}
+
 export async function registerApi(app: FastifyInstance, deps: Dependencies): Promise<void> {
   const { config, pool, rabbit, wsHub, components } = deps;
 
@@ -732,47 +798,42 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     return { success: true, data: row, error: null };
   });
 
-  app.post('/api/studies/:studyId/sessions/:id/start', async (request) => {
+  app.post('/api/studies/:studyId/sessions/:id/start', async (request, reply) => {
     const params = z.object({ studyId: z.string().uuid(), id: z.string().uuid() }).parse(request.params);
-    const data = await rabbit.publishAndWait(makeCommandRoutingKey('session', 'start'), {
+    return runCommand(reply, () => rabbit.publishAndWait(makeCommandRoutingKey('session', 'start'), {
       sessionId: params.id,
       studyId: params.studyId
-    }, { studyId: params.studyId, runId: params.id });
-    return { success: true, data, error: null };
+    }, { studyId: params.studyId, runId: params.id }));
   });
 
-  app.post('/api/studies/:studyId/sessions/:id/pause', async (request) => {
+  app.post('/api/studies/:studyId/sessions/:id/pause', async (request, reply) => {
     const params = z.object({ studyId: z.string().uuid(), id: z.string().uuid() }).parse(request.params);
-    const data = await rabbit.publishAndWait(makeCommandRoutingKey('session', 'pause'), {
+    return runCommand(reply, () => rabbit.publishAndWait(makeCommandRoutingKey('session', 'pause'), {
       sessionId: params.id
-    }, { studyId: params.studyId, runId: params.id });
-    return { success: true, data, error: null };
+    }, { studyId: params.studyId, runId: params.id }));
   });
 
-  app.post('/api/studies/:studyId/sessions/:id/resume', async (request) => {
+  app.post('/api/studies/:studyId/sessions/:id/resume', async (request, reply) => {
     const params = z.object({ studyId: z.string().uuid(), id: z.string().uuid() }).parse(request.params);
-    const data = await rabbit.publishAndWait(makeCommandRoutingKey('session', 'resume'), {
+    return runCommand(reply, () => rabbit.publishAndWait(makeCommandRoutingKey('session', 'resume'), {
       sessionId: params.id
-    }, { studyId: params.studyId, runId: params.id });
-    return { success: true, data, error: null };
+    }, { studyId: params.studyId, runId: params.id }));
   });
 
-  app.post('/api/studies/:studyId/sessions/:id/complete', async (request) => {
+  app.post('/api/studies/:studyId/sessions/:id/complete', async (request, reply) => {
     const params = z.object({ studyId: z.string().uuid(), id: z.string().uuid() }).parse(request.params);
-    const data = await rabbit.publishAndWait(makeCommandRoutingKey('session', 'complete'), {
+    return runCommand(reply, () => rabbit.publishAndWait(makeCommandRoutingKey('session', 'complete'), {
       sessionId: params.id
-    }, { studyId: params.studyId, runId: params.id });
-    return { success: true, data, error: null };
+    }, { studyId: params.studyId, runId: params.id }));
   });
 
-  app.post('/api/studies/:studyId/sessions/:id/cancel', async (request) => {
+  app.post('/api/studies/:studyId/sessions/:id/cancel', async (request, reply) => {
     const params = z.object({ studyId: z.string().uuid(), id: z.string().uuid() }).parse(request.params);
     const payload = z.object({ reason: z.string().optional() }).parse(request.body ?? {});
-    const data = await rabbit.publishAndWait(makeCommandRoutingKey('session', 'cancel'), {
+    return runCommand(reply, () => rabbit.publishAndWait(makeCommandRoutingKey('session', 'cancel'), {
       sessionId: params.id,
       reason: payload.reason
-    }, { studyId: params.studyId, runId: params.id });
-    return { success: true, data, error: null };
+    }, { studyId: params.studyId, runId: params.id }));
   });
 
   app.get('/api/studies/:studyId/carla-config', async (request) => {

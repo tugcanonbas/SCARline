@@ -17,10 +17,27 @@ interface EventContext {
 
 export async function handleEvent(message: RabbitMessage, context: EventContext): Promise<void> {
   const { pool, rabbit, wsHub, components } = context;
-  const [prefix, studyId, runId, modality, eventType] = message.routingKey.split('.');
+  const [prefix, studyId, runId, modality, ...eventParts] = message.routingKey.split('.');
+  const eventType = eventParts.join('.');
 
   if (prefix !== 'events') {
     return;
+  }
+
+  if (modality === 'system' && eventType === 'simulator.command.failed') {
+    const code = typeof message.payload.code === 'string' ? message.payload.code : 'COMMAND_FAILED';
+    const failureMessage = typeof message.payload.message === 'string'
+      ? message.payload.message
+      : 'Simulator command failed';
+    rabbit.rejectPending(message.metadata.correlationId, new Error(`${code}:${failureMessage}`));
+  } else if (
+    modality === 'system'
+    && ['simulator.bound', 'simulator.paused', 'simulator.resumed', 'simulator.unbound', 'simulator.command.completed'].includes(eventType)
+  ) {
+    rabbit.resolvePending(message.metadata.correlationId, {
+      ok: true,
+      ...message.payload
+    });
   }
 
   if (studyId !== 'system' && runId !== 'global') {

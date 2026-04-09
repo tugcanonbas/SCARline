@@ -19,4 +19,15 @@ test('sim-bridge exposes adapter websocket and simulator command consumption', a
   assert.match(source, /\/adapter/);
   assert.match(source, /RABBITMQ_QUEUES\.simBridgeCommands/);
   assert.match(source, /commands\.simulator\./);
+  assert.match(source, /simulator\.bound/);
+  assert.match(source, /simulator\.command\.failed/);
+});
+
+test('core command handler waits for simulator lifecycle acknowledgements', async () => {
+  const source = await readFile(path.join(root, 'services/core-api/src/lib/commands.ts'), 'utf8');
+  assert.match(source, /publishSimulatorCommand/);
+  assert.match(source, /'bind-session'/);
+  assert.match(source, /'pause-session'/);
+  assert.match(source, /'resume-session'/);
+  assert.match(source, /'unbind-session'/);
 });

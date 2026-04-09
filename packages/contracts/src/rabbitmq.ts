@@ -37,6 +37,10 @@ export const eventRoutingKeySchema = z.string().regex(/^events\.[^.]+\.[^.]+\.[^
 export const commandRoutingKeySchema = z.string().regex(/^commands\.[^.]+\.[^.]+$/);
 
 export const simulatorCommandActionSchema = z.enum([
+  'bind-session',
+  'unbind-session',
+  'pause-session',
+  'resume-session',
   'load-map',
   'set-weather',
   'spawn-vehicle',

@@ -12,6 +12,30 @@ interface CommandContext {
   wsHub: WebSocketHub;
 }
 
+interface SessionRow {
+  id: string;
+  study_id: string;
+  participant_id: string | null;
+  condition_id: string | null;
+  status: string;
+  started_at: Date | null;
+}
+
+interface CarlaConfigurationRow {
+  map: string;
+  weather_preset: string | null;
+  weather_custom: Record<string, unknown>;
+  ego_vehicle_blueprint: string;
+  simulation_mode: string;
+  fixed_delta_seconds: number;
+  sensors: unknown[];
+  traffic_config: Record<string, unknown>;
+}
+
+interface SensorConfigurationRow {
+  sensors: unknown[];
+}
+
 async function publishEvent(
   rabbit: RabbitManager,
   routingKey: string,
@@ -35,6 +59,119 @@ async function publishEvent(
   await rabbit.publish(RABBITMQ_EXCHANGES.events, routingKey, message);
 }
 
+async function publishCommand(
+  rabbit: RabbitManager,
+  routingKey: string,
+  payload: Record<string, unknown>,
+  metadata: { studyId?: string; runId?: string } = {}
+): Promise<void> {
+  await rabbit.publish(RABBITMQ_EXCHANGES.commands, routingKey, {
+    id: randomUUID(),
+    timestamp: new Date().toISOString(),
+    routingKey,
+    producer: 'core-api',
+    type: 'command',
+    payload,
+    metadata: {
+      studyId: metadata.studyId ?? null,
+      runId: metadata.runId ?? null,
+      correlationId: null
+    }
+  });
+}
+
+async function publishSimulatorCommand(
+  rabbit: RabbitManager,
+  action: string,
+  payload: Record<string, unknown>,
+  metadata: { studyId?: string; runId?: string } = {}
+): Promise<Record<string, unknown>> {
+  return rabbit.publishAndWait(makeCommandRoutingKey('simulator', action), payload, metadata);
+}
+
+function commandFailure(code: 'NOT_FOUND' | 'CONFLICT', message: string): Error {
+  return new Error(`${code}:${message}`);
+}
+
+function assertTransition(action: string, currentStatus: string): void {
+  const rules: Record<string, string[]> = {
+    start: ['created'],
+    pause: ['running'],
+    resume: ['paused'],
+    complete: ['running'],
+    cancel: ['running', 'paused']
+  };
+
+  const allowed = rules[action];
+  if (!allowed?.includes(currentStatus)) {
+    throw commandFailure('CONFLICT', `Session must be ${allowed?.join(' or ') ?? 'valid'} to ${action}`);
+  }
+}
+
+async function loadSession(pool: Pool, sessionId: string): Promise<SessionRow> {
+  const session = await pool.query<SessionRow>(
+    `SELECT id, study_id, participant_id, condition_id, status, started_at
+     FROM sessions
+     WHERE id = $1`,
+    [sessionId]
+  );
+
+  if (session.rowCount !== 1) {
+    throw commandFailure('NOT_FOUND', 'Session not found');
+  }
+
+  return session.rows[0];
+}
+
+async function loadStudyRuntimeConfig(pool: Pool, studyId: string): Promise<{
+  carla: CarlaConfigurationRow | null;
+  sensors: SensorConfigurationRow | null;
+  layoutId: string | null;
+}> {
+  const [carlaConfig, sensorConfig, layout] = await Promise.all([
+    pool.query<CarlaConfigurationRow>(
+      `SELECT map, weather_preset, weather_custom, ego_vehicle_blueprint, simulation_mode, fixed_delta_seconds, sensors, traffic_config
+       FROM carla_configurations
+       WHERE study_id = $1`,
+      [studyId]
+    ),
+    pool.query<SensorConfigurationRow>(
+      `SELECT sensors
+       FROM sensor_configurations
+       WHERE study_id = $1`,
+      [studyId]
+    ),
+    pool.query<{ id: string }>(
+      `SELECT id
+       FROM view_layouts
+       WHERE study_id = $1 AND type = 'participant'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [studyId]
+    )
+  ]);
+
+  return {
+    carla: carlaConfig.rows[0] ?? null,
+    sensors: sensorConfig.rows[0] ?? null,
+    layoutId: layout.rows[0]?.id ?? null
+  };
+}
+
+async function updateRuntimeMetadata(
+  pool: Pool,
+  sessionId: string,
+  patch: Record<string, unknown>
+): Promise<void> {
+  await pool.query(
+    `UPDATE sessions
+     SET runtime_metadata = COALESCE(runtime_metadata, '{}'::jsonb) || $2::jsonb,
+         updated_at = NOW()
+     WHERE id = $1`,
+    [sessionId, JSON.stringify(patch)]
+  );
+}
+
 export async function handleCoreCommand(message: RabbitMessage, context: CommandContext): Promise<void> {
   const { logger, pool, rabbit } = context;
   const correlationId = message.metadata.correlationId;
@@ -42,201 +179,213 @@ export async function handleCoreCommand(message: RabbitMessage, context: Command
   try {
     switch (message.routingKey) {
       case 'commands.session.start': {
-        const session = await pool.query<{
-          id: string;
-          study_id: string;
-          condition_id: string | null;
-          status: string;
-        }>(
-          `SELECT id, study_id, condition_id, status
-           FROM sessions
-           WHERE id = $1`,
-          [message.payload.sessionId]
-        );
+        const session = await loadSession(pool, String(message.payload.sessionId));
+        assertTransition('start', session.status);
 
-        if (session.rowCount !== 1) {
-          throw new Error('Session not found');
-        }
-        if (session.rows[0].status !== 'created') {
-          throw new Error('Session must be in created state');
-        }
-
-        const carlaConfig = await pool.query<{ map: string; weather_preset: string | null; weather_custom: Record<string, unknown>; ego_vehicle_blueprint: string; sensors: unknown[]; traffic_config: Record<string, unknown>; recording_config: Record<string, unknown> }>(
-          `SELECT map, weather_preset, weather_custom, ego_vehicle_blueprint, sensors, traffic_config, recording_config
-           FROM carla_configurations
-           WHERE study_id = $1`,
-          [session.rows[0].study_id]
-        );
-        const sensorConfig = await pool.query<{ sensors: unknown[] }>(
-          `SELECT sensors FROM sensor_configurations WHERE study_id = $1`,
-          [session.rows[0].study_id]
-        );
-
-        const config = carlaConfig.rows[0];
-        if (config) {
-          await rabbit.publish(RABBITMQ_EXCHANGES.commands, makeCommandRoutingKey('simulator', 'load-map'), {
-            id: randomUUID(),
-            timestamp: new Date().toISOString(),
-            routingKey: makeCommandRoutingKey('simulator', 'load-map'),
-            producer: 'core-api',
-            type: 'command',
-            payload: {
-              mapName: config.map,
-              resetSettings: true
-            },
-            metadata: {
-              studyId: session.rows[0].study_id,
-              runId: session.rows[0].id,
-              correlationId: null
-            }
-          });
-
-          await rabbit.publish(RABBITMQ_EXCHANGES.commands, makeCommandRoutingKey('simulator', 'set-weather'), {
-            id: randomUUID(),
-            timestamp: new Date().toISOString(),
-            routingKey: makeCommandRoutingKey('simulator', 'set-weather'),
-            producer: 'core-api',
-            type: 'command',
-            payload: {
-              preset: config.weather_preset,
-              custom: config.weather_custom
-            },
-            metadata: {
-              studyId: session.rows[0].study_id,
-              runId: session.rows[0].id,
-              correlationId: null
-            }
-          });
-
-          await rabbit.publish(RABBITMQ_EXCHANGES.commands, makeCommandRoutingKey('simulator', 'spawn-vehicle'), {
-            id: randomUUID(),
-            timestamp: new Date().toISOString(),
-            routingKey: makeCommandRoutingKey('simulator', 'spawn-vehicle'),
-            producer: 'core-api',
-            type: 'command',
-            payload: {
-              blueprint: config.ego_vehicle_blueprint,
-              roleName: 'hero',
-              autoPilot: false
-            },
-            metadata: {
-              studyId: session.rows[0].study_id,
-              runId: session.rows[0].id,
-              correlationId: null
-            }
-          });
-
-          await rabbit.publish(RABBITMQ_EXCHANGES.commands, makeCommandRoutingKey('simulator', 'configure-sensors'), {
-            id: randomUUID(),
-            timestamp: new Date().toISOString(),
-            routingKey: makeCommandRoutingKey('simulator', 'configure-sensors'),
-            producer: 'core-api',
-            type: 'command',
-            payload: {
-              sensors: config.sensors
-            },
-            metadata: {
-              studyId: session.rows[0].study_id,
-              runId: session.rows[0].id,
-              correlationId: null
-            }
-          });
-
-          await rabbit.publish(RABBITMQ_EXCHANGES.commands, makeCommandRoutingKey('simulator', 'set-traffic'), {
-            id: randomUUID(),
-            timestamp: new Date().toISOString(),
-            routingKey: makeCommandRoutingKey('simulator', 'set-traffic'),
-            producer: 'core-api',
-            type: 'command',
-            payload: config.traffic_config,
-            metadata: {
-              studyId: session.rows[0].study_id,
-              runId: session.rows[0].id,
-              correlationId: null
-            }
-          });
-        }
-
-        await rabbit.publish(RABBITMQ_EXCHANGES.commands, makeCommandRoutingKey('io', 'start-session'), {
-          id: randomUUID(),
-          timestamp: new Date().toISOString(),
-          routingKey: makeCommandRoutingKey('io', 'start-session'),
-          producer: 'core-api',
-          type: 'command',
-          payload: {
-            sessionId: session.rows[0].id,
-            studyId: session.rows[0].study_id,
-            sensors: sensorConfig.rows[0]?.sensors ?? []
-          },
-          metadata: {
-            studyId: session.rows[0].study_id,
-            runId: session.rows[0].id,
-            correlationId: null
+        const runtimeConfig = await loadStudyRuntimeConfig(pool, session.study_id);
+        const startedAt = new Date().toISOString();
+        const cleanupBinding = async () => {
+          try {
+            await publishCommand(
+              rabbit,
+              makeCommandRoutingKey('simulator', 'unbind-session'),
+              {
+                sessionId: session.id,
+                cleanup: true
+              },
+              { studyId: session.study_id, runId: session.id }
+            );
+          } catch (cleanupError) {
+            logger.warn({ err: cleanupError, sessionId: session.id }, 'failed to release simulator binding after start failure');
           }
-        });
+        };
 
-        await pool.query(
-          `UPDATE sessions
-           SET status = 'running', started_at = COALESCE(started_at, NOW()), paused_at = NULL, updated_at = NOW()
-           WHERE id = $1`,
-          [session.rows[0].id]
-        );
+        try {
+          const simulator = await publishSimulatorCommand(
+            rabbit,
+            'bind-session',
+            {
+              sessionId: session.id,
+              studyId: session.study_id,
+              participantId: session.participant_id,
+              conditionId: session.condition_id,
+              config: {
+                map: runtimeConfig.carla?.map ?? 'MockTown01',
+                weather: {
+                  preset: runtimeConfig.carla?.weather_preset ?? 'ClearNoon',
+                  custom: runtimeConfig.carla?.weather_custom ?? {}
+                },
+                egoVehicle: {
+                  blueprint: runtimeConfig.carla?.ego_vehicle_blueprint ?? 'vehicle.lincoln.mkz_2020'
+                },
+                sensors: runtimeConfig.carla?.sensors ?? [],
+                traffic: runtimeConfig.carla?.traffic_config ?? {},
+                simulationMode: runtimeConfig.carla?.simulation_mode ?? 'synchronous',
+                fixedDeltaSeconds: Number(runtimeConfig.carla?.fixed_delta_seconds ?? 0.05)
+              }
+            },
+            { studyId: session.study_id, runId: session.id }
+          );
 
-        await publishEvent(
-          rabbit,
-          makeEventRoutingKey(session.rows[0].study_id, session.rows[0].id, 'study', 'session.started'),
-          {
-            sessionId: session.rows[0].id,
-            studyId: session.rows[0].study_id,
-            startedAt: new Date().toISOString(),
-            conditionId: session.rows[0].condition_id
-          },
-          { studyId: session.rows[0].study_id, runId: session.rows[0].id }
-        );
+          await publishCommand(
+            rabbit,
+            makeCommandRoutingKey('io', 'start-session'),
+            {
+              sessionId: session.id,
+              studyId: session.study_id,
+              sensors: runtimeConfig.sensors?.sensors ?? []
+            },
+            { studyId: session.study_id, runId: session.id }
+          );
 
-        rabbit.resolvePending(correlationId, { ok: true });
-        return;
+          await pool.query(
+            `UPDATE sessions
+             SET status = 'running',
+                 started_at = COALESCE(started_at, NOW()),
+                 paused_at = NULL,
+                 completed_at = NULL,
+                 runtime_metadata = COALESCE(runtime_metadata, '{}'::jsonb) || $2::jsonb,
+                 updated_at = NOW()
+             WHERE id = $1`,
+            [
+              session.id,
+              JSON.stringify({
+                lifecycle: {
+                  previousStatus: session.status,
+                  status: 'running',
+                  startedAt,
+                  updatedAt: startedAt
+                },
+                simulator: {
+                  binding: 'bound',
+                  adapterId: simulator.adapterId ?? null,
+                  simulatorType: simulator.simulatorType ?? null,
+                  updatedAt: startedAt
+                },
+                layoutId: runtimeConfig.layoutId,
+                sensors: runtimeConfig.sensors?.sensors ?? []
+              })
+            ]
+          );
+
+          await publishEvent(
+            rabbit,
+            makeEventRoutingKey(session.study_id, session.id, 'study', 'session.started'),
+            {
+              sessionId: session.id,
+              studyId: session.study_id,
+              participantId: session.participant_id,
+              conditionId: session.condition_id,
+              status: 'running',
+              previousStatus: session.status,
+              startedAt,
+              runtimeMetadata: {
+                layoutId: runtimeConfig.layoutId,
+                simulator
+              }
+            },
+            { studyId: session.study_id, runId: session.id }
+          );
+
+          rabbit.resolvePending(correlationId, { ok: true });
+          return;
+        } catch (error) {
+          await cleanupBinding();
+          throw error;
+        }
       }
       case 'commands.session.pause':
       case 'commands.session.resume':
       case 'commands.session.complete':
       case 'commands.session.cancel': {
         const sessionId = String(message.payload.sessionId);
-        const session = await pool.query<{ id: string; study_id: string; status: string; started_at: Date | null }>(
-          `SELECT id, study_id, status, started_at FROM sessions WHERE id = $1`,
-          [sessionId]
-        );
-
-        if (session.rowCount !== 1) {
-          throw new Error('Session not found');
-        }
-
-        const current = session.rows[0];
+        const current = await loadSession(pool, sessionId);
+        const action = message.routingKey.replace('commands.session.', '');
+        assertTransition(action, current.status);
         let nextStatus = current.status;
         const now = new Date().toISOString();
         let eventType = 'session.updated';
+        let ioRoutingKey: string | null = null;
+        let ioPayload: Record<string, unknown> | null = null;
+        let durationSeconds: number | null = null;
+        let simulatorStatePatch: Record<string, unknown> | null = null;
 
         if (message.routingKey === 'commands.session.pause') {
+          const simulator = await publishSimulatorCommand(
+            rabbit,
+            'pause-session',
+            { sessionId },
+            { studyId: current.study_id, runId: sessionId }
+          );
           nextStatus = 'paused';
           await pool.query(`UPDATE sessions SET status = 'paused', paused_at = NOW(), updated_at = NOW() WHERE id = $1`, [sessionId]);
           eventType = 'session.paused';
+          ioRoutingKey = makeCommandRoutingKey('io', 'stop-session');
+          ioPayload = { sessionId };
+          simulatorStatePatch = {
+            binding: 'paused',
+            adapterId: simulator.adapterId ?? null,
+            simulatorType: simulator.simulatorType ?? null,
+            updatedAt: now
+          };
         } else if (message.routingKey === 'commands.session.resume') {
+          const runtimeConfig = await loadStudyRuntimeConfig(pool, current.study_id);
+          const simulator = await publishSimulatorCommand(
+            rabbit,
+            'resume-session',
+            { sessionId },
+            { studyId: current.study_id, runId: sessionId }
+          );
           nextStatus = 'running';
           await pool.query(`UPDATE sessions SET status = 'running', paused_at = NULL, updated_at = NOW() WHERE id = $1`, [sessionId]);
           eventType = 'session.resumed';
+          ioRoutingKey = makeCommandRoutingKey('io', 'start-session');
+          ioPayload = {
+            sessionId,
+            studyId: current.study_id,
+            sensors: runtimeConfig.sensors?.sensors ?? []
+          };
+          simulatorStatePatch = {
+            binding: 'bound',
+            adapterId: simulator.adapterId ?? null,
+            simulatorType: simulator.simulatorType ?? null,
+            updatedAt: now
+          };
         } else if (message.routingKey === 'commands.session.complete') {
+          const simulator = await publishSimulatorCommand(
+            rabbit,
+            'unbind-session',
+            { sessionId, cleanup: true },
+            { studyId: current.study_id, runId: sessionId }
+          );
           nextStatus = 'completed';
-          await pool.query(
+          const result = await pool.query<{ duration_seconds: number }>(
             `UPDATE sessions
              SET status = 'completed',
                  completed_at = NOW(),
                  duration_seconds = EXTRACT(EPOCH FROM (NOW() - COALESCE(started_at, NOW())))::INTEGER,
                  updated_at = NOW()
-             WHERE id = $1`,
+             WHERE id = $1
+             RETURNING duration_seconds`,
             [sessionId]
           );
+          durationSeconds = result.rows[0]?.duration_seconds ?? null;
           eventType = 'session.completed';
+          ioRoutingKey = makeCommandRoutingKey('io', 'stop-session');
+          ioPayload = { sessionId };
+          simulatorStatePatch = {
+            binding: 'released',
+            adapterId: simulator.adapterId ?? null,
+            simulatorType: simulator.simulatorType ?? null,
+            updatedAt: now
+          };
         } else if (message.routingKey === 'commands.session.cancel') {
+          const simulator = await publishSimulatorCommand(
+            rabbit,
+            'unbind-session',
+            { sessionId, cleanup: true },
+            { studyId: current.study_id, runId: sessionId }
+          );
           nextStatus = 'cancelled';
           await pool.query(
             `UPDATE sessions
@@ -245,22 +394,30 @@ export async function handleCoreCommand(message: RabbitMessage, context: Command
             [sessionId]
           );
           eventType = 'session.cancelled';
+          ioRoutingKey = makeCommandRoutingKey('io', 'stop-session');
+          ioPayload = { sessionId };
+          simulatorStatePatch = {
+            binding: 'released',
+            adapterId: simulator.adapterId ?? null,
+            simulatorType: simulator.simulatorType ?? null,
+            updatedAt: now
+          };
         }
 
-        await rabbit.publish(RABBITMQ_EXCHANGES.commands, makeCommandRoutingKey('io', 'stop-session'), {
-          id: randomUUID(),
-          timestamp: new Date().toISOString(),
-          routingKey: makeCommandRoutingKey('io', 'stop-session'),
-          producer: 'core-api',
-          type: 'command',
-          payload: {
-            sessionId
-          },
-          metadata: {
+        if (ioRoutingKey && ioPayload) {
+          await publishCommand(rabbit, ioRoutingKey, ioPayload, {
             studyId: current.study_id,
-            runId: sessionId,
-            correlationId: null
-          }
+            runId: sessionId
+          });
+        }
+
+        await updateRuntimeMetadata(pool, sessionId, {
+          lifecycle: {
+            previousStatus: current.status,
+            status: nextStatus,
+            updatedAt: now
+          },
+          ...(simulatorStatePatch ? { simulator: simulatorStatePatch } : {})
         });
 
         await publishEvent(
@@ -268,9 +425,12 @@ export async function handleCoreCommand(message: RabbitMessage, context: Command
           makeEventRoutingKey(current.study_id, sessionId, 'study', eventType),
           {
             sessionId,
+            studyId: current.study_id,
             status: nextStatus,
+            previousStatus: current.status,
             timestamp: now,
-            reason: message.payload.reason
+            reason: message.payload.reason,
+            durationSeconds
           },
           { studyId: current.study_id, runId: sessionId }
         );

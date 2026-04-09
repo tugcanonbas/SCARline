@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { appPath } from '$lib/paths';
+
   let { studyId, current } = $props<{
     studyId: string;
     current: string;
@@ -29,7 +31,7 @@
           ? 'border-[--color-accent] bg-[--color-accent]/10 text-[--color-accent]'
           : 'border-[--color-line] bg-[--color-panel-soft] text-slate-300 hover:border-[--color-accent]/40'
       ].join(' ')}
-      href={tab.href}
+      href={appPath(tab.href)}
     >
       {tab.label}
     </a>

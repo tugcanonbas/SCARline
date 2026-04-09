@@ -35,6 +35,8 @@ export class AdapterRegistry {
   }
 
   bindSession(assignedId: string, sessionId: string): void {
+    this.clearSession(sessionId);
+
     const adapter = this.adapters.get(assignedId);
     if (!adapter) {
       return;
@@ -51,22 +53,30 @@ export class AdapterRegistry {
     }
   }
 
-  resolveForSession(sessionId: string | null): AdapterState | null {
-    if (sessionId) {
-      for (const adapter of this.adapters.values()) {
-        if (adapter.activeSessionId === sessionId) {
-          return adapter;
-        }
-      }
-    }
-
+  resolveForSession(sessionId: string): AdapterState | null {
     for (const adapter of this.adapters.values()) {
-      if (adapter.simulatorType === 'carla') {
+      if (adapter.activeSessionId === sessionId) {
         return adapter;
       }
     }
 
-    return this.adapters.values().next().value ?? null;
+    return null;
+  }
+
+  resolveAvailable(): AdapterState | null {
+    for (const adapter of this.adapters.values()) {
+      if (adapter.simulatorType === 'carla' && adapter.activeSessionId === null) {
+        return adapter;
+      }
+    }
+
+    for (const adapter of this.adapters.values()) {
+      if (adapter.activeSessionId === null) {
+        return adapter;
+      }
+    }
+
+    return null;
   }
 
   list(): Omit<AdapterState, 'socket'>[] {

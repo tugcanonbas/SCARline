@@ -8,6 +8,7 @@
     "check": "pnpm -r check",
     "dev": "./scarline start --dev",
     "test": "pnpm -r test",
+    "test:e2e": "node --test tests/integration/platform-e2e.test.mjs",
     "lint": "pnpm -r lint"
   }
 }

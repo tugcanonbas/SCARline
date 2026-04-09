@@ -7,6 +7,6 @@
 
 <SurfaceCard title="Product Requirements">
   <p class="text-sm text-slate-300">
-    Open the requirements bundle directly at <a class="text-[--color-accent]" href="/documentation/" target="_blank" rel="noreferrer">/documentation/</a>.
+    Open the requirements bundle directly at <a class="text-[--color-accent]" href="/docs/" target="_blank" rel="noreferrer">/docs/</a>.
   </p>
 </SurfaceCard>

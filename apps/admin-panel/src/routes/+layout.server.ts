@@ -1,16 +1,17 @@
 import { redirect } from '@sveltejs/kit';
+import { appPath, stripAppBase } from '$lib/paths';
 import { getBootstrapState, resolveRouteGuardRedirect } from '$lib/server/bootstrap';
 
 export const load = async ({ fetch, locals, url }) => {
   const bootstrap = await getBootstrapState(fetch, locals.apiBase);
   const target = resolveRouteGuardRedirect({
-    pathname: url.pathname,
+    pathname: stripAppBase(url.pathname),
     onboardingCompleted: bootstrap.onboardingCompleted,
     isAuthenticated: Boolean(locals.accessToken)
   });
 
   if (target) {
-    throw redirect(303, target);
+    throw redirect(303, appPath(target));
   }
 
   let user = null;

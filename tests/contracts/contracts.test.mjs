@@ -9,6 +9,10 @@ test('shared rabbitmq contract keeps dual exchanges and simulator apply-control'
   const source = await readFile(path.join(root, 'packages/contracts/src/rabbitmq.ts'), 'utf8');
   assert.match(source, /scarline\.events/);
   assert.match(source, /scarline\.commands/);
+  assert.match(source, /bind-session/);
+  assert.match(source, /pause-session/);
+  assert.match(source, /resume-session/);
+  assert.match(source, /unbind-session/);
   assert.match(source, /apply-control/);
   assert.match(source, /start-session/);
   assert.match(source, /stop-session/);

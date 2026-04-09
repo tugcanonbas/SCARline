@@ -3,7 +3,19 @@
   import StudyTabs from '$lib/components/StudyTabs.svelte';
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
 
-  let { data } = $props();
+  let { data, form } = $props();
+
+  const allowedTransitions: Record<string, string[]> = {
+    created: ['start'],
+    running: ['pause', 'complete', 'cancel'],
+    paused: ['resume', 'cancel'],
+    completed: [],
+    cancelled: []
+  };
+
+  function canTransition(status: string, actionName: string) {
+    return allowedTransitions[status]?.includes(actionName) ?? false;
+  }
 </script>
 
 <PageHeader eyebrow="Study" title="Sessions" description="Create sessions and drive lifecycle transitions through the CoreAPI command path." />
@@ -11,6 +23,12 @@
 
 <div class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
   <SurfaceCard title="Create Session">
+    {#if form?.message}
+      <p class="mb-4 rounded-2xl border border-red-500/30 bg-red-950/40 px-4 py-3 text-sm text-red-100">
+        {form.message}
+      </p>
+    {/if}
+
     <form class="grid gap-4" method="POST" action="?/create">
       <label class="grid gap-2 text-sm">
         <span>Name</span>
@@ -51,13 +69,21 @@
               {#each ['start', 'pause', 'resume', 'complete'] as actionName}
                 <form method="POST" action={`?/${actionName}`}>
                   <input name="sessionId" type="hidden" value={session.id} />
-                  <button class="rounded-full border border-[--color-line] px-3 py-1 text-xs text-slate-200" type="submit">{actionName}</button>
+                  <button
+                    class="rounded-full border border-[--color-line] px-3 py-1 text-xs text-slate-200 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-600"
+                    type="submit"
+                    disabled={!canTransition(session.status, actionName)}
+                  >{actionName}</button>
                 </form>
               {/each}
               <form method="POST" action="?/cancel">
                 <input name="sessionId" type="hidden" value={session.id} />
                 <input name="reason" type="hidden" value="Operator cancelled session" />
-                <button class="rounded-full border border-[--color-danger]/40 px-3 py-1 text-xs text-red-200" type="submit">cancel</button>
+                <button
+                  class="rounded-full border border-[--color-danger]/40 px-3 py-1 text-xs text-red-200 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-600"
+                  type="submit"
+                  disabled={!canTransition(session.status, 'cancel')}
+                >cancel</button>
               </form>
             </div>
           </div>

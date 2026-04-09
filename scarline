@@ -185,7 +185,7 @@ open_admin_ui() {
     return 0
   fi
 
-  local url="http://localhost:${SCARLINE_PORT}"
+  local url="http://localhost:${SCARLINE_PORT}/admin/dashboard"
 
   case "$(uname -s)" in
     Darwin)
@@ -310,6 +310,9 @@ main() {
         ;;
       --no-overlay)
         NO_OVERLAY="true"
+        ;;
+      --no-browser)
+        NO_BROWSER="true"
         ;;
       --widget-test)
         WIDGET_TEST_MODE="true"

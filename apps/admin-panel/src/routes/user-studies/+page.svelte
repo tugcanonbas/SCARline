@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { appPath } from '$lib/paths';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
 
@@ -7,14 +8,14 @@
 
 <PageHeader eyebrow="Research Design" title="User Studies" description="Milestone-1 study list with direct navigation into configuration and active controls.">
   {#snippet actions()}
-    <a class="rounded-2xl bg-[--color-accent-strong] px-4 py-3 text-sm font-semibold text-white" href="/user-studies/new">New Study</a>
+    <a class="rounded-2xl bg-[--color-accent-strong] px-4 py-3 text-sm font-semibold text-white" href={appPath('/user-studies/new')}>New Study</a>
   {/snippet}
 </PageHeader>
 
 <SurfaceCard title="Studies">
   <div class="space-y-3">
     {#each data.studies as study}
-      <a class="block rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-4 transition hover:border-[--color-accent]/40" href={`/user-studies/${study.id}/overview`}>
+      <a class="block rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-4 transition hover:border-[--color-accent]/40" href={appPath(`/user-studies/${study.id}/overview`)}>
         <div class="flex items-center justify-between gap-4">
           <div>
             <p class="font-semibold text-white">{study.name}</p>

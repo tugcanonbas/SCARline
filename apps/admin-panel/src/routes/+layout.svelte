@@ -1,5 +1,6 @@
 <script lang="ts">
   import { BookOpenText, Gauge, LayoutDashboard, LogOut, MonitorCog, PlayCircle, Settings2 } from 'lucide-svelte';
+  import { appPath } from '$lib/paths';
 
   let { data, children } = $props();
 
@@ -7,7 +8,7 @@
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/user-studies', label: 'User Studies', icon: Gauge },
     { href: '/settings/components', label: 'Components', icon: MonitorCog },
-    { href: '/documentation', label: 'Documentation', icon: BookOpenText }
+    { href: '/docs/', label: 'Documentation', icon: BookOpenText, external: true }
   ];
 </script>
 
@@ -24,7 +25,7 @@
         {#each navigation as item}
           <a
             class="flex items-center gap-3 rounded-2xl border border-transparent px-4 py-3 text-sm text-slate-200 transition hover:border-[--color-line] hover:bg-[--color-panel-soft]"
-            href={item.href}
+            href={item.external ? item.href : appPath(item.href)}
           >
             <item.icon size={18} />
             <span>{item.label}</span>
@@ -38,7 +39,7 @@
         <p class="text-sm text-slate-400">{data.user?.roles?.join(', ')}</p>
         <a
           class="mt-4 inline-flex items-center gap-2 text-sm text-[--color-accent]"
-          href="/login?logout=1"
+          href={appPath('/login?logout=1')}
         >
           <LogOut size={14} />
           <span>Switch account</span>

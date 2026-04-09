@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 import websocket from '@fastify/websocket';
 import { z } from 'zod';
-import { RABBITMQ_QUEUES } from '@scarline/contracts';
+import { makeEventRoutingKey, RABBITMQ_QUEUES, type ComponentId, type RabbitMessage } from '@scarline/contracts';
 import { AdapterRegistry } from './lib/adapter-registry.js';
 import { loadConfig } from './lib/config.js';
 import { RabbitManager } from './lib/rabbit.js';
@@ -16,6 +16,140 @@ const app = Fastify({
 
 await app.register(websocket);
 await rabbit.connect();
+
+interface PendingAdapterCommand {
+  action: string;
+  studyId: string | null;
+  runId: string | null;
+  originalCorrelationId: string | null;
+  adapterAssignedId: string;
+  adapterId: string;
+  simulatorType: string;
+}
+
+const pendingAdapterCommands = new Map<string, PendingAdapterCommand>();
+
+function componentIdForAdapter(simulatorType: string): ComponentId {
+  if (simulatorType === 'carla') {
+    return 'carla-client';
+  }
+
+  if (simulatorType === 'mock') {
+    return 'mock-simulator';
+  }
+
+  return 'sim-bridge';
+}
+
+async function publishComponentStatus(componentId: ComponentId, componentName: string, status: string, message?: string) {
+  const payload: RabbitMessage = {
+    id: randomUUID(),
+    timestamp: new Date().toISOString(),
+    routingKey: makeEventRoutingKey('system', 'global', 'system', 'component.status'),
+    producer: 'sim-bridge',
+    type: 'event',
+    payload: {
+      componentId,
+      componentName,
+      status,
+      message,
+      checkedAt: new Date().toISOString()
+    },
+    metadata: {
+      studyId: null,
+      runId: null,
+      correlationId: null
+    }
+  };
+
+  await rabbit.publish(payload);
+}
+
+function simulatorEventTypeForAction(action: string, succeeded: boolean): string {
+  if (!succeeded) {
+    return 'simulator.command.failed';
+  }
+
+  switch (action) {
+    case 'bind-session':
+      return 'simulator.bound';
+    case 'pause-session':
+      return 'simulator.paused';
+    case 'resume-session':
+      return 'simulator.resumed';
+    case 'unbind-session':
+      return 'simulator.unbound';
+    default:
+      return 'simulator.command.completed';
+  }
+}
+
+async function publishSimulatorCommandEvent(
+  pending: PendingAdapterCommand,
+  payload: Record<string, unknown>,
+  succeeded: boolean
+) {
+  await rabbit.publish({
+    id: randomUUID(),
+    timestamp: new Date().toISOString(),
+    routingKey: makeEventRoutingKey(
+      pending.studyId ?? 'system',
+      pending.runId ?? 'global',
+      'system',
+      simulatorEventTypeForAction(pending.action, succeeded)
+    ),
+    producer: 'sim-bridge',
+    type: 'event',
+    payload: {
+      action: pending.action,
+      studyId: pending.studyId,
+      sessionId: pending.runId,
+      adapterAssignedId: pending.adapterAssignedId,
+      adapterId: pending.adapterId,
+      simulatorType: pending.simulatorType,
+      ...payload
+    },
+    metadata: {
+      studyId: pending.studyId,
+      runId: pending.runId,
+      correlationId: pending.originalCorrelationId
+    }
+  });
+}
+
+async function publishCommandFailure(
+  message: RabbitMessage,
+  action: string,
+  code: 'CONFLICT' | 'COMMAND_FAILED',
+  failureMessage: string
+) {
+  await rabbit.publish({
+    id: randomUUID(),
+    timestamp: new Date().toISOString(),
+    routingKey: makeEventRoutingKey(
+      message.metadata.studyId ?? 'system',
+      message.metadata.runId ?? 'global',
+      'system',
+      'simulator.command.failed'
+    ),
+    producer: 'sim-bridge',
+    type: 'event',
+    payload: {
+      action,
+      studyId: message.metadata.studyId,
+      sessionId: message.metadata.runId,
+      code,
+      message: failureMessage
+    },
+    metadata: {
+      studyId: message.metadata.studyId,
+      runId: message.metadata.runId,
+      correlationId: message.metadata.correlationId
+    }
+  });
+}
+
+await publishComponentStatus('sim-bridge', 'Sim Bridge', 'running', 'Simulator bridge is accepting adapter registrations');
 
 const adapterEnvelopeSchema = z.object({
   version: z.string().default('1.0'),
@@ -61,6 +195,12 @@ app.get('/adapter', { websocket: true }, (socket) => {
             sessionId: null
           }
         }));
+        await publishComponentStatus(
+          componentIdForAdapter(String(message.payload.simulatorType ?? 'unknown')),
+          `${String(message.payload.simulatorType ?? 'Simulator')} Adapter`,
+          'running',
+          'Adapter registered with sim-bridge'
+        );
         return;
       }
 
@@ -92,8 +232,31 @@ app.get('/adapter', { websocket: true }, (socket) => {
         return;
       }
 
-      if (message.type === 'response' && message.payload.sessionId) {
-        adapters.bindSession(assignedId, String(message.payload.sessionId));
+      if (message.type === 'response') {
+        const pendingKey = typeof message.correlationId === 'string' ? message.correlationId : null;
+        if (!pendingKey) {
+          return;
+        }
+
+        const pending = pendingAdapterCommands.get(pendingKey);
+        if (!pending) {
+          return;
+        }
+
+        pendingAdapterCommands.delete(pendingKey);
+        const succeeded = message.payload.accepted !== false && message.payload.success !== false;
+
+        if (!succeeded && pending.runId) {
+          adapters.clearSession(pending.runId);
+        } else if (pending.action === 'bind-session' && pending.runId) {
+          adapters.bindSession(assignedId, pending.runId);
+        } else if (pending.action === 'unbind-session' && pending.runId) {
+          adapters.clearSession(pending.runId);
+        } else if (pending.runId && message.payload.activeSessionId === null) {
+          adapters.clearSession(pending.runId);
+        }
+
+        await publishSimulatorCommandEvent(pending, message.payload, succeeded);
       }
     } catch (error) {
       app.log.error({ err: error }, 'failed to handle adapter message');
@@ -109,37 +272,78 @@ app.get('/adapter', { websocket: true }, (socket) => {
 
   socket.on('close', () => {
     if (assignedId) {
+      const adapter = adapters.list().find((entry) => entry.assignedId === assignedId);
       adapters.remove(assignedId);
+      if (adapter) {
+        void publishComponentStatus(
+          componentIdForAdapter(adapter.simulatorType),
+          `${adapter.simulatorType} Adapter`,
+          'disconnected',
+          'Adapter disconnected from sim-bridge'
+        );
+      }
     }
   });
 });
 
 await rabbit.consume(RABBITMQ_QUEUES.simBridgeCommands, async (message) => {
-  const adapter = adapters.resolveForSession(message.metadata.runId);
+  const action = message.routingKey.replace('commands.simulator.', '');
+  const runId = message.metadata.runId;
+  const adapter = action === 'bind-session'
+    ? adapters.resolveAvailable()
+    : runId
+      ? adapters.resolveForSession(runId)
+      : null;
+
   if (!adapter) {
     app.log.warn({ routingKey: message.routingKey }, 'no adapter connected for simulator command');
+    await publishCommandFailure(message, action, 'CONFLICT', 'No simulator adapter is available for this session');
     return;
   }
 
-  const action = message.routingKey.replace('commands.simulator.', '');
-  if (action === 'unbind-session' && message.metadata.runId) {
-    adapters.clearSession(message.metadata.runId);
+  if (action === 'bind-session' && runId) {
+    adapters.bindSession(adapter.assignedId, runId);
   }
 
-  adapter.socket.send(JSON.stringify({
-    version: '1.0',
-    id: randomUUID(),
-    correlationId: message.metadata.correlationId,
-    timestamp: new Date().toISOString(),
-    type: 'command',
-    source: 'sim-bridge',
-    payload: {
-      action,
-      sessionId: message.metadata.runId,
-      studyId: message.metadata.studyId,
-      ...message.payload
+  const forwardedId = randomUUID();
+  pendingAdapterCommands.set(forwardedId, {
+    action,
+    studyId: message.metadata.studyId,
+    runId,
+    originalCorrelationId: message.metadata.correlationId,
+    adapterAssignedId: adapter.assignedId,
+    adapterId: adapter.adapterId,
+    simulatorType: adapter.simulatorType
+  });
+
+  try {
+    adapter.socket.send(JSON.stringify({
+      version: '1.0',
+      id: forwardedId,
+      correlationId: message.metadata.correlationId,
+      timestamp: new Date().toISOString(),
+      type: 'command',
+      source: 'sim-bridge',
+      payload: {
+        action,
+        sessionId: message.metadata.runId,
+        studyId: message.metadata.studyId,
+        ...message.payload
+      }
+    }));
+  } catch (error) {
+    pendingAdapterCommands.delete(forwardedId);
+    if (action === 'bind-session' && runId) {
+      adapters.clearSession(runId);
     }
-  }));
+
+    await publishCommandFailure(
+      message,
+      action,
+      'COMMAND_FAILED',
+      error instanceof Error ? error.message : 'Failed to forward simulator command to adapter'
+    );
+  }
 });
 
 await app.listen({

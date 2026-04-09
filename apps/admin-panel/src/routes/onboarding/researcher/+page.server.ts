@@ -1,4 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
+import { appPath } from '$lib/paths';
 
 export const actions = {
   default: async ({ fetch, locals, request }) => {
@@ -25,6 +26,6 @@ export const actions = {
       });
     }
 
-    throw redirect(303, '/login');
+    throw redirect(303, appPath('/login'));
   }
 };

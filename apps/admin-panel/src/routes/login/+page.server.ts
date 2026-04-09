@@ -1,4 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
+import { appPath } from '$lib/paths';
 import { getBootstrapState } from '$lib/server/bootstrap';
 
 export const load = async ({ cookies, fetch, locals, url }) => {
@@ -9,11 +10,11 @@ export const load = async ({ cookies, fetch, locals, url }) => {
 
   const bootstrap = await getBootstrapState(fetch, locals.apiBase);
   if (!bootstrap.onboardingCompleted) {
-    throw redirect(303, '/onboarding/system');
+    throw redirect(303, appPath('/onboarding/system'));
   }
 
   if (locals.accessToken) {
-    throw redirect(303, '/dashboard');
+    throw redirect(303, appPath('/dashboard'));
   }
 };
 
@@ -40,6 +41,6 @@ export const actions = {
     const payload = await response.json();
     cookies.set('scarline_access_token', payload.data.accessToken, { path: '/', httpOnly: true, sameSite: 'lax' });
     cookies.set('scarline_refresh_token', payload.data.refreshToken, { path: '/', httpOnly: true, sameSite: 'lax' });
-    throw redirect(303, '/dashboard');
+    throw redirect(303, appPath('/dashboard'));
   }
 };
