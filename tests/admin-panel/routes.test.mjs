@@ -74,6 +74,20 @@ test('authenticated admin routes enforce route-level RBAC before rendering or mu
   }
 });
 
+test('active study server route wires lifecycle and trigger actions', async () => {
+  const source = await readRoute('user-studies/[id]/active-study/+page.server.ts');
+  for (const action of ['start', 'pause', 'resume', 'complete', 'cancel', 'trigger']) {
+    assert.match(source, new RegExp(`${action}:\\s*async`));
+  }
+  assert.match(source, /sessions\/\$\{sessionId\}\/triggers/);
+});
+
+test('exports mutations stay restricted to admin and researcher roles', async () => {
+  const source = await readRoute('exports/+page.server.ts');
+  assert.match(source, /requireRole\([^)]*\['admin', 'researcher'\]\)/);
+  assert.doesNotMatch(source, /\['admin', 'researcher', 'operator'\]/);
+});
+
 test('production admin pages do not render placeholder preformatted JSON views', async () => {
   for (const routeFile of [
     'dashboard/+page.svelte',

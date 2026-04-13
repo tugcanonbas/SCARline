@@ -242,16 +242,16 @@ export async function handleEvent(message: RabbitMessage, context: EventContext)
     wsHub.broadcast('export.progress', message.payload);
   } else if (modality === 'sensor' && eventType === 'io.driver_status') {
     wsHub.broadcast('sensor.status', message.payload);
-    wsHub.broadcast('session.telemetry', {
-      routingKey: message.routingKey,
-      ...message.payload
-    });
     wsHub.broadcast('widget.updates', {
       routingKey: message.routingKey,
       payload: message.payload
     });
   } else if (message.routingKey.includes('.session.')) {
-    wsHub.broadcast('session.events', message.payload);
+    wsHub.broadcast('session.events', {
+      studyId: studyId === 'system' ? null : studyId,
+      sessionId: runId === 'global' ? null : runId,
+      ...message.payload
+    });
   } else if (
     message.routingKey.includes('.vehicle.')
     || message.routingKey.includes('.sensor.')
@@ -261,7 +261,11 @@ export async function handleEvent(message: RabbitMessage, context: EventContext)
   ) {
     wsHub.broadcast('session.telemetry', {
       routingKey: message.routingKey,
-      ...message.payload
+      studyId: studyId === 'system' ? null : studyId,
+      sessionId: runId === 'global' ? null : runId,
+      modality,
+      eventType,
+      payload: message.payload
     });
     wsHub.broadcast('widget.updates', {
       routingKey: message.routingKey,

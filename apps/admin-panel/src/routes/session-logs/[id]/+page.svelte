@@ -6,7 +6,7 @@
   let { data } = $props();
 
   function eventType(event: Record<string, unknown>) {
-    return String(event.event_type ?? event.eventType ?? 'event');
+    return String(event.eventType ?? 'event');
   }
 
   function eventSource(event: Record<string, unknown>) {
@@ -73,7 +73,7 @@
             </div>
             <div class="rounded-2xl border border-[--color-line] bg-black/20 px-4 py-3 text-sm">
               <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Routing Key</p>
-              <p class="mt-1 break-words text-slate-100">{event.routing_key ?? event.routingKey ?? 'unknown'}</p>
+              <p class="mt-1 break-words text-slate-100">{event.routingKey ?? 'unknown'}</p>
             </div>
           </div>
           <div class="mt-3">

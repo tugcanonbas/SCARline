@@ -4,6 +4,7 @@ import json
 import os
 import signal
 import socketserver
+import subprocess
 import sys
 import time
 import urllib.error
@@ -86,10 +87,49 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as error:
             return False, str(error)
 
+    def _configure_overlay(self, payload: dict) -> tuple[bool, str]:
+        port = int(os.environ.get("OVERLAY_CONTROL_PORT", "4097"))
+        encoded = json.dumps(payload).encode("utf8")
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{port}/configure",
+            method="POST",
+            data=encoded,
+            headers={
+                "content-type": "application/json",
+                "content-length": str(len(encoded)),
+            },
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=3) as response:
+                return response.status in (200, 202), "electron overlay configured"
+        except urllib.error.URLError as error:
+            return False, f"overlay control endpoint unavailable: {error.reason}"
+        except Exception as error:
+            return False, str(error)
+
     def _docker_status(self) -> str:
-        # The launcher already performs Docker lifecycle operations; the IPC
-        # server must stay responsive even if Docker Desktop/daemon calls hang.
-        return "running"
+        try:
+            result = subprocess.run(  # noqa: S603
+                ["docker", "info", "--format", "{{.ServerVersion}}"],
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=2,
+                text=True,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return "running"
+            return "degraded"
+        except Exception:
+            return "degraded"
+
+    def _component_snapshot(self, component: str, status: str, message: str | None = None) -> dict:
+        return {
+            "component": component,
+            "status": status,
+            "message": message,
+            "checkedAt": datetime.now(timezone.utc).isoformat(),
+        }
 
     def _start_carla(self) -> tuple[bool, str]:
         if self._pid_status("carla") == "running":
@@ -139,14 +179,40 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         if self.path == "/status":
+            carla_status = self._pid_status("carla")
+            overlay_status = self._overlay_health()
+            supervisor_status = self._pid_status("supervisor")
+            docker_status = self._docker_status()
             self._json(
                 200,
                 {
                     "processManager": "running",
-                    "carlaServer": self._pid_status("carla"),
-                    "overlayDesktop": self._overlay_health(),
-                    "supervisor": self._pid_status("supervisor"),
-                    "docker": self._docker_status(),
+                    "carlaServer": carla_status,
+                    "overlayDesktop": overlay_status,
+                    "supervisor": supervisor_status,
+                    "docker": docker_status,
+                    "components": {
+                        "docker": self._component_snapshot(
+                            "docker",
+                            docker_status,
+                            None if docker_status == "running" else "Docker daemon is not reachable"
+                        ),
+                        "carlaServer": self._component_snapshot(
+                            "carla-server",
+                            "running" if carla_status == "running" else "degraded",
+                            None if carla_status == "running" else "CARLA process is not running"
+                        ),
+                        "overlayDesktop": self._component_snapshot(
+                            "overlay-desktop",
+                            "running" if overlay_status == "running" else "degraded",
+                            None if overlay_status == "running" else "Overlay desktop health endpoint is unavailable"
+                        ),
+                        "supervisor": self._component_snapshot(
+                            "supervisor",
+                            "running" if supervisor_status == "running" else "degraded",
+                            None if supervisor_status == "running" else "Supervisor process is not running"
+                        ),
+                    },
                     "checkedAt": datetime.now(timezone.utc).isoformat(),
                 },
             )
@@ -161,6 +227,18 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         if self.path.startswith("/overlay/reload"):
             accepted, message = self._reload_overlay()
+            self._json(202 if accepted else 503, {"accepted": accepted, "message": message})
+            return
+
+        if self.path.startswith("/overlay/configure"):
+            content_length = int(self.headers.get("Content-Length", "0"))
+            raw_payload = self.rfile.read(content_length) if content_length > 0 else b"{}"
+            try:
+                payload = json.loads(raw_payload.decode("utf8")) if raw_payload else {}
+            except Exception:
+                self._json(400, {"accepted": False, "message": "Invalid JSON payload"})
+                return
+            accepted, message = self._configure_overlay(payload if isinstance(payload, dict) else {})
             self._json(202 if accepted else 503, {"accepted": accepted, "message": message})
             return
 

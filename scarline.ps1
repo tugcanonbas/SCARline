@@ -29,6 +29,24 @@ function Get-ConfigValue {
     return $Default
   }
 
+  if (Get-Command ConvertFrom-Yaml -ErrorAction SilentlyContinue) {
+    try {
+      $yaml = (Get-Content $ConfigFile -Raw | ConvertFrom-Yaml)
+      $value = $yaml
+      foreach ($part in ($Key -split "\.")) {
+        if ($null -eq $value) {
+          return $Default
+        }
+        $value = $value.$part
+      }
+      if ($null -ne $value -and "$value" -ne "") {
+        return "$value"
+      }
+    } catch {
+      # fallback to line scanner below
+    }
+  }
+
   $content = Get-Content $ConfigFile
   for ($i = 0; $i -lt $content.Length; $i++) {
     if ($content[$i] -match "^$Key\s*:\s*(.+)$") {
@@ -119,7 +137,7 @@ function Start-Carla {
     return
   }
 
-  $carlaPath = Get-ConfigValue "server_path" ""
+  $carlaPath = Get-ConfigValue "carla.server_path" ""
   $carlaPort = if ($env:CARLA_SERVER_PORT) { $env:CARLA_SERVER_PORT } else { "2000" }
   if (-not $carlaPath -or -not (Test-Path $carlaPath)) {
     Write-Warning "CARLA server path not configured; skipping CARLA startup"
@@ -160,6 +178,14 @@ function Start-OverlayDesktop {
   $env:OVERLAY_CONTROL_PORT = $OverlayControlPort
   $process = Start-Process -FilePath "pnpm" -ArgumentList @("--dir", (Join-Path $RootDir "apps/desktop-overlay"), "start") -RedirectStandardOutput (Join-Path $LogDir "overlay-desktop.log") -RedirectStandardError (Join-Path $LogDir "overlay-desktop.err.log") -PassThru
   Set-Content -Path $pidFile -Value $process.Id
+  Start-Sleep -Seconds 2
+  if (-not (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) {
+    Write-Error "Desktop overlay process exited during startup."
+    if (Test-Path (Join-Path $LogDir "overlay-desktop.log")) {
+      Get-Content (Join-Path $LogDir "overlay-desktop.log") -Tail 40 | Write-Host
+    }
+    throw "Overlay startup failed"
+  }
 }
 
 function Stop-OverlayDesktop {
@@ -209,6 +235,149 @@ function Open-Admin {
   Start-Process "http://localhost:$port/admin/dashboard" | Out-Null
 }
 
+function Start-Supervisor {
+  $pidFile = Join-Path $PidDir "supervisor.pid"
+  if (Test-Path $pidFile) {
+    $existingPid = Get-Content $pidFile
+    if (Get-Process -Id $existingPid -ErrorAction SilentlyContinue) {
+      return
+    }
+  }
+
+  $composeFiles = @("-f", (Join-Path $RootDir "docker-compose.yml"))
+  if ($Dev) { $composeFiles += @("-f", (Join-Path $RootDir "docker-compose.dev.yml")) }
+  if ($WidgetTest) { $composeFiles += @("-f", (Join-Path $RootDir "docker-compose.widget-test.yml")) }
+
+  $services = @("postgres","rabbitmq","core-api","sim-bridge","admin-panel","overlay-web","io-client","nginx","mock-simulator")
+  if (-not $NoCarla) { $services += "carla-client" }
+
+  $cmd = @"
+`$ErrorActionPreference = 'SilentlyContinue'
+`$restartCounts = @{}
+`$nextRetryAt = @{}
+`$maxRestarts = 5
+`$backoffBase = 5
+function Can-Restart([string]`$name) {
+  if (-not `$nextRetryAt.ContainsKey(`$name)) { return `$true }
+  return (Get-Date) -ge `$nextRetryAt[`$name]
+}
+function Mark-Failed([string]`$name) {
+  `$count = if (`$restartCounts.ContainsKey(`$name)) { [int]`$restartCounts[`$name] + 1 } else { 1 }
+  `$restartCounts[`$name] = `$count
+  if (`$count -gt `$maxRestarts) {
+    `$nextRetryAt[`$name] = (Get-Date).AddSeconds(300)
+    return
+  }
+  `$delay = [Math]::Min(120, `$backoffBase * [Math]::Pow(2, `$count - 1))
+  `$nextRetryAt[`$name] = (Get-Date).AddSeconds([int]`$delay)
+}
+function Mark-Healthy([string]`$name) {
+  `$restartCounts[`$name] = 0
+  `$nextRetryAt[`$name] = Get-Date
+}
+while (`$true) {
+  try {
+    if (-not (Test-Path '$PidDir\ipc.pid') -or -not (Get-Process -Id (Get-Content '$PidDir\ipc.pid') -ErrorAction SilentlyContinue)) {
+      if (Can-Restart 'process-manager-ipc') {
+        & python '$RootDir/infra/process-manager/ipc_server.py' 'tcp://127.0.0.1:4098' '$RuntimeDir' >> '$LogDir/process-manager-ipc.log' 2>> '$LogDir/process-manager-ipc.err.log' &
+        Mark-Failed 'process-manager-ipc'
+      }
+    } else {
+      Mark-Healthy 'process-manager-ipc'
+    }
+
+    if (-not '$NoOverlay' -and (Test-Path '$PidDir\overlay.pid')) {
+      `$overlayPid = Get-Content '$PidDir\overlay.pid'
+      `$overlayProc = Get-Process -Id `$overlayPid -ErrorAction SilentlyContinue
+      `$overlayHealthy = `$false
+      try {
+        `$resp = Invoke-WebRequest -Uri 'http://127.0.0.1:$OverlayControlPort/health' -Method Get -TimeoutSec 2 -UseBasicParsing
+        `$overlayHealthy = `$resp.StatusCode -ge 200 -and `$resp.StatusCode -lt 300
+      } catch {}
+      if (-not `$overlayProc -or -not `$overlayHealthy) {
+        if (Can-Restart 'overlay-desktop') {
+          & pnpm --dir '$RootDir/apps/desktop-overlay' start >> '$LogDir/overlay-desktop.log' 2>> '$LogDir/overlay-desktop.err.log' &
+          Mark-Failed 'overlay-desktop'
+        }
+      } else {
+        Mark-Healthy 'overlay-desktop'
+      }
+    }
+
+    foreach (`$svc in @($($services -join "','"))) {
+      `$json = & docker compose $($composeFiles -join ' ') ps --format json `$svc 2>`$null
+      if (-not `$json -or `$json -match '"State"\s*:\s*"exited"' -or `$json -match '"Health"\s*:\s*"unhealthy"') {
+        if (Can-Restart "docker-`$svc") {
+          & docker compose $($composeFiles -join ' ') up -d `$svc >> '$LogDir/supervisor.log' 2>&1
+          Mark-Failed "docker-`$svc"
+        }
+      } else {
+        Mark-Healthy "docker-`$svc"
+      }
+    }
+  } catch {}
+  Start-Sleep -Seconds 15
+}
+"@
+
+  $process = Start-Process -FilePath "powershell" -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $cmd) -PassThru
+  Set-Content -Path $pidFile -Value $process.Id
+}
+
+function Stop-Supervisor {
+  $pidFile = Join-Path $PidDir "supervisor.pid"
+  if (Test-Path $pidFile) {
+    $pid = Get-Content $pidFile
+    Stop-Process -Id $pid -ErrorAction SilentlyContinue
+    Remove-Item $pidFile -Force
+  }
+}
+
+function Wait-ForHttp {
+  param([string]$Url, [string]$Label, [int]$Attempts = 24)
+  for ($attempt = 0; $attempt -lt $Attempts; $attempt++) {
+    try {
+      $response = Invoke-WebRequest -Uri $Url -Method Get -TimeoutSec 2 -UseBasicParsing
+      if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300) {
+        return
+      }
+    } catch {
+      Start-Sleep -Seconds 2
+    }
+  }
+  throw "Timed out waiting for $Label"
+}
+
+function Wait-ForOverlayHealth {
+  if ($NoOverlay) {
+    return
+  }
+
+  $pidFile = Join-Path $PidDir "overlay.pid"
+  for ($attempt = 0; $attempt -lt 60; $attempt++) {
+    if (-not (Test-Path $pidFile)) {
+      break
+    }
+    $overlayPid = Get-Content $pidFile
+    if (-not (Get-Process -Id $overlayPid -ErrorAction SilentlyContinue)) {
+      break
+    }
+    try {
+      $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$OverlayControlPort/health" -Method Get -TimeoutSec 2 -UseBasicParsing
+      if ($resp.StatusCode -ge 200 -and $resp.StatusCode -lt 300) {
+        return
+      }
+    } catch {}
+    Start-Sleep -Seconds 2
+  }
+
+  Write-Error "Timed out waiting for Overlay desktop health."
+  if (Test-Path (Join-Path $LogDir "overlay-desktop.log")) {
+    Get-Content (Join-Path $LogDir "overlay-desktop.log") -Tail 60 | Write-Host
+  }
+  throw "Overlay desktop health check failed"
+}
+
 Require-Command docker
 
 $env:POSTGRES_DB = if ($env:POSTGRES_DB) { $env:POSTGRES_DB } else { "scarline" }
@@ -225,25 +394,35 @@ switch ($Command) {
     Wait-ForComposeHealth @("postgres", "rabbitmq")
     Wait-ForComposeExit "schema-bootstrap"
     Invoke-Compose @("up", "--build", "-d", "core-api", "sim-bridge", "admin-panel", "overlay-web", "docs", "io-client", "nginx")
-    Wait-ForComposeHealth @("core-api", "sim-bridge", "admin-panel", "overlay-web", "nginx")
+    Wait-ForComposeHealth @("core-api", "sim-bridge", "admin-panel", "overlay-web", "io-client", "nginx")
     if ($NoCarla) {
       Invoke-Compose @("up", "--build", "-d", "mock-simulator")
+      Wait-ForComposeHealth @("mock-simulator")
     } else {
       Invoke-Compose @("up", "--build", "-d", "mock-simulator", "carla-client")
+      Wait-ForComposeHealth @("mock-simulator", "carla-client")
       Start-Carla
     }
     Start-OverlayDesktop
     Start-IpcServer
+    Start-Supervisor
+    Wait-ForHttp "http://127.0.0.1:$env:SCARLINE_PORT/api/health" "CoreAPI health"
+    if (-not $NoOverlay) {
+      Wait-ForOverlayHealth
+    }
+    Wait-ForHttp "http://127.0.0.1:4098/status" "Process manager IPC"
     Open-Admin
     Write-Host "SCARline started on http://localhost:$env:SCARLINE_PORT"
   }
   "stop" {
+    Stop-Supervisor
     Stop-IpcServer
     Stop-OverlayDesktop
     Stop-Carla
     Invoke-Compose @("down")
   }
   "restart" {
+    Stop-Supervisor
     Stop-IpcServer
     Stop-OverlayDesktop
     Stop-Carla
@@ -258,6 +437,7 @@ switch ($Command) {
     }
     Start-OverlayDesktop
     Start-IpcServer
+    Start-Supervisor
     Open-Admin
   }
   "status" {
@@ -267,6 +447,9 @@ switch ($Command) {
     }
     if (Test-Path (Join-Path $PidDir "ipc.pid")) {
       Write-Host "process-manager-ipc: host pid $(Get-Content (Join-Path $PidDir "ipc.pid"))"
+    }
+    if (Test-Path (Join-Path $PidDir "supervisor.pid")) {
+      Write-Host "supervisor: host pid $(Get-Content (Join-Path $PidDir "supervisor.pid"))"
     }
   }
   "logs" {

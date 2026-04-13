@@ -48,6 +48,10 @@ export class RabbitManager {
 
   constructor(private readonly url: string) {}
 
+  isConnected(): boolean {
+    return this.channel !== null;
+  }
+
   async connect(): Promise<void> {
     if (this.connecting) {
       return this.connecting;

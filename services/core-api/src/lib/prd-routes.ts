@@ -18,7 +18,7 @@ import type { RabbitManager } from './rabbit.js';
 import type { WebSocketHub } from './websocket-hub.js';
 import type { ComponentRegistry } from './component-status.js';
 import { hashPassword, verifyAccessToken } from './auth.js';
-import { logActivity, queryMany, queryOne, refreshSessionSummary } from './data.js';
+import { getSystemConfiguration, logActivity, queryMany, queryOne, refreshSessionSummary } from './data.js';
 
 interface Dependencies {
   config: CoreApiConfig;
@@ -393,7 +393,18 @@ async function updateExportProgress(pool: Pool, wsHub: WebSocketHub, jobId: stri
 }
 
 async function collectExportData(pool: Pool, job: ExportJobRow) {
-  const filters = [job.study_id, job.session_id];
+  let sessionStudyId: string | null = null;
+  if (job.scope === 'session' && job.session_id && !job.study_id) {
+    const session = await queryOne<{ study_id: string }>(pool, `SELECT study_id FROM sessions WHERE id = $1`, [job.session_id]);
+    sessionStudyId = session?.study_id ?? null;
+  }
+  const scopedStudyId = job.scope === 'all'
+    ? null
+    : job.scope === 'session'
+      ? (job.study_id ?? sessionStudyId)
+      : job.study_id;
+  const scopedSessionId = job.scope === 'session' ? job.session_id : null;
+  const filters = [scopedStudyId, scopedSessionId];
   const events = await queryMany(pool, `
     SELECT * FROM session_events
     WHERE ($1::uuid IS NULL OR study_id = $1)
@@ -404,7 +415,7 @@ async function collectExportData(pool: Pool, job: ExportJobRow) {
     SELECT * FROM studies
     WHERE ($1::uuid IS NULL OR id = $1)
     ORDER BY created_at ASC
-  `, [job.study_id]);
+  `, [scopedStudyId]);
   const sessions = await queryMany(pool, `
     SELECT * FROM sessions
     WHERE ($1::uuid IS NULL OR study_id = $1)
@@ -415,12 +426,12 @@ async function collectExportData(pool: Pool, job: ExportJobRow) {
     SELECT * FROM participants
     WHERE ($1::uuid IS NULL OR study_id = $1)
     ORDER BY created_at ASC
-  `, [job.study_id]);
+  `, [scopedStudyId]);
   const conditions = await queryMany(pool, `
     SELECT * FROM conditions
     WHERE ($1::uuid IS NULL OR study_id = $1)
     ORDER BY "order" ASC, created_at ASC
-  `, [job.study_id]);
+  `, [scopedStudyId]);
 
   return {
     exportJob: {
@@ -1177,14 +1188,40 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
     return ok(rows.map(exportJobDto));
   });
 
-  app.post('/api/exports', async (request) => {
-    const payload = z.object({
+  app.post('/api/exports', async (request, reply) => {
+    const payloadResult = z.object({
       studyId: z.string().uuid().nullable().optional(),
       sessionId: z.string().uuid().nullable().optional(),
       format: z.enum(['json', 'csv', 'zip']).default('json'),
       scope: z.enum(['study', 'session', 'all']).default('session'),
       parameters: z.record(z.string(), z.unknown()).default({})
-    }).parse(request.body ?? {});
+    }).superRefine((value, ctx) => {
+      if (value.scope === 'session' && !value.sessionId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'sessionId is required when scope=session',
+          path: ['sessionId']
+        });
+      }
+      if (value.scope === 'study' && !value.studyId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'studyId is required when scope=study',
+          path: ['studyId']
+        });
+      }
+      if (value.scope === 'all' && (value.studyId || value.sessionId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'studyId/sessionId must be omitted when scope=all',
+          path: ['scope']
+        });
+      }
+    }).safeParse(request.body ?? {});
+    if (!payloadResult.success) {
+      return fail(reply, 400, 'INVALID_EXPORT_SCOPE', payloadResult.error.issues[0]?.message ?? 'Invalid export request');
+    }
+    const payload = payloadResult.data;
     const requestedBy = actorUserId(request, config);
     const row = await queryOne<ExportJobRow>(pool, `
       INSERT INTO export_jobs (study_id, session_id, format, scope, status, progress, requested_by, parameters)
@@ -1359,7 +1396,17 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
       ORDER BY "timestamp" ASC
       LIMIT $2 OFFSET $3
     `, [params.sessionId, query.limit, query.offset]);
-    return ok(rows);
+    return ok(rows.map((row) => sessionLogEntrySchema.parse({
+      id: Number(row.id),
+      sessionId: row.session_id,
+      studyId: row.study_id,
+      timestamp: row.timestamp.toISOString(),
+      eventType: row.event_type,
+      modality: row.modality,
+      source: row.source,
+      routingKey: row.routing_key,
+      payload: row.payload
+    })));
   });
 
   app.get('/api/session-logs/:sessionId/summary', async (request, reply) => {
@@ -1410,6 +1457,54 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
   app.post('/api/system/overlay/reload', async (_request, reply) => {
     try {
       return ok(await callProcessManager(config.PM_SOCKET_PATH, 'POST', '/overlay/reload'));
+    } catch (error) {
+      return fail(reply, 503, 'PROCESS_MANAGER_UNAVAILABLE', error instanceof Error ? error.message : 'Process Manager unavailable');
+    }
+  });
+
+  app.post('/api/system/overlay/configure', async (request, reply) => {
+    const payload = z.object({
+      studyId: z.string().uuid(),
+      sessionId: z.string().uuid(),
+      layoutId: z.string().uuid(),
+      conditionId: z.string().uuid().nullable().optional(),
+      targetDisplay: z.number().int().nonnegative().optional(),
+      mode: z.enum(['single', 'zones']).default('single'),
+      clickThrough: z.boolean().optional()
+    }).parse(request.body ?? {});
+
+    try {
+      const system = await getSystemConfiguration(pool);
+      const platformPort = system?.platformPort ?? 8088;
+      const token = bearerToken(request);
+      if (!token) {
+        return fail(reply, 401, 'UNAUTHORIZED', 'Overlay configuration requires an authenticated token');
+      }
+
+      const params = new URLSearchParams({
+        chrome: 'transparent',
+        token,
+        studyId: payload.studyId,
+        sessionId: payload.sessionId,
+        layoutId: payload.layoutId
+      });
+      if (payload.conditionId) {
+        params.set('conditionId', payload.conditionId);
+      }
+      const overlayUrl = `http://127.0.0.1:${platformPort}/overlay/${payload.layoutId}?${params.toString()}`;
+
+      return ok(await callProcessManager(config.PM_SOCKET_PATH, 'POST', '/overlay/configure', {
+        url: overlayUrl,
+        mode: payload.mode,
+        targetDisplay: payload.targetDisplay ?? 0,
+        clickThrough: payload.clickThrough ?? true,
+        session: {
+          studyId: payload.studyId,
+          sessionId: payload.sessionId,
+          layoutId: payload.layoutId,
+          conditionId: payload.conditionId ?? null
+        }
+      }));
     } catch (error) {
       return fail(reply, 503, 'PROCESS_MANAGER_UNAVAILABLE', error instanceof Error ? error.message : 'Process Manager unavailable');
     }

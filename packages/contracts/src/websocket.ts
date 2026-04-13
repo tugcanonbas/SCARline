@@ -18,7 +18,11 @@ export type WebSocketChannel = z.infer<typeof websocketChannelSchema>;
 
 export const websocketSubscriptionMessageSchema = z.object({
   action: z.enum(['subscribe', 'unsubscribe']),
-  channels: z.array(websocketChannelSchema).min(1)
+  channels: z.array(websocketChannelSchema).min(1),
+  filters: z.object({
+    studyId: z.string().uuid().optional(),
+    sessionId: z.string().uuid().optional()
+  }).optional()
 });
 
 export const websocketDataMessageSchema = z.object({

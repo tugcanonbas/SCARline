@@ -6,7 +6,7 @@
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
   import { createRealtimeStore } from '$lib/stores/realtime';
 
-  let { data } = $props();
+  let { data, form } = $props();
 
   type SessionOption = {
     id: string;
@@ -28,6 +28,10 @@
     (data.sessions as SessionOption[]).find((session) => session.status === 'running')?.id ?? ''
   );
   let selectedSession = $state('');
+  const latestTelemetry = $derived(($telemetry.__latest ?? {}) as Record<string, unknown>);
+  const selectedSessionStatus = $derived(
+    (data.sessions as SessionOption[]).find((session) => session.id === selectedSession)?.status ?? 'created'
+  );
 
   $effect(() => {
     if (!selectedSession && runningSessionId) {
@@ -36,12 +40,19 @@
   });
 
   $effect(() => {
-    connect(data.token, ['session.events', 'session.telemetry', 'widget.updates', 'sensor.status']);
+    connect(
+      data.token,
+      ['session.events', 'session.telemetry', 'widget.updates', 'sensor.status'],
+      {
+        studyId: data.studyId,
+        sessionId: selectedSession || undefined
+      }
+    );
     return () => disconnect();
   });
 
   function vehicle(payload: Record<string, unknown>) {
-    return (payload.vehicle ?? payload) as Record<string, unknown>;
+    return (payload.payload?.vehicle ?? payload.vehicle ?? payload.payload ?? payload) as Record<string, unknown>;
   }
 
   function eventTitle(event: Record<string, unknown>) {
@@ -58,6 +69,16 @@
 
   function sensorTitle(status: Record<string, unknown>) {
     return String(status.driverId ?? status.sensorId ?? status.componentId ?? 'Sensor');
+  }
+  function canTransition(actionName: string) {
+    const allowedTransitions: Record<string, string[]> = {
+      created: ['start'],
+      running: ['pause', 'complete', 'cancel'],
+      paused: ['resume', 'cancel'],
+      completed: [],
+      cancelled: []
+    };
+    return selectedSession ? (allowedTransitions[selectedSessionStatus]?.includes(actionName) ?? false) : false;
   }
 </script>
 
@@ -89,6 +110,9 @@
 
 <div class="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
   <SurfaceCard title="Session Context" subtitle="Operator control context without changing the session lifecycle actions.">
+    {#if form?.message}
+      <p class="mb-4 rounded-2xl border border-red-500/30 bg-red-950/40 px-4 py-3 text-sm text-red-100">{form.message}</p>
+    {/if}
     <label class="grid gap-2 text-sm">
       <span>Active Session</span>
       <select bind:value={selectedSession} class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3">
@@ -106,23 +130,40 @@
       <p>Layouts configured: <strong class="text-white">{data.layouts.length}</strong></p>
     </div>
     <div class="mt-4 control-rail">
-      <button disabled={!selectedSession} type="button">Pause</button>
-      <button disabled={!selectedSession} type="button">Resume</button>
-      <button disabled={!selectedSession} type="button">Complete</button>
-      <button disabled={!selectedSession} type="button">Mark note</button>
+      <form method="POST" action="?/start">
+        <input type="hidden" name="sessionId" value={selectedSession} />
+        <button disabled={!canTransition('start')} type="submit">Start</button>
+      </form>
+      <form method="POST" action="?/pause">
+        <input type="hidden" name="sessionId" value={selectedSession} />
+        <button disabled={!canTransition('pause')} type="submit">Pause</button>
+      </form>
+      <form method="POST" action="?/resume">
+        <input type="hidden" name="sessionId" value={selectedSession} />
+        <button disabled={!canTransition('resume')} type="submit">Resume</button>
+      </form>
+      <form method="POST" action="?/complete">
+        <input type="hidden" name="sessionId" value={selectedSession} />
+        <button disabled={!canTransition('complete')} type="submit">Complete</button>
+      </form>
+      <form method="POST" action="?/cancel">
+        <input type="hidden" name="sessionId" value={selectedSession} />
+        <input type="hidden" name="reason" value="Operator cancelled session" />
+        <button disabled={!canTransition('cancel')} type="submit">Cancel</button>
+      </form>
     </div>
-    <p class="mt-4 text-sm text-slate-400">Session lifecycle mutations remain available from the Sessions tab; these disabled controls document the operator control surface until direct actions are wired here.</p>
+    <p class="mt-4 text-sm text-slate-400">Session lifecycle controls are wired to CoreAPI command routes for operator execution.</p>
   </SurfaceCard>
 
   <SurfaceCard title="Live Telemetry" subtitle="Current vehicle values received from CoreAPI WebSocket fanout.">
     <KeyValueGrid
       items={[
-        { label: 'Speed', value: vehicle($telemetry).speed ?? 'No telemetry' },
-        { label: 'Speed Limit', value: vehicle($telemetry).speedLimit ?? 'Unknown' },
-        { label: 'Throttle', value: vehicle($telemetry).throttle ?? 0 },
-        { label: 'Brake', value: vehicle($telemetry).brake ?? 0 },
-        { label: 'Steer', value: vehicle($telemetry).steer ?? 0 },
-        { label: 'Routing Key', value: $telemetry.routingKey ?? 'Waiting for stream' }
+        { label: 'Speed', value: vehicle(latestTelemetry).speed ?? 'No telemetry' },
+        { label: 'Speed Limit', value: vehicle(latestTelemetry).speedLimit ?? 'Unknown' },
+        { label: 'Throttle', value: vehicle(latestTelemetry).throttle ?? 0 },
+        { label: 'Brake', value: vehicle(latestTelemetry).brake ?? 0 },
+        { label: 'Steer', value: vehicle(latestTelemetry).steer ?? 0 },
+        { label: 'Routing Key', value: latestTelemetry.routingKey ?? 'Waiting for stream' }
       ]}
     />
   </SurfaceCard>
@@ -146,8 +187,20 @@
   </SurfaceCard>
   <SurfaceCard title="Widget Updates" subtitle="Live widget actions and manual trigger targets.">
     <div class="mb-4 flex flex-wrap gap-2">
-      {#each data.widgets as widget}
-        <span class="rounded-full border border-[--color-line] px-3 py-1 text-xs text-slate-300">{widget.name}</span>
+      {#each data.triggerableWidgets as widget}
+        <form method="POST" action="?/trigger">
+          <input type="hidden" name="sessionId" value={selectedSession} />
+          <input type="hidden" name="instanceId" value={widget.instanceId} />
+          <input type="hidden" name="widgetId" value={widget.widgetId} />
+          <input type="hidden" name="action" value="manual-trigger" />
+          <button
+            class="rounded-full border border-[--color-line] px-3 py-1 text-xs text-slate-300 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-600"
+            type="submit"
+            disabled={!selectedSession}
+          >
+            {widget.name}
+          </button>
+        </form>
       {/each}
     </div>
     <div class="space-y-3">

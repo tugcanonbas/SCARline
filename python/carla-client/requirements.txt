@@ -1,1 +1,2 @@
 websockets==15.0.1
+carla==0.9.15

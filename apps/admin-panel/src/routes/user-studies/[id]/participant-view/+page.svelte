@@ -6,7 +6,7 @@
   let { data } = $props();
 
   function layoutConfig(layout: Record<string, unknown>) {
-    return (layout.layoutConfig ?? layout.layout_config ?? {}) as Record<string, unknown>;
+    return (layout.layoutConfig ?? {}) as Record<string, unknown>;
   }
 
   function zones(layout: Record<string, unknown>) {
@@ -93,7 +93,7 @@
           <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p class="font-semibold text-white">{layout.name}</p>
-              <p class="mt-1 text-sm text-slate-400">{layout.type} layout · display {layout.targetDisplay ?? layout.target_display ?? '0'}</p>
+              <p class="mt-1 text-sm text-slate-400">{layout.type} layout · display {layout.targetDisplay ?? '0'}</p>
             </div>
             <span class="rounded-full border border-[--color-line] px-3 py-1 text-xs text-slate-300">{widgets(layout).length} widgets</span>
           </div>

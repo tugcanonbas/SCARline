@@ -96,7 +96,7 @@
             <div>
               <p class="font-semibold text-white">{session.name ?? session.id}</p>
               <p class="text-sm text-slate-400">
-                Participant {session.participantId ?? session.participant_id ?? 'unassigned'} · Condition {session.conditionId ?? session.condition_id ?? 'none'}
+                Participant {session.participantId ?? 'unassigned'} · Condition {session.conditionId ?? 'none'}
               </p>
             </div>
             <StatusBadge status={session.status} />
@@ -105,15 +105,15 @@
           <div class="mb-4 grid gap-3 md:grid-cols-3">
             <div class="rounded-2xl border border-[--color-line] bg-black/20 px-4 py-3 text-sm">
               <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Started</p>
-              <p class="mt-1 text-slate-100">{formatDate(session.startedAt ?? session.started_at)}</p>
+              <p class="mt-1 text-slate-100">{formatDate(session.startedAt)}</p>
             </div>
             <div class="rounded-2xl border border-[--color-line] bg-black/20 px-4 py-3 text-sm">
               <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Duration</p>
-              <p class="mt-1 text-slate-100">{session.durationSeconds ?? session.duration_seconds ?? 0}s</p>
+              <p class="mt-1 text-slate-100">{session.durationSeconds ?? 0}s</p>
             </div>
             <div class="rounded-2xl border border-[--color-line] bg-black/20 px-4 py-3 text-sm">
               <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Completed</p>
-              <p class="mt-1 text-slate-100">{formatDate(session.completedAt ?? session.completed_at)}</p>
+              <p class="mt-1 text-slate-100">{formatDate(session.completedAt)}</p>
             </div>
           </div>
 

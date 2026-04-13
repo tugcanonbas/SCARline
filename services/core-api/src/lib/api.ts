@@ -121,6 +121,10 @@ async function requireUser(
 }
 
 function rolesForRoute(method: string, path: string): Array<z.infer<typeof RoleSchema>> | undefined {
+  if (path.startsWith('/api/system/overlay/configure')) {
+    return ['admin', 'researcher', 'operator'];
+  }
+
   if (
     path.startsWith('/api/users')
     || path.startsWith('/api/devices')
@@ -232,6 +236,36 @@ async function runCommand<T>(
   }
 }
 
+function sessionDto(row: Record<string, unknown>) {
+  return sessionSchema.parse({
+    id: row.id,
+    studyId: row.study_id,
+    participantId: row.participant_id,
+    conditionId: row.condition_id,
+    name: row.name,
+    status: row.status,
+    startedAt: (row.started_at as Date | null)?.toISOString?.() ?? null,
+    pausedAt: (row.paused_at as Date | null)?.toISOString?.() ?? null,
+    completedAt: (row.completed_at as Date | null)?.toISOString?.() ?? null,
+    durationSeconds: row.duration_seconds,
+    runtimeMetadata: row.runtime_metadata,
+    notes: row.notes
+  });
+}
+
+function layoutSummaryDto(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    studyId: row.study_id,
+    name: row.name,
+    type: row.type,
+    targetDisplay: row.target_display,
+    layoutConfig: row.layout_config,
+    createdAt: (row.created_at as Date)?.toISOString?.() ?? null,
+    updatedAt: (row.updated_at as Date)?.toISOString?.() ?? null
+  };
+}
+
 export async function registerApi(app: FastifyInstance, deps: Dependencies): Promise<void> {
   const { config, pool, rabbit, wsHub, components } = deps;
 
@@ -242,14 +276,15 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     } catch {
       database = 'error';
     }
+    const rabbitmq = rabbit.isConnected() ? 'healthy' : 'error';
 
     reply.send({
       success: true,
       data: {
-        status: database === 'healthy' ? 'healthy' : 'degraded',
+        status: database === 'healthy' && rabbitmq === 'healthy' ? 'healthy' : 'degraded',
         components: components.list(),
         database,
-        rabbitmq: 'healthy'
+        rabbitmq
       },
       error: null
     });
@@ -1180,20 +1215,7 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     const rows = await queryMany(pool, `SELECT * FROM sessions WHERE study_id = $1 ORDER BY created_at DESC`, [params.studyId]);
     return {
       success: true,
-      data: rows.map((row) => sessionSchema.parse({
-        id: row.id,
-        studyId: row.study_id,
-        participantId: row.participant_id,
-        conditionId: row.condition_id,
-        name: row.name,
-        status: row.status,
-        startedAt: row.started_at?.toISOString?.() ?? null,
-        pausedAt: row.paused_at?.toISOString?.() ?? null,
-        completedAt: row.completed_at?.toISOString?.() ?? null,
-        durationSeconds: row.duration_seconds,
-        runtimeMetadata: row.runtime_metadata,
-        notes: row.notes
-      })),
+      data: rows.map((row) => sessionDto(row as Record<string, unknown>)),
       error: null
     };
   });
@@ -1224,13 +1246,13 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
         }
       });
     }
-    return { success: true, data: row, error: null };
+    return { success: true, data: row ? sessionDto(row as Record<string, unknown>) : null, error: null };
   });
 
   app.get('/api/studies/:studyId/sessions/:id', async (request) => {
     const params = z.object({ studyId: z.string().uuid(), id: z.string().uuid() }).parse(request.params);
     const row = await queryOne(pool, `SELECT * FROM sessions WHERE study_id = $1 AND id = $2`, [params.studyId, params.id]);
-    return { success: true, data: row, error: null };
+    return { success: true, data: row ? sessionDto(row as Record<string, unknown>) : null, error: null };
   });
 
   app.post('/api/studies/:studyId/sessions/:id/start', async (request, reply) => {
@@ -1460,7 +1482,11 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
   app.get('/api/studies/:studyId/layouts', async (request) => {
     const params = z.object({ studyId: z.string().uuid() }).parse(request.params);
     const rows = await queryMany(pool, `SELECT * FROM view_layouts WHERE study_id = $1 ORDER BY created_at DESC`, [params.studyId]);
-    return { success: true, data: rows, error: null };
+    return {
+      success: true,
+      data: rows.map((row) => layoutSummaryDto(row as Record<string, unknown>)),
+      error: null
+    };
   });
 
   app.post('/api/studies/:studyId/layouts', async (request) => {
@@ -1712,7 +1738,7 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
       socket.on('message', (raw: Buffer) => {
         try {
           const message = websocketSubscriptionMessageSchema.parse(JSON.parse(raw.toString()));
-          wsHub.updateSubscriptions(client, message.action, message.channels);
+          wsHub.updateSubscriptions(client, message.action, message.channels, message.filters);
         } catch {
           socket.send(JSON.stringify({ type: 'error', channel: 'system.health', data: { message: 'Invalid subscription payload' } }));
         }

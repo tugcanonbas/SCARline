@@ -1,11 +1,31 @@
 import http from 'node:http';
 import { app, BrowserWindow, screen } from 'electron';
 
-const overlayUrl = process.env.OVERLAY_URL ?? 'http://localhost:8088/overlay/?chrome=transparent';
+const defaultOverlayUrl = process.env.OVERLAY_URL ?? 'http://localhost:8088/overlay/?chrome=transparent';
 const controlPort = Number(process.env.OVERLAY_CONTROL_PORT ?? 4097);
-const windowMode = process.env.OVERLAY_WINDOW_MODE ?? 'single';
 const clickThrough = process.env.OVERLAY_CLICK_THROUGH !== 'false';
-const targetDisplay = Number(process.env.OVERLAY_DISPLAY ?? 0);
+
+const runtimeConfig = {
+  url: defaultOverlayUrl,
+  mode: process.env.OVERLAY_WINDOW_MODE ?? 'single',
+  targetDisplay: Number(process.env.OVERLAY_DISPLAY ?? 0),
+  zones: (process.env.OVERLAY_ZONES ?? '')
+    .split(';')
+    .map((zone) => zone.trim())
+    .filter(Boolean),
+  bounds: {
+    x: process.env.OVERLAY_X ? Number(process.env.OVERLAY_X) : null,
+    y: process.env.OVERLAY_Y ? Number(process.env.OVERLAY_Y) : null,
+    width: process.env.OVERLAY_WIDTH ? Number(process.env.OVERLAY_WIDTH) : null,
+    height: process.env.OVERLAY_HEIGHT ? Number(process.env.OVERLAY_HEIGHT) : null
+  },
+  session: {
+    studyId: null,
+    sessionId: null,
+    layoutId: null,
+    conditionId: null
+  }
+};
 
 let windows = [];
 let quitting = false;
@@ -14,7 +34,7 @@ let mousePassthrough = clickThrough;
 
 function displayBounds() {
   const displays = screen.getAllDisplays();
-  return displays[targetDisplay]?.bounds ?? displays[0]?.bounds ?? {
+  return displays[runtimeConfig.targetDisplay]?.bounds ?? displays[0]?.bounds ?? {
     x: 0,
     y: 0,
     width: Number(process.env.OVERLAY_WIDTH ?? 1600),
@@ -25,10 +45,10 @@ function displayBounds() {
 function configuredBounds() {
   const bounds = displayBounds();
   return {
-    x: Number(process.env.OVERLAY_X ?? bounds.x),
-    y: Number(process.env.OVERLAY_Y ?? bounds.y),
-    width: Number(process.env.OVERLAY_WIDTH ?? bounds.width),
-    height: Number(process.env.OVERLAY_HEIGHT ?? bounds.height)
+    x: runtimeConfig.bounds.x ?? bounds.x,
+    y: runtimeConfig.bounds.y ?? bounds.y,
+    width: runtimeConfig.bounds.width ?? bounds.width,
+    height: runtimeConfig.bounds.height ?? bounds.height
   };
 }
 
@@ -94,23 +114,20 @@ function createWindows() {
   destroyWindows();
   const bounds = configuredBounds();
 
-  if (windowMode === 'zones') {
-    const zones = (process.env.OVERLAY_ZONES ?? '')
-      .split(';')
-      .map((zone) => zone.trim())
-      .filter(Boolean);
+  if (runtimeConfig.mode === 'zones') {
+    const zones = runtimeConfig.zones;
 
     if (zones.length > 0) {
       windows = zones.map((zone, index) => {
         const [x, y, width, height] = zone.split(',').map(Number);
-        const separator = overlayUrl.includes('?') ? '&' : '?';
-        return createOverlayWindow({ x, y, width, height }, `${overlayUrl}${separator}zone=${index}`);
+        const separator = runtimeConfig.url.includes('?') ? '&' : '?';
+        return createOverlayWindow({ x, y, width, height }, `${runtimeConfig.url}${separator}zone=${index}`);
       });
       return;
     }
   }
 
-  windows = [createOverlayWindow(bounds, overlayUrl)];
+  windows = [createOverlayWindow(bounds, runtimeConfig.url)];
 }
 
 function destroyWindows() {
@@ -136,10 +153,11 @@ function overlayStatus() {
   return {
     status: 'running',
     windows: windows.length,
-    url: overlayUrl,
-    mode: windowMode,
-    display: targetDisplay,
+    url: runtimeConfig.url,
+    mode: runtimeConfig.mode,
+    display: runtimeConfig.targetDisplay,
     clickThrough: mousePassthrough,
+    session: runtimeConfig.session,
     bounds: windows.map((overlayWindow) => overlayWindow.getBounds()),
     displays: screen.getAllDisplays().map((display, index) => ({
       index,
@@ -154,6 +172,40 @@ function setClickThrough(enabled) {
   mousePassthrough = enabled;
   for (const overlayWindow of windows) {
     overlayWindow.setIgnoreMouseEvents(enabled, { forward: true });
+  }
+}
+
+function configureOverlay(payload = {}) {
+  if (typeof payload.url === 'string' && payload.url.length > 0) {
+    runtimeConfig.url = payload.url;
+  }
+  if (payload.mode === 'single' || payload.mode === 'zones') {
+    runtimeConfig.mode = payload.mode;
+  }
+  if (typeof payload.targetDisplay === 'number' && Number.isFinite(payload.targetDisplay)) {
+    runtimeConfig.targetDisplay = payload.targetDisplay;
+  }
+  if (Array.isArray(payload.zones)) {
+    runtimeConfig.zones = payload.zones.map((zone) => String(zone));
+  }
+  if (payload.bounds && typeof payload.bounds === 'object') {
+    runtimeConfig.bounds = {
+      x: Number.isFinite(payload.bounds.x) ? Number(payload.bounds.x) : null,
+      y: Number.isFinite(payload.bounds.y) ? Number(payload.bounds.y) : null,
+      width: Number.isFinite(payload.bounds.width) ? Number(payload.bounds.width) : null,
+      height: Number.isFinite(payload.bounds.height) ? Number(payload.bounds.height) : null
+    };
+  }
+  if (payload.session && typeof payload.session === 'object') {
+    runtimeConfig.session = {
+      studyId: payload.session.studyId ?? null,
+      sessionId: payload.session.sessionId ?? null,
+      layoutId: payload.session.layoutId ?? null,
+      conditionId: payload.session.conditionId ?? null
+    };
+  }
+  if (typeof payload.clickThrough === 'boolean') {
+    setClickThrough(payload.clickThrough);
   }
 }
 
@@ -175,6 +227,26 @@ function startControlServer() {
       reloadWindows();
       response.writeHead(202, { 'content-type': 'application/json' });
       response.end(JSON.stringify({ accepted: true }));
+      return;
+    }
+
+    if (request.method === 'POST' && request.url === '/configure') {
+      let body = '';
+      request.on('data', (chunk) => {
+        body += chunk;
+      });
+      request.on('end', () => {
+        try {
+          const payload = body ? JSON.parse(body) : {};
+          configureOverlay(payload);
+          createWindows();
+          response.writeHead(202, { 'content-type': 'application/json' });
+          response.end(JSON.stringify({ accepted: true, config: overlayStatus() }));
+        } catch {
+          response.writeHead(400, { 'content-type': 'application/json' });
+          response.end(JSON.stringify({ error: 'invalid_json' }));
+        }
+      });
       return;
     }
 

@@ -25,6 +25,8 @@ const state = {
   reconnectAttempt: 0,
   reconnecting: false,
   currentSession: null,
+  bindingsFrozen: false,
+  sessionEnded: false,
   targetZone: query.get('zone') || '',
   lastExportProgress: null
 };
@@ -411,6 +413,9 @@ function postBinding(instanceId, key, value) {
 }
 
 function applyTelemetryBindings(payload) {
+  if (state.bindingsFrozen) {
+    return;
+  }
   for (const [instanceId, entry] of state.widgets.entries()) {
     for (const binding of entry.metadata.bindings || []) {
       const configuredPath = entry.bindingsConfig?.[binding.key];
@@ -599,6 +604,22 @@ async function renderLayout() {
 async function switchToSessionLayout(sessionEvent) {
   state.currentSession = sessionEvent;
   setSessionIndicator(sessionEvent);
+  const status = String(sessionEvent.status || sessionEvent.state || '').toLowerCase();
+  if (status === 'paused') {
+    state.bindingsFrozen = true;
+    return;
+  }
+  if (status === 'completed' || status === 'cancelled') {
+    state.bindingsFrozen = true;
+    state.sessionEnded = true;
+    for (const instanceId of state.widgets.keys()) {
+      setWidgetState(instanceId, 'hidden');
+    }
+    return;
+  }
+  state.bindingsFrozen = false;
+  state.sessionEnded = false;
+
   const nextLayoutId = sessionEvent.runtimeMetadata?.layoutId || sessionEvent.layoutId;
   if (sessionEvent.studyId) state.studyId = sessionEvent.studyId;
   if (sessionEvent.conditionId) state.conditionId = sessionEvent.conditionId;

@@ -6,7 +6,7 @@ type EventPayload = Record<string, unknown>;
 type WidgetPayload = Record<string, unknown>;
 
 export function createRealtimeStore() {
-  const telemetry = writable<TelemetryPayload>({});
+  const telemetry = writable<Record<string, TelemetryPayload>>({});
   const events = writable<EventPayload[]>([]);
   const widgets = writable<WidgetPayload[]>([]);
   const systemHealth = writable<Record<string, unknown>[]>([]);
@@ -15,7 +15,14 @@ export function createRealtimeStore() {
 
   let socket: WebSocket | null = null;
 
-  function connect(token: string | null, channels: string[]) {
+  function connect(
+    token: string | null,
+    channels: string[],
+    filters: {
+      studyId?: string;
+      sessionId?: string;
+    } = {}
+  ) {
     if (!token || socket) {
       return;
     }
@@ -26,7 +33,7 @@ export function createRealtimeStore() {
 
     socket.onopen = () => {
       socketState.set('open');
-      socket?.send(JSON.stringify({ action: 'subscribe', channels }));
+      socket?.send(JSON.stringify({ action: 'subscribe', channels, filters }));
     };
 
     socket.onmessage = (event) => {
@@ -36,7 +43,7 @@ export function createRealtimeStore() {
       };
 
       if (message.channel === 'session.telemetry') {
-        telemetry.set(message.data ?? {});
+        mergeTelemetry(telemetry, message.data ?? {});
       } else if (message.channel === 'session.events') {
         pushMessage(events, message.data);
       } else if (message.channel === 'widget.updates') {
@@ -78,4 +85,24 @@ function pushMessage(store: Writable<Record<string, unknown>[]>, payload: Record
   }
 
   store.update((current) => [payload, ...current].slice(0, 20));
+}
+
+function mergeTelemetry(
+  store: Writable<Record<string, Record<string, unknown>>>,
+  payload: Record<string, unknown> | undefined
+) {
+  if (!payload) {
+    return;
+  }
+
+  const studyId = String(payload.studyId ?? payload.study_id ?? 'global');
+  const sessionId = String(payload.sessionId ?? payload.runId ?? payload.session_id ?? 'global');
+  const modality = String(payload.modality ?? payload.eventType ?? payload.routingKey ?? 'telemetry');
+  const key = `${studyId}:${sessionId}:${modality}`;
+
+  store.update((current) => ({
+    ...current,
+    [key]: payload,
+    __latest: payload
+  }));
 }
