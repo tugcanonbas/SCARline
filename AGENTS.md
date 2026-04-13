@@ -6,7 +6,7 @@ Welcome to the SCARline repository. This file is the primary navigation guide fo
 
 SCARline is a research operations platform for automotive UX/HCI studies. It integrates driving simulators such as CARLA, web interfaces, overlay widgets, hardware sensors, RabbitMQ messaging, and PostgreSQL-backed operational state.
 
-- **[IMPLEMENTATION_REPORT.md](./product-requirements/IMPLEMENTATION_REPORT.md)** — Comprehensive codebase implementation assessment showing 87% platform completeness, detailed component status, known gaps, and execution roadmap.
+- **[IMPLEMENTATION_REPORT.md](./product-requirements/IMPLEMENTATION_REPORT.md)** — Comprehensive codebase implementation assessment showing 92% platform completeness, detailed component status, remaining risks, and finalization roadmap.
 
 ## Repo Map
 
@@ -19,7 +19,7 @@ SCARline is a research operations platform for automotive UX/HCI studies. It int
 - `python/io-client/`: hardware/sensor client and driver host.
 - `python/carla-client/`: CARLA adapter client.
 - `python/mock-simulator/`: deterministic simulator for development and tests.
-- `widgets/`: static overlay widget catalogue, one folder per widget with `widget.json` and `index.html`.
+- `widgets/`: static overlay widget catalogue with `components/<widget-id>/`, shared `images/`, shared `icons/`, and `dist.css`.
 - `infra/`: database schema/scripts, Nginx routing, RabbitMQ definitions, and process-manager IPC.
 - `tests/`: contract, infra, service, simulator, Admin Panel, and integration tests.
 - `.ai/skills/`: project-specific agent rules that should be read when working in a matching domain.
@@ -92,7 +92,8 @@ Overlay frontend surfaces:
 - Overlay web server: `apps/overlay-web/src/server.ts`
 - Overlay browser runtime: `apps/overlay-web/public/app.js`
 - Electron transparent shell: `apps/desktop-overlay/src/main.mjs`
-- Widget metadata and markup: `widgets/*/widget.json` and `widgets/*/index.html`
+- Widget metadata and markup: `widgets/components/*/widget.json` and `widgets/components/*/index.html`
+- Shared widget assets: `widgets/images/*`, `widgets/icons/*`, and `widgets/dist.css`
 
 ## Backend Navigation
 

@@ -1,7 +1,7 @@
 # SCARline – Product Requirements
 
 > **Version**: 1.0  
-> **Last Updated**: 2026-04-09
+> **Last Updated**: 2026-04-14
 
 ---
 
@@ -56,7 +56,7 @@ The system predefines all required components so researchers can focus solely on
 | **Sim-Bridge**      | Abstract protocol bridge that normalizes communication between the platform and any simulator backend. Enables future simulator integrations through a standardized adapter interface.                                                                                                                                               |
 | **I/O Client**      | [Python](https://www.python.org)-based service for physical sensor integration. Implements a standardized `SensorDriver` interface, allowing eye trackers, steering wheels, heart rate monitors, and other hardware to stream data through RabbitMQ.                                                                                 |
 | **Overlay Engine**  | Widget rendering engine supporting two modes: **web mode** (browser-based, accessible on any device) and **desktop transparent mode** ([Electron](https://www.electronjs.org) windows overlaying the simulator for the participant).                                                                                                 |
-| **Widgets**         | Catalogue of self-contained HTML + [TailwindCSS v4](https://tailwindcss.com) components rendered by the Overlay Engine. Each widget includes a `widget.json` metadata file defining its bindings, sizing, and category.                                                                                                              |
+| **Widgets**         | Catalogue of self-contained HTML + [TailwindCSS v4](https://tailwindcss.com) components rendered by the Overlay Engine. Widgets are organized under `widgets/components/<widget-id>/` with shared assets in `widgets/images/` and `widgets/icons/`. Each widget includes `widget.json` metadata defining bindings, sizing, and category. |
 
 ### Simulators
 
@@ -77,7 +77,7 @@ This directory contains the detailed product requirements for every component. S
 | File                                                   | Description                                                                                                                                                  |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | [PRD.md](./PRD.md)                                     | Product Requirements Document — architecture, technology stack, access model, authentication, and complete document index                                    |
-| [IMPLEMENTATION_REPORT.md](./IMPLEMENTATION_REPORT.md) | Comprehensive codebase assessment — 87% platform completeness, component status (production-ready vs. incomplete), critical gaps, and implementation roadmap |
+| [IMPLEMENTATION_REPORT.md](./IMPLEMENTATION_REPORT.md) | Comprehensive codebase assessment — 92% platform completeness, updated component status, remaining risks, and finalization roadmap |
 
 
 ### Infrastructure
@@ -103,7 +103,7 @@ This directory contains the detailed product requirements for every component. S
 | [IO_CLIENT.md](./IO_CLIENT.md)               | Physical sensor client — SensorDriver interface, supported sensors, and data flow                     |
 | [OVERLAY_ENGINE.md](./OVERLAY_ENGINE.md)     | Widget rendering engine — web mode, desktop transparent mode, and data binding model                  |
 | [WIDGETS.md](./WIDGETS.md)                   | Widget architecture — development guide, `widget.json` schema, trigger system, and styling guidelines |
-| [WIDGET_CATALOGUE.md](./WIDGET_CATALOGUE.md) | Complete catalogue of all 21 widgets with bindings, sizing, and behavior                              |
+| [WIDGET_CATALOGUE.md](./WIDGET_CATALOGUE.md) | Complete catalogue of all 24 widgets with bindings, sizing, and behavior                              |
 
 ---
 
