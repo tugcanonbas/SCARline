@@ -224,10 +224,17 @@ async def telemetry_loop(socket, state: MockSessionState) -> None:
         if should_emit_every(state, "laneInvasionEveryTicks"):
             await send_event(
                 socket,
-                f"events.{state.study_id}.{state.session_id}.driving.vehicle.lane-invasion",
+                f"events.{state.study_id}.{state.session_id}.driving.vehicle.lane_invasion",
                 {
+                    "timestamp": iso_timestamp(),
                     "frame": state.tick,
-                    "laneMarking": state.rng.choice(["solid", "broken", "curb"]),
+                    "crossedMarkings": [
+                        {
+                            "type": state.rng.choice(["Solid", "Broken", "Curb"]),
+                            "color": "White",
+                            "laneChange": state.rng.choice(["None", "Left", "Right", "Both"]),
+                        }
+                    ],
                     "severity": state.rng.choice(["low", "medium"]),
                     "scenario": state.scenario,
                 },
@@ -240,9 +247,18 @@ async def telemetry_loop(socket, state: MockSessionState) -> None:
                 socket,
                 f"events.{state.study_id}.{state.session_id}.driving.vehicle.collision",
                 {
+                    "timestamp": iso_timestamp(),
                     "frame": state.tick,
-                    "otherActor": state.rng.choice(["vehicle.mock.audi", "static.traffic_cone", "walker.pedestrian.mock"]),
-                    "impulse": round(state.rng.uniform(0.8, 4.5), 2),
+                    "otherActor": {
+                        "id": state.rng.randint(100, 999),
+                        "type": state.rng.choice(["vehicle", "static", "walker"]),
+                        "blueprint": state.rng.choice(["vehicle.mock.audi", "static.traffic_cone", "walker.pedestrian.mock"]),
+                    },
+                    "impulse": {
+                        "x": round(state.rng.uniform(0.8, 4.5), 2),
+                        "y": round(state.rng.uniform(-1.0, 1.0), 2),
+                        "z": 0,
+                    },
                     "scenario": state.scenario,
                 },
                 state.study_id,
@@ -252,13 +268,47 @@ async def telemetry_loop(socket, state: MockSessionState) -> None:
         if should_emit_every(state, "cameraEveryTicks") and state.sensors:
             await send_event(
                 socket,
-                f"events.{state.study_id}.{state.session_id}.driving.sensor.camera-frame",
+                f"events.{state.study_id}.{state.session_id}.driving.sensor.camera",
                 {
+                    "timestamp": iso_timestamp(),
                     "frame": state.tick,
                     "sensorId": "mock-camera-front",
-                    "uri": f"mock://{state.session_id}/camera/front/{state.tick:06d}.jpg",
+                    "dataRef": f"mock://{state.session_id}/camera/front/{state.tick:06d}.jpg",
                     "width": 1280,
                     "height": 720,
+                    "encoding": "reference",
+                    "scenario": state.scenario,
+                },
+                state.study_id,
+                state.session_id,
+            )
+
+        if state.tick % max(TELEMETRY_RATE // 2, 1) == 0 and state.sensors:
+            await send_event(
+                socket,
+                f"events.{state.study_id}.{state.session_id}.driving.sensor.gnss",
+                {
+                    "timestamp": iso_timestamp(),
+                    "frame": state.tick,
+                    "sensorId": "mock-gnss",
+                    "latitude": 52.0 + state.tick * 0.000001,
+                    "longitude": 13.0 + math.sin(state.tick / 100) * 0.0001,
+                    "altitude": 34.0,
+                    "scenario": state.scenario,
+                },
+                state.study_id,
+                state.session_id,
+            )
+            await send_event(
+                socket,
+                f"events.{state.study_id}.{state.session_id}.driving.sensor.imu",
+                {
+                    "timestamp": iso_timestamp(),
+                    "frame": state.tick,
+                    "sensorId": "mock-imu",
+                    "accelerometer": {"x": round(state.controls["throttle"] * 2.4, 2), "y": 0, "z": 9.81},
+                    "gyroscope": {"x": 0, "y": 0, "z": round(state.controls["steer"], 3)},
+                    "compass": float(yaw),
                     "scenario": state.scenario,
                 },
                 state.study_id,
@@ -270,6 +320,7 @@ async def telemetry_loop(socket, state: MockSessionState) -> None:
                 socket,
                 f"events.{state.study_id}.{state.session_id}.driving.world.snapshot",
                 {
+                    "timestamp": iso_timestamp(),
                     "frame": state.tick,
                     "simulationTime": round(state.tick * delay, 2),
                     "deltaSeconds": round(delay, 3),

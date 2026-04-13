@@ -150,6 +150,9 @@ async def publish_sensor_status(
     connected: bool,
     sample_rate: int,
     message: str | None = None,
+    capabilities: list[str] | None = None,
+    config_schema: dict | None = None,
+    degraded: bool = False,
 ) -> None:
     await publish(
         events_exchange,
@@ -161,9 +164,41 @@ async def publish_sensor_status(
             "sampleRate": sample_rate,
             "message": message,
             "checkedAt": iso_timestamp(),
+            "capabilities": capabilities or [],
+            "configSchema": config_schema or {},
+            "degraded": degraded,
         },
         None,
         None,
+    )
+
+
+async def publish_driver_status_event(
+    events_exchange: aio_pika.Exchange,
+    *,
+    driver: SensorDriver,
+    study_id: str,
+    run_id: str,
+    message: str | None = None,
+) -> None:
+    metadata = driver.get_metadata()
+    await publish(
+        events_exchange,
+        f"events.{study_id}.{run_id}.sensor.io.driver_status",
+        {
+            "driverId": metadata.driver_id,
+            "sensorType": metadata.sensor_type,
+            "displayName": metadata.display_name,
+            "connected": driver.is_connected(),
+            "sampleRate": metadata.sample_rate,
+            "message": message,
+            "checkedAt": iso_timestamp(),
+            "capabilities": list(metadata.custom_fields.get("capabilities", [])),
+            "configSchema": driver.get_configurable_fields(),
+            "degraded": not driver.is_connected(),
+        },
+        study_id,
+        run_id,
     )
 
 
@@ -207,7 +242,11 @@ async def sensor_loop(driver: SensorDriver, exchange: aio_pika.Exchange, study_i
                 sensor_type=metadata.sensor_type,
                 connected=driver.is_connected(),
                 sample_rate=metadata.sample_rate,
+                capabilities=list(metadata.custom_fields.get("capabilities", [])),
+                config_schema=driver.get_configurable_fields(),
+                degraded=not driver.is_connected(),
             )
+            await publish_driver_status_event(exchange, driver=driver, study_id=study_id, run_id=run_id)
         await asyncio.sleep(delay)
 
 
@@ -261,6 +300,7 @@ async def main() -> None:
                                 connected=False,
                                 sample_rate=0,
                                 message="No registered driver factory",
+                                degraded=True,
                             )
                             continue
                         driver = factory()
@@ -286,6 +326,16 @@ async def main() -> None:
                             connected=initialized and driver.is_connected(),
                             sample_rate=driver.get_metadata().sample_rate,
                             message=None if initialized else "Driver initialized in degraded mode",
+                            capabilities=list(driver.get_metadata().custom_fields.get("capabilities", [])),
+                            config_schema=driver.get_configurable_fields(),
+                            degraded=not initialized or not driver.is_connected(),
+                        )
+                        await publish_driver_status_event(
+                            events_exchange,
+                            driver=driver,
+                            study_id=study_id,
+                            run_id=run_id,
+                            message=None if initialized else "Driver initialized in degraded mode",
                         )
 
                 if routing_key == "commands.io.stop-session":
@@ -310,6 +360,9 @@ async def main() -> None:
                             connected=False,
                             sample_rate=metadata.sample_rate,
                             message="Session stopped",
+                            capabilities=list(metadata.custom_fields.get("capabilities", [])),
+                            config_schema=driver.get_configurable_fields(),
+                            degraded=True,
                         )
 
     await connection.close()

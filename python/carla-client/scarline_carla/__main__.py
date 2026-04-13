@@ -19,6 +19,10 @@ CARLA_SERVER_HOST = os.environ.get("CARLA_SERVER_HOST", "host.docker.internal")
 CARLA_SERVER_PORT = int(os.environ.get("CARLA_SERVER_PORT", "2000"))
 
 
+def iso_timestamp() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
+
+
 class CarlaAdapter:
     def __init__(self) -> None:
         self.client = None
@@ -42,7 +46,7 @@ class CarlaAdapter:
                 {
                     "version": "1.0",
                     "id": str(uuid.uuid4()),
-                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
+                    "timestamp": iso_timestamp(),
                     "type": "event",
                     "source": "carla-client",
                     "payload": {
@@ -76,6 +80,7 @@ class CarlaAdapter:
                 socket,
                 f"events.{study_id}.{run_id}.driving.vehicle.telemetry",
                 {
+                    "timestamp": iso_timestamp(),
                     "vehicle": {
                         "speed": round(self.pending_control["throttle"] * 120, 2),
                         "speedLimit": 50,
@@ -92,8 +97,122 @@ class CarlaAdapter:
                 study_id,
                 run_id,
             )
+
+            if tick % 20 == 0:
+                await self.send_event(
+                    socket,
+                    f"events.{study_id}.{run_id}.driving.world.snapshot",
+                    {
+                        "timestamp": iso_timestamp(),
+                        "frame": tick,
+                        "simulationTime": round(tick * 0.05, 2),
+                        "deltaSeconds": 0.05,
+                        "weather": {"preset": "ClearNoon"},
+                        "actorCount": 1,
+                        "map": "CARLA",
+                        "source": "carla-client-stub",
+                    },
+                    study_id,
+                    run_id,
+                )
+
+            if tick > 0 and tick % 400 == 0:
+                await self.send_event(
+                    socket,
+                    f"events.{study_id}.{run_id}.driving.vehicle.lane_invasion",
+                    {
+                        "timestamp": iso_timestamp(),
+                        "frame": tick,
+                        "crossedMarkings": [{"type": "Broken", "color": "White", "laneChange": "Both"}],
+                        "source": "carla-client-stub",
+                    },
+                    study_id,
+                    run_id,
+                )
+
+            if tick > 0 and tick % 1200 == 0:
+                await self.send_event(
+                    socket,
+                    f"events.{study_id}.{run_id}.driving.vehicle.collision",
+                    {
+                        "timestamp": iso_timestamp(),
+                        "frame": tick,
+                        "otherActor": {"id": 0, "type": "stub", "blueprint": "static.stub"},
+                        "impulse": {"x": 0, "y": 0, "z": 0},
+                        "source": "carla-client-stub",
+                    },
+                    study_id,
+                    run_id,
+                )
+
+            if tick % 20 == 0:
+                await self.send_event(
+                    socket,
+                    f"events.{study_id}.{run_id}.driving.sensor.camera",
+                    {
+                        "timestamp": iso_timestamp(),
+                        "sensorId": "front_rgb",
+                        "frame": tick,
+                        "width": 1920,
+                        "height": 1080,
+                        "encoding": "reference",
+                        "dataRef": f"carla://{run_id}/front_rgb/{tick:06d}",
+                    },
+                    study_id,
+                    run_id,
+                )
+
+            if tick % 10 == 0:
+                await self.send_event(
+                    socket,
+                    f"events.{study_id}.{run_id}.driving.sensor.gnss",
+                    {
+                        "timestamp": iso_timestamp(),
+                        "sensorId": "gnss",
+                        "frame": tick,
+                        "latitude": 52.0 + tick * 0.000001,
+                        "longitude": 13.0,
+                        "altitude": 35.0,
+                    },
+                    study_id,
+                    run_id,
+                )
+                await self.send_event(
+                    socket,
+                    f"events.{study_id}.{run_id}.driving.sensor.imu",
+                    {
+                        "timestamp": iso_timestamp(),
+                        "sensorId": "imu",
+                        "frame": tick,
+                        "accelerometer": {"x": self.pending_control["throttle"], "y": 0, "z": 9.81},
+                        "gyroscope": {"x": 0, "y": 0, "z": self.pending_control["steer"]},
+                        "compass": float(tick % 360),
+                    },
+                    study_id,
+                    run_id,
+                )
             tick += 1
             await asyncio.sleep(0.05)
+
+    async def heartbeat_loop(self, socket) -> None:
+        while True:
+            await socket.send(
+                json.dumps(
+                    {
+                        "version": "1.0",
+                        "id": str(uuid.uuid4()),
+                        "timestamp": iso_timestamp(),
+                        "type": "heartbeat",
+                        "source": "carla-client",
+                        "payload": {
+                            "activeSession": self.session_id,
+                            "carlaConnected": self.world is not None,
+                            "status": "ready" if self.world is not None else "degraded",
+                        },
+                    }
+                )
+            )
+            await asyncio.sleep(10)
 
     async def send_response(self, socket, correlation_id: str | None, payload: dict) -> None:
         await socket.send(
@@ -102,7 +221,7 @@ class CarlaAdapter:
                     "version": "1.0",
                     "id": str(uuid.uuid4()),
                     "correlationId": correlation_id,
-                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
+                    "timestamp": iso_timestamp(),
                     "type": "response",
                     "source": "carla-client",
                     "payload": payload,
@@ -119,7 +238,7 @@ async def main() -> None:
                 {
                     "version": "1.0",
                     "id": str(uuid.uuid4()),
-                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
+                    "timestamp": iso_timestamp(),
                     "type": "register",
                     "source": "carla-client",
                     "payload": {
@@ -133,6 +252,12 @@ async def main() -> None:
                             "sensor-management",
                             "traffic-management",
                             "recording",
+                            "world-snapshot",
+                            "collision-events",
+                            "lane-invasion-events",
+                            "camera-reference",
+                            "gnss",
+                            "imu",
                         ],
                         "status": "ready" if adapter.world is not None else "degraded",
                     },
@@ -141,6 +266,7 @@ async def main() -> None:
         )
 
         telemetry_task = None
+        heartbeat_task = asyncio.create_task(adapter.heartbeat_loop(socket))
         async for message in socket:
             payload = json.loads(message)
             if payload.get("type") != "command":
