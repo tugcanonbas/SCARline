@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import type { IncomingMessage, ServerResponse, Server } from 'node:http';
 import websocket from '@fastify/websocket';
 import { ComponentRegistry } from './lib/component-status.js';
 import { loadConfig } from './lib/config.js';
@@ -19,6 +20,8 @@ const app = Fastify({
   logger: true
 });
 
+// @ts-expect-error: @fastify/websocket@10 has a known TypeProvider mismatch with Fastify 4 generic overloads
+// at the type-system level. The runtime behavior is correct. See https://github.com/fastify/fastify-websocket/issues/309
 await app.register(websocket);
 
 await rabbit.connect();

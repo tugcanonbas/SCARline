@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+// Side-effect import to activate @fastify/websocket module augmentation (adds websocket: boolean to RouteShorthandOptions)
+import '@fastify/websocket';
+import type { WebSocket as WsWebSocket } from '@fastify/websocket';
 import {
   componentStatusSchema,
   conditionSchema,
@@ -1723,8 +1726,9 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     wsHub,
     components
   });
-
-  app.get('/ws', { websocket: true }, (socket, request) => {
+  // WebSocket handler — extracted for explicit typing due to known @fastify/websocket@10 + Fastify 4 TypeProvider mismatch
+  const wsHandler = (rawSocket: unknown, request: FastifyRequest) => {
+    const socket = rawSocket as WsWebSocket;
     const query = z.object({ token: z.string().min(1) }).safeParse(request.query);
     if (!query.success) {
       socket.send(JSON.stringify({ type: 'error', channel: 'system.health', data: { message: 'Missing token' } }));
@@ -1747,5 +1751,8 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
       socket.send(JSON.stringify({ type: 'error', channel: 'system.health', data: { message: 'Unauthorized' } }));
       socket.close();
     }
-  });
+  };
+
+  // @ts-expect-error: @fastify/websocket@10 FastifyPluginCallback TypeProvider mismatch with Fastify 4 — runtime is correct
+  app.get('/ws', { websocket: true }, wsHandler);
 }
