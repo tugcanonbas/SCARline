@@ -6,6 +6,7 @@ import { loadConfig } from './lib/config.js';
 import { handleCoreCommand } from './lib/commands.js';
 import { createPool } from './lib/db.js';
 import { handleEvent } from './lib/events.js';
+import { globalErrorHandler } from './lib/errors.js';
 import { registerApi } from './lib/api.js';
 import { RabbitManager } from './lib/rabbit.js';
 import { WebSocketHub } from './lib/websocket-hub.js';
@@ -23,6 +24,9 @@ const app = Fastify({
 // @ts-expect-error: @fastify/websocket@10 has a known TypeProvider mismatch with Fastify 4 generic overloads
 // at the type-system level. The runtime behavior is correct. See https://github.com/fastify/fastify-websocket/issues/309
 await app.register(websocket);
+
+// Centralized error handler — normalizes Zod, JWT, PostgreSQL, and unhandled errors
+app.setErrorHandler(globalErrorHandler);
 
 await rabbit.connect();
 
