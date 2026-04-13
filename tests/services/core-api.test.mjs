@@ -43,12 +43,25 @@ test('core api exposes full PRD management surfaces', async () => {
   }
 });
 
+test('core api export pipeline creates durable async artifacts', async () => {
+  const source = await readFile(path.join(root, 'services/core-api/src/lib/prd-routes.ts'), 'utf8');
+  assert.match(source, /processExportJob/);
+  assert.match(source, /resumeExportJobs/);
+  assert.match(source, /writeExportArtifact/);
+  assert.match(source, /createStoredZip/);
+  assert.match(source, /EXPORT_NOT_READY/);
+  assert.match(source, /EXPORT_ARTIFACT_MISSING/);
+  assert.match(source, /export\.progress/);
+});
+
 test('core api protects PRD routes with shared RBAC hook', async () => {
   const source = await readFile(path.join(root, 'services/core-api/src/lib/api.ts'), 'utf8');
   assert.match(source, /app\.addHook\('preHandler'/);
   assert.match(source, /rolesForRoute/);
   assert.match(source, /AUTH_REQUIRED/);
   assert.match(source, /FORBIDDEN/);
+  assert.match(source, /path === '\/api\/system\/ready'/);
+  assert.match(source, /path === '\/api\/system\/shutdown'/);
 });
 
 test('sim-bridge exposes adapter websocket and simulator command consumption', async () => {

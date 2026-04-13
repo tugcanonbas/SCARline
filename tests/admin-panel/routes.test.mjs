@@ -35,7 +35,8 @@ test('admin panel exposes PRD route coverage files', async () => {
     'settings/users/+page.server.ts',
     'settings/components/+page.server.ts',
     'documentation/+page.server.ts',
-    'exports/+page.server.ts'
+    'exports/+page.server.ts',
+    'exports/[id]/download/+server.ts'
   ]) {
     await access(path.join(routesRoot, routeFile));
   }

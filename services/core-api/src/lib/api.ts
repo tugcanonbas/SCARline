@@ -480,7 +480,16 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
 
   app.addHook('preHandler', async (request, reply) => {
     const path = request.url.split('?')[0];
-    if (!path.startsWith('/api/') || path.startsWith('/api/auth/') || path === '/api/health' || path.startsWith('/api/onboarding/') || path === '/api/system/bootstrap') {
+    if (
+      !path.startsWith('/api/')
+      || path.startsWith('/api/auth/')
+      || path === '/api/health'
+      || path.startsWith('/api/onboarding/')
+      || path === '/api/system/bootstrap'
+      || path === '/api/system/ready'
+      || path === '/api/system/shutdown'
+      || path === '/api/system/component-status'
+    ) {
       return;
     }
 

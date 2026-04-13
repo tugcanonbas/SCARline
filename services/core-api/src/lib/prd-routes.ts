@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { promises as fs } from 'node:fs';
 import { request as httpRequest } from 'node:http';
+import path from 'node:path';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { Pool } from 'pg';
 import { z } from 'zod';
@@ -29,6 +31,23 @@ interface Dependencies {
 const uuidParamSchema = z.object({ id: z.string().uuid() });
 const studyParamSchema = z.object({ studyId: z.string().uuid() });
 const studyEntityParamSchema = z.object({ studyId: z.string().uuid(), id: z.string().uuid() });
+const activeExportJobs = new Set<string>();
+
+type ExportJobRow = {
+  id: string;
+  study_id: string | null;
+  session_id: string | null;
+  format: 'json' | 'csv' | 'zip';
+  scope: 'study' | 'session' | 'all';
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+  progress: number;
+  result_path: string | null;
+  result_size_bytes?: number | null;
+  error_message: string | null;
+  parameters?: Record<string, unknown>;
+  created_at: Date;
+  completed_at: Date | null;
+};
 
 function ok<T>(data: T) {
   return { success: true, data, error: null };
@@ -64,18 +83,35 @@ async function callProcessManager(
   const encoded = method === 'POST' ? JSON.stringify(body) : '';
 
   return new Promise((resolve, reject) => {
+    const requestOptions = socketPath.startsWith('http://')
+      ? (() => {
+          const target = new URL(path, socketPath.endsWith('/') ? socketPath : `${socketPath}/`);
+          return {
+            hostname: target.hostname,
+            port: target.port,
+            path: `${target.pathname}${target.search}`,
+            method,
+            headers: method === 'POST'
+              ? {
+                  'content-type': 'application/json',
+                  'content-length': Buffer.byteLength(encoded)
+                }
+              : undefined
+          };
+        })()
+      : {
+          socketPath,
+          path,
+          method,
+          headers: method === 'POST'
+            ? {
+                'content-type': 'application/json',
+                'content-length': Buffer.byteLength(encoded)
+              }
+            : undefined
+        };
     const request = httpRequest(
-      {
-        socketPath,
-        path,
-        method,
-        headers: method === 'POST'
-          ? {
-              'content-type': 'application/json',
-              'content-length': Buffer.byteLength(encoded)
-            }
-          : undefined
-      },
+      requestOptions,
       (response) => {
         const chunks: Buffer[] = [];
         response.on('data', (chunk: Buffer) => chunks.push(chunk));
@@ -224,6 +260,271 @@ function exportCsv(rows: Array<Record<string, unknown>>): string {
   const header = ['id', 'timestamp', 'event_type', 'modality', 'source', 'routing_key', 'payload'];
   const escape = (value: unknown) => `"${String(typeof value === 'object' ? JSON.stringify(value) : value ?? '').replaceAll('"', '""')}"`;
   return [header.join(','), ...rows.map((row) => header.map((key) => escape(row[key])).join(','))].join('\n');
+}
+
+function exportJobDto(row: ExportJobRow) {
+  return exportJobSchema.parse({
+    id: row.id,
+    studyId: row.study_id,
+    sessionId: row.session_id,
+    format: row.format,
+    scope: row.scope,
+    status: row.status,
+    progress: Number(row.progress ?? 0),
+    resultPath: row.result_path,
+    errorMessage: row.error_message,
+    createdAt: row.created_at.toISOString(),
+    completedAt: row.completed_at?.toISOString?.() ?? null
+  });
+}
+
+function crc32(buffer: Buffer): number {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function createStoredZip(files: Array<{ name: string; content: string | Buffer }>): Buffer {
+  const localParts: Buffer[] = [];
+  const centralParts: Buffer[] = [];
+  let offset = 0;
+
+  for (const file of files) {
+    const name = Buffer.from(file.name);
+    const content = Buffer.isBuffer(file.content) ? file.content : Buffer.from(file.content);
+    const checksum = crc32(content);
+
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0, 6);
+    local.writeUInt16LE(0, 8);
+    local.writeUInt16LE(0, 10);
+    local.writeUInt16LE(0, 12);
+    local.writeUInt32LE(checksum, 14);
+    local.writeUInt32LE(content.length, 18);
+    local.writeUInt32LE(content.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    local.writeUInt16LE(0, 28);
+    localParts.push(local, name, content);
+
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0, 8);
+    central.writeUInt16LE(0, 10);
+    central.writeUInt16LE(0, 12);
+    central.writeUInt16LE(0, 14);
+    central.writeUInt32LE(checksum, 16);
+    central.writeUInt32LE(content.length, 20);
+    central.writeUInt32LE(content.length, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt16LE(0, 30);
+    central.writeUInt16LE(0, 32);
+    central.writeUInt16LE(0, 34);
+    central.writeUInt16LE(0, 36);
+    central.writeUInt32LE(0, 38);
+    central.writeUInt32LE(offset, 42);
+    centralParts.push(central, name);
+
+    offset += local.length + name.length + content.length;
+  }
+
+  const central = Buffer.concat(centralParts);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(0, 4);
+  end.writeUInt16LE(0, 6);
+  end.writeUInt16LE(files.length, 8);
+  end.writeUInt16LE(files.length, 10);
+  end.writeUInt32LE(central.length, 12);
+  end.writeUInt32LE(offset, 16);
+  end.writeUInt16LE(0, 20);
+
+  return Buffer.concat([...localParts, central, end]);
+}
+
+async function assertExportNotCancelled(pool: Pool, jobId: string) {
+  const row = await queryOne<{ status: string }>(pool, `SELECT status FROM export_jobs WHERE id = $1`, [jobId]);
+  if (!row || row.status === 'cancelled') {
+    throw new Error('EXPORT_CANCELLED');
+  }
+}
+
+async function updateExportProgress(pool: Pool, wsHub: WebSocketHub, jobId: string, status: string, progress: number, extra: Record<string, unknown> = {}) {
+  await pool.query(
+    `UPDATE export_jobs
+     SET status = $2, progress = $3, updated_at = NOW()
+     WHERE id = $1 AND status <> 'cancelled'`,
+    [jobId, status, progress]
+  );
+  wsHub.broadcast('export.progress', {
+    exportJobId: jobId,
+    status,
+    progress,
+    ...extra
+  });
+}
+
+async function collectExportData(pool: Pool, job: ExportJobRow) {
+  const filters = [job.study_id, job.session_id];
+  const events = await queryMany(pool, `
+    SELECT * FROM session_events
+    WHERE ($1::uuid IS NULL OR study_id = $1)
+      AND ($2::uuid IS NULL OR session_id = $2)
+    ORDER BY "timestamp" ASC
+  `, filters);
+  const studies = await queryMany(pool, `
+    SELECT * FROM studies
+    WHERE ($1::uuid IS NULL OR id = $1)
+    ORDER BY created_at ASC
+  `, [job.study_id]);
+  const sessions = await queryMany(pool, `
+    SELECT * FROM sessions
+    WHERE ($1::uuid IS NULL OR study_id = $1)
+      AND ($2::uuid IS NULL OR id = $2)
+    ORDER BY created_at ASC
+  `, filters);
+  const participants = await queryMany(pool, `
+    SELECT * FROM participants
+    WHERE ($1::uuid IS NULL OR study_id = $1)
+    ORDER BY created_at ASC
+  `, [job.study_id]);
+  const conditions = await queryMany(pool, `
+    SELECT * FROM conditions
+    WHERE ($1::uuid IS NULL OR study_id = $1)
+    ORDER BY "order" ASC, created_at ASC
+  `, [job.study_id]);
+
+  return {
+    exportJob: {
+      id: job.id,
+      studyId: job.study_id,
+      sessionId: job.session_id,
+      format: job.format,
+      scope: job.scope,
+      createdAt: job.created_at.toISOString()
+    },
+    generatedAt: new Date().toISOString(),
+    studies,
+    sessions,
+    participants,
+    conditions,
+    events
+  };
+}
+
+async function writeExportArtifact(exportDir: string, job: ExportJobRow, data: Awaited<ReturnType<typeof collectExportData>>) {
+  await fs.mkdir(exportDir, { recursive: true });
+  const extension = job.format;
+  const filename = `scarline-export-${job.id}.${extension}`;
+  const resultPath = path.join(exportDir, filename);
+  let content: string | Buffer;
+
+  if (job.format === 'csv') {
+    content = exportCsv(data.events);
+  } else if (job.format === 'zip') {
+    content = createStoredZip([
+      { name: 'manifest.json', content: JSON.stringify(data.exportJob, null, 2) },
+      { name: 'studies.json', content: JSON.stringify(data.studies, null, 2) },
+      { name: 'sessions.json', content: JSON.stringify(data.sessions, null, 2) },
+      { name: 'participants.json', content: JSON.stringify(data.participants, null, 2) },
+      { name: 'conditions.json', content: JSON.stringify(data.conditions, null, 2) },
+      { name: 'events.json', content: JSON.stringify(data.events, null, 2) },
+      { name: 'events.csv', content: exportCsv(data.events) }
+    ]);
+  } else {
+    content = JSON.stringify(data, null, 2);
+  }
+
+  await fs.writeFile(resultPath, content);
+  const stat = await fs.stat(resultPath);
+  return {
+    resultPath,
+    resultSizeBytes: stat.size
+  };
+}
+
+async function processExportJob(pool: Pool, wsHub: WebSocketHub, exportDir: string, jobId: string) {
+  if (activeExportJobs.has(jobId)) {
+    return;
+  }
+  activeExportJobs.add(jobId);
+  try {
+    const claimed = await queryOne<ExportJobRow>(pool, `
+      UPDATE export_jobs
+      SET status = 'running', progress = 5, started_at = COALESCE(started_at, NOW()), error_message = NULL, updated_at = NOW()
+      WHERE id = $1 AND status IN ('queued', 'running')
+      RETURNING *
+    `, [jobId]);
+    if (!claimed) {
+      return;
+    }
+
+    wsHub.broadcast('export.progress', { exportJobId: jobId, status: 'running', progress: 5 });
+    await assertExportNotCancelled(pool, jobId);
+    await updateExportProgress(pool, wsHub, jobId, 'running', 25);
+    const data = await collectExportData(pool, claimed);
+    await assertExportNotCancelled(pool, jobId);
+    await updateExportProgress(pool, wsHub, jobId, 'running', 70);
+    const artifact = await writeExportArtifact(exportDir, claimed, data);
+    await assertExportNotCancelled(pool, jobId);
+    await pool.query(
+      `UPDATE export_jobs
+       SET status = 'completed',
+           progress = 100,
+           result_path = $2,
+           result_size_bytes = $3,
+           completed_at = NOW(),
+           updated_at = NOW()
+       WHERE id = $1 AND status <> 'cancelled'`,
+      [jobId, artifact.resultPath, artifact.resultSizeBytes]
+    );
+    wsHub.broadcast('export.progress', {
+      exportJobId: jobId,
+      status: 'completed',
+      progress: 100,
+      resultPath: artifact.resultPath,
+      resultSizeBytes: artifact.resultSizeBytes
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'EXPORT_CANCELLED') {
+      wsHub.broadcast('export.progress', { exportJobId: jobId, status: 'cancelled', progress: 0 });
+      return;
+    }
+
+    const message = error instanceof Error ? error.message : 'Export failed';
+    await pool.query(
+      `UPDATE export_jobs
+       SET status = 'failed', error_message = $2, updated_at = NOW(), completed_at = NOW()
+       WHERE id = $1 AND status <> 'cancelled'`,
+      [jobId, message]
+    );
+    wsHub.broadcast('export.progress', { exportJobId: jobId, status: 'failed', progress: 0, errorMessage: message });
+  } finally {
+    activeExportJobs.delete(jobId);
+  }
+}
+
+async function resumeExportJobs(pool: Pool, wsHub: WebSocketHub, exportDir: string) {
+  const rows = await queryMany<{ id: string }>(pool, `
+    UPDATE export_jobs
+    SET status = 'queued', progress = 0, updated_at = NOW()
+    WHERE status = 'running'
+    RETURNING id
+  `);
+  const queued = await queryMany<{ id: string }>(pool, `SELECT id FROM export_jobs WHERE status = 'queued' ORDER BY created_at ASC`);
+  for (const row of [...rows, ...queued]) {
+    setImmediate(() => {
+      void processExportJob(pool, wsHub, exportDir, row.id);
+    });
+  }
 }
 
 export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies): Promise<void> {
@@ -647,20 +948,8 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
       values.push(query.status);
       clauses.push(`status = $${values.length}`);
     }
-    const rows = await queryMany(pool, `SELECT * FROM export_jobs ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''} ORDER BY created_at DESC`, values);
-    return ok(rows.map((row) => exportJobSchema.parse({
-      id: row.id,
-      studyId: row.study_id,
-      sessionId: row.session_id,
-      format: row.format,
-      scope: row.scope,
-      status: row.status,
-      progress: row.progress,
-      resultPath: row.result_path,
-      errorMessage: row.error_message,
-      createdAt: row.created_at.toISOString(),
-      completedAt: row.completed_at?.toISOString?.() ?? null
-    })));
+    const rows = await queryMany<ExportJobRow>(pool, `SELECT * FROM export_jobs ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''} ORDER BY created_at DESC`, values);
+    return ok(rows.map(exportJobDto));
   });
 
   app.post('/api/exports', async (request) => {
@@ -668,56 +957,97 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
       studyId: z.string().uuid().nullable().optional(),
       sessionId: z.string().uuid().nullable().optional(),
       format: z.enum(['json', 'csv', 'zip']).default('json'),
-      scope: z.enum(['study', 'session', 'all']).default('session')
+      scope: z.enum(['study', 'session', 'all']).default('session'),
+      parameters: z.record(z.string(), z.unknown()).default({})
     }).parse(request.body ?? {});
-    const row = await queryOne(pool, `
-      INSERT INTO export_jobs (study_id, session_id, format, scope, status, progress, started_at, completed_at)
-      VALUES ($1, $2, $3, $4, 'completed', 100, NOW(), NOW())
+    const row = await queryOne<ExportJobRow>(pool, `
+      INSERT INTO export_jobs (study_id, session_id, format, scope, status, progress, parameters)
+      VALUES ($1, $2, $3, $4, 'queued', 0, $5::jsonb)
       RETURNING *
-    `, [payload.studyId ?? null, payload.sessionId ?? null, payload.format, payload.scope]);
+    `, [payload.studyId ?? null, payload.sessionId ?? null, payload.format, payload.scope, JSON.stringify(payload.parameters)]);
     wsHub.broadcast('export.progress', {
       exportJobId: row?.id,
-      status: 'completed',
-      progress: 100
+      status: 'queued',
+      progress: 0
     });
-    return ok(row);
+    if (row) {
+      setImmediate(() => {
+        void processExportJob(pool, wsHub, config.EXPORTS_DIR, row.id);
+      });
+    }
+    return ok(row ? exportJobDto(row) : null);
   });
 
   app.get('/api/exports/:id', async (request, reply) => {
     const params = uuidParamSchema.parse(request.params);
-    const row = await queryOne(pool, `SELECT * FROM export_jobs WHERE id = $1`, [params.id]);
-    return row ? ok(row) : fail(reply, 404, 'NOT_FOUND', 'Export job not found');
+    const row = await queryOne<ExportJobRow>(pool, `SELECT * FROM export_jobs WHERE id = $1`, [params.id]);
+    return row ? ok(exportJobDto(row)) : fail(reply, 404, 'NOT_FOUND', 'Export job not found');
   });
 
   app.get('/api/exports/:id/download', async (request, reply) => {
     const params = uuidParamSchema.parse(request.params);
-    const job = await queryOne(pool, `SELECT * FROM export_jobs WHERE id = $1`, [params.id]);
+    const job = await queryOne<ExportJobRow>(pool, `SELECT * FROM export_jobs WHERE id = $1`, [params.id]);
     if (!job) {
       return fail(reply, 404, 'NOT_FOUND', 'Export job not found');
     }
-    const events = await queryMany(pool, `
-      SELECT * FROM session_events
-      WHERE ($1::uuid IS NULL OR study_id = $1)
-        AND ($2::uuid IS NULL OR session_id = $2)
-      ORDER BY "timestamp" ASC
-    `, [job.study_id, job.session_id]);
+    if (job.status !== 'completed' || !job.result_path) {
+      return fail(reply, 409, 'EXPORT_NOT_READY', `Export is ${job.status}`);
+    }
+
+    const resolvedExportDir = path.resolve(config.EXPORTS_DIR);
+    const resolvedArtifact = path.resolve(job.result_path);
+    if (!resolvedArtifact.startsWith(`${resolvedExportDir}${path.sep}`)) {
+      return fail(reply, 500, 'INVALID_EXPORT_PATH', 'Export artifact path is outside the configured export directory');
+    }
+
+    let artifact: Buffer;
+    try {
+      artifact = await fs.readFile(resolvedArtifact);
+    } catch {
+      return fail(reply, 410, 'EXPORT_ARTIFACT_MISSING', 'Export artifact is no longer available');
+    }
+
     if (job.format === 'csv') {
       reply.header('content-type', 'text/csv');
       reply.header('content-disposition', `attachment; filename="scarline-export-${params.id}.csv"`);
-      return exportCsv(events);
+      return artifact;
+    }
+    if (job.format === 'zip') {
+      reply.header('content-type', 'application/zip');
+      reply.header('content-disposition', `attachment; filename="scarline-export-${params.id}.zip"`);
+      return artifact;
     }
     reply.header('content-type', 'application/json');
     reply.header('content-disposition', `attachment; filename="scarline-export-${params.id}.json"`);
-    return {
-      exportJob: job,
-      events
-    };
+    return artifact;
   });
 
   app.delete('/api/exports/:id', async (request, reply) => {
     const params = uuidParamSchema.parse(request.params);
-    const row = await queryOne(pool, `DELETE FROM export_jobs WHERE id = $1 RETURNING id`, [params.id]);
-    return row ? ok({ deleted: true, id: params.id }) : fail(reply, 404, 'NOT_FOUND', 'Export job not found');
+    const current = await queryOne<ExportJobRow>(pool, `SELECT * FROM export_jobs WHERE id = $1`, [params.id]);
+    if (!current) {
+      return fail(reply, 404, 'NOT_FOUND', 'Export job not found');
+    }
+    if (current.status === 'queued' || current.status === 'running') {
+      await pool.query(
+        `UPDATE export_jobs
+         SET status = 'cancelled', progress = 0, completed_at = NOW(), updated_at = NOW()
+         WHERE id = $1`,
+        [params.id]
+      );
+      wsHub.broadcast('export.progress', { exportJobId: params.id, status: 'cancelled', progress: 0 });
+      return ok({ cancelled: true, id: params.id });
+    }
+
+    await pool.query(`DELETE FROM export_jobs WHERE id = $1`, [params.id]);
+    if (current.result_path) {
+      const resolvedExportDir = path.resolve(config.EXPORTS_DIR);
+      const resolvedArtifact = path.resolve(current.result_path);
+      if (resolvedArtifact.startsWith(`${resolvedExportDir}${path.sep}`)) {
+        await fs.unlink(resolvedArtifact).catch(() => undefined);
+      }
+    }
+    return ok({ deleted: true, id: params.id });
   });
 
   app.get('/api/session-logs', async (request) => {
@@ -842,4 +1172,7 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
       return ok({ accepted: false, message: 'Restart command is not supported by this Process Manager yet' });
     }
   });
+
+  await fs.mkdir(config.EXPORTS_DIR, { recursive: true });
+  await resumeExportJobs(pool, wsHub, config.EXPORTS_DIR);
 }
