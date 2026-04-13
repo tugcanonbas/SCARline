@@ -225,6 +225,63 @@ CREATE TABLE IF NOT EXISTS export_jobs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS disabled_reason TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_required BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS display_configuration JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS status_message TEXT;
+ALTER TABLE devices ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+ALTER TABLE export_jobs ADD COLUMN IF NOT EXISTS parameters JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE export_jobs ADD COLUMN IF NOT EXISTS result_size_bytes BIGINT;
+ALTER TABLE export_jobs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+CREATE TABLE IF NOT EXISTS study_trigger_rules (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  study_id UUID NOT NULL REFERENCES studies(id) ON DELETE CASCADE,
+  condition_id UUID REFERENCES conditions(id) ON DELETE CASCADE,
+  name VARCHAR(200) NOT NULL,
+  widget_id VARCHAR(100) NOT NULL,
+  instance_id UUID,
+  rule_condition TEXT NOT NULL,
+  action VARCHAR(100) NOT NULL,
+  binding_overrides JSONB NOT NULL DEFAULT '{}'::jsonb,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  priority INTEGER NOT NULL DEFAULT 100,
+  cooldown_ms INTEGER NOT NULL DEFAULT 0,
+  last_triggered_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_study_trigger_rules_study ON study_trigger_rules(study_id, enabled, priority);
+CREATE INDEX IF NOT EXISTS idx_study_trigger_rules_condition ON study_trigger_rules(condition_id);
+
+CREATE TABLE IF NOT EXISTS session_summaries (
+  session_id UUID PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+  study_id UUID NOT NULL REFERENCES studies(id) ON DELETE CASCADE,
+  event_count INTEGER NOT NULL DEFAULT 0,
+  modality_count INTEGER NOT NULL DEFAULT 0,
+  first_event_at TIMESTAMPTZ,
+  last_event_at TIMESTAMPTZ,
+  summary JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS activity_log (
+  id BIGSERIAL PRIMARY KEY,
+  actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  entity_type VARCHAR(100) NOT NULL,
+  entity_id UUID,
+  action VARCHAR(100) NOT NULL,
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_activity_log_entity ON activity_log(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log(created_at DESC);
+
 DO $$
 DECLARE
   target_table TEXT;
@@ -239,7 +296,9 @@ BEGIN
     'view_layouts',
     'carla_configurations',
     'sensor_configurations',
-    'devices'
+    'devices',
+    'export_jobs',
+    'study_trigger_rules'
   ]
   LOOP
     EXECUTE format('DROP TRIGGER IF EXISTS set_%1$s_updated_at ON %1$s;', target_table);

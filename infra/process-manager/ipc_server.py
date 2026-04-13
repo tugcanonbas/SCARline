@@ -5,6 +5,7 @@ import os
 import signal
 import socketserver
 import sys
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 
@@ -47,6 +48,7 @@ class Handler(BaseHTTPRequestHandler):
                     "carlaServer": self._pid_status("carla"),
                     "overlayDesktop": self._pid_status("overlay"),
                     "docker": "unknown",
+                    "checkedAt": datetime.now(timezone.utc).isoformat(),
                 },
             )
             return
@@ -60,6 +62,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         if self.path.startswith("/overlay/reload"):
             self._json(200, {"acknowledged": True})
+            return
+
+        if self.path == "/restart":
+            self._json(202, {"accepted": False, "message": "Restart must be requested through the scarline launcher"})
             return
 
         if self.path.startswith("/carla/") and self.path.endswith(("start", "stop", "restart")):
