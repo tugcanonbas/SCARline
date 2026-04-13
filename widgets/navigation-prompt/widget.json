@@ -7,17 +7,29 @@
   "entry": "index.html",
   "bindings": [
     {
-      "key": "instruction",
+      "key": "navigation.instruction",
       "type": "string",
       "label": "Instruction",
       "description": "Prompt text to show."
     },
     {
-      "key": "distance",
+      "key": "navigation.distance",
       "type": "number",
       "label": "Distance",
       "unit": "m",
       "description": "Distance until maneuver."
+    },
+    {
+      "key": "navigation.direction",
+      "type": "string",
+      "label": "Direction",
+      "description": "Direction identifier for the next maneuver."
+    },
+    {
+      "key": "navigation.roadName",
+      "type": "string",
+      "label": "Road Name",
+      "description": "Road name for the next maneuver."
     }
   ],
   "triggers": [

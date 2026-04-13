@@ -1,0 +1,16 @@
+{
+  "id": "spo2",
+  "name": "Oxygen Saturation",
+  "description": "Displays blood oxygen saturation percentage.",
+  "version": "1.0.0",
+  "category": "health",
+  "entry": "index.html",
+  "bindings": [
+    { "key": "health.spo2.percentage", "type": "number", "label": "Oxygen Saturation", "unit": "%" },
+    { "key": "health.spo2.status", "type": "string", "label": "Status" }
+  ],
+  "triggers": [
+    { "action": "highlight", "description": "Highlights low oxygen saturation." }
+  ],
+  "ui": { "minWidth": 150, "minHeight": 150, "preferredWidth": 200, "preferredHeight": 200 }
+}

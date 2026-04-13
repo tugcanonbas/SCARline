@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Heart Rate</title><script src="https://cdn.tailwindcss.com"></script><style>body{margin:0;background:transparent}@keyframes beat{50%{transform:scale(1.08)}}</style></head>
+  <body>
+    <div id="card" class="grid h-full w-full place-items-center rounded-full border border-red-300/20 bg-slate-950/70 p-6 text-center text-white shadow-[0_20px_45px_rgba(0,0,0,.35)]">
+      <div><p class="text-xs uppercase tracking-[0.25em] text-red-200">Heart Rate</p><p id="bpm" class="mt-3 text-6xl font-semibold" style="animation:beat 1s infinite">72</p><p id="status" class="mt-2 text-slate-300">normal bpm</p></div>
+    </div>
+    <script>
+      function init(){if(typeof SCARline==='undefined'){setTimeout(init,50);return}
+        SCARline.onBinding('health.heartrate.bpm',(v)=>document.getElementById('bpm').textContent=Math.round(v||0));
+        SCARline.onBinding('health.heartrate.status',(v)=>document.getElementById('status').textContent=(v||'normal')+' bpm');
+        SCARline.onTrigger(()=>document.getElementById('card').classList.add('ring-4','ring-red-300/60'));
+        SCARline.onStateChange((state)=>{document.body.style.opacity=state==='hidden'?'0':'1'});
+        SCARline.ready()}
+      init();
+    </script>
+  </body>
+</html>

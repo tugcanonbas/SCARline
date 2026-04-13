@@ -1,16 +1,22 @@
 {
   "id": "time",
-  "name": "Time",
+  "name": "Clock",
   "description": "Simple clock widget with optional external time binding.",
   "version": "1.0.0",
   "category": "general",
   "entry": "index.html",
   "bindings": [
     {
-      "key": "clock.now",
+      "key": "time.current",
       "type": "string",
       "label": "Clock Time",
       "description": "Current formatted time."
+    },
+    {
+      "key": "time.format",
+      "type": "string",
+      "label": "Clock Format",
+      "description": "Time format, either 12h or 24h."
     }
   ],
   "triggers": [],

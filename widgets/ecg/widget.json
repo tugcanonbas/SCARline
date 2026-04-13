@@ -1,0 +1,17 @@
+{
+  "id": "ecg",
+  "name": "ECG Monitor",
+  "description": "Displays a compact ECG waveform.",
+  "version": "1.0.0",
+  "category": "health",
+  "entry": "index.html",
+  "bindings": [
+    { "key": "health.ecg.samples", "type": "array", "label": "Samples" },
+    { "key": "health.ecg.sampleRate", "type": "number", "label": "Sample Rate" },
+    { "key": "health.ecg.leadType", "type": "string", "label": "Lead Type" }
+  ],
+  "triggers": [
+    { "action": "highlight", "description": "Highlights the ECG trace." }
+  ],
+  "ui": { "minWidth": 300, "minHeight": 120, "preferredWidth": 500, "preferredHeight": 200 }
+}

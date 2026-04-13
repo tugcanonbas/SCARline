@@ -1,0 +1,18 @@
+{
+  "id": "activecall",
+  "name": "Active Call",
+  "description": "Displays active call details and call duration.",
+  "version": "1.0.0",
+  "category": "communication",
+  "entry": "index.html",
+  "bindings": [
+    { "key": "call.callerName", "type": "string", "label": "Caller Name" },
+    { "key": "call.duration", "type": "number", "label": "Duration", "unit": "s" },
+    { "key": "call.muted", "type": "boolean", "label": "Muted" }
+  ],
+  "triggers": [
+    { "action": "show", "description": "Shows active call state." },
+    { "action": "highlight", "description": "Highlights the active call." }
+  ],
+  "ui": { "minWidth": 300, "minHeight": 200, "preferredWidth": 400, "preferredHeight": 300 }
+}

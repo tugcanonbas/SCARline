@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>User Avatar</title><script src="https://cdn.tailwindcss.com"></script><style>body{margin:0;background:transparent}</style></head>
+  <body>
+    <div id="avatar" class="grid h-full w-full place-items-center overflow-hidden rounded-full border border-white/15 bg-slate-950/70 text-4xl font-semibold text-white shadow-[0_20px_45px_rgba(0,0,0,.35)]">U</div>
+    <script>
+      function initials(value){return String(value||'User').split(' ').map((p)=>p[0]).join('').slice(0,2).toUpperCase()}
+      function init(){if(typeof SCARline==='undefined'){setTimeout(init,50);return}
+        SCARline.onBinding('user.name',(v)=>document.getElementById('avatar').textContent=initials(v));
+        SCARline.onBinding('user.avatar',(v)=>{const node=document.getElementById('avatar');if(v&&String(v).startsWith('http')){const img=document.createElement('img');img.alt='';img.className='h-full w-full object-cover';img.src=String(v);node.replaceChildren(img)}else if(v){node.textContent=initials(v)}});
+        SCARline.onTrigger(()=>document.getElementById('avatar').classList.add('ring-4','ring-white/50'));
+        SCARline.onStateChange((state)=>{document.body.style.opacity=state==='hidden'?'0':'1'});
+        SCARline.ready()}
+      init();
+    </script>
+  </body>
+</html>

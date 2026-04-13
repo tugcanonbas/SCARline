@@ -1,0 +1,16 @@
+{
+  "id": "calldeclined",
+  "name": "Call Declined",
+  "description": "Displays a short declined-call notification.",
+  "version": "1.0.0",
+  "category": "communication",
+  "entry": "index.html",
+  "bindings": [
+    { "key": "call.callerName", "type": "string", "label": "Caller Name" }
+  ],
+  "triggers": [
+    { "action": "show", "description": "Shows declined-call state." },
+    { "action": "hide", "description": "Hides declined-call state." }
+  ],
+  "ui": { "minWidth": 300, "minHeight": 100, "preferredWidth": 400, "preferredHeight": 150 }
+}

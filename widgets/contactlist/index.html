@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Contact List</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>body{margin:0;background:transparent}</style>
+  </head>
+  <body>
+    <div id="card" class="h-full w-full rounded-[28px] border border-white/10 bg-slate-950/65 p-5 text-white shadow-[0_20px_45px_rgba(0,0,0,.35)]">
+      <p class="text-xs uppercase tracking-[0.25em] text-sky-200">Contacts</p>
+      <div id="list" class="mt-4 space-y-3 overflow-hidden"></div>
+    </div>
+    <script>
+      const fallback=[{name:'Alex Morgan',phone:'+49 100 000'},{name:'Sam Rivera',phone:'+49 200 000'},{name:'Dr. Chen',phone:'+49 300 000'}];let contacts=fallback;let selected=0;
+      function render(){document.getElementById('list').innerHTML=contacts.map((item,index)=>'<div class="rounded-2xl border '+(index===selected?'border-sky-300/70 bg-sky-300/15':'border-white/10 bg-white/5')+' p-4"><p class="font-semibold">'+(item.name||'Unnamed')+'</p><p class="text-sm text-slate-300">'+(item.phone||'')+'</p></div>').join('')}
+      function init(){if(typeof SCARline==='undefined'){setTimeout(init,50);return}
+        SCARline.onBinding('contacts.list',(value)=>{contacts=Array.isArray(value)?value:fallback;render()});
+        SCARline.onBinding('contacts.selectedIndex',(value)=>{selected=Number(value||0);render()});
+        SCARline.onTrigger((event)=>{if(Number.isFinite(Number(event?.payload?.selectedIndex))){selected=Number(event.payload.selectedIndex);render()}});
+        SCARline.onStateChange((state)=>{document.body.style.opacity=state==='hidden'?'0':'1'});
+        render();SCARline.ready()}
+      init();
+    </script>
+  </body>
+</html>

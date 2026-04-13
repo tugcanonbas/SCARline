@@ -1,0 +1,18 @@
+{
+  "id": "session-timeline",
+  "name": "Session Timeline",
+  "description": "Displays elapsed time, phase, and session progress.",
+  "version": "1.0.0",
+  "category": "study",
+  "entry": "index.html",
+  "bindings": [
+    { "key": "session.elapsedTime", "type": "number", "label": "Elapsed Time", "unit": "s" },
+    { "key": "session.totalDuration", "type": "number", "label": "Total Duration", "unit": "s" },
+    { "key": "session.phase", "type": "string", "label": "Phase" },
+    { "key": "session.progress", "type": "number", "label": "Progress" }
+  ],
+  "triggers": [
+    { "action": "highlight", "description": "Highlights the current phase." }
+  ],
+  "ui": { "minWidth": 250, "minHeight": 60, "preferredWidth": 400, "preferredHeight": 80 }
+}

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>ECG Monitor</title><script src="https://cdn.tailwindcss.com"></script><style>body{margin:0;background:transparent}svg{width:100%;height:100%}</style></head>
+  <body>
+    <div id="card" class="h-full w-full rounded-[28px] border border-emerald-300/20 bg-slate-950/75 p-4 text-white shadow-[0_20px_45px_rgba(0,0,0,.35)]">
+      <div class="flex items-center justify-between"><p class="text-xs uppercase tracking-[0.25em] text-emerald-200">ECG</p><p id="lead" class="text-xs text-slate-400">single</p></div>
+      <svg viewBox="0 0 500 120" preserveAspectRatio="none"><polyline id="line" fill="none" stroke="#34d399" stroke-width="3" points="0,70 40,70 55,20 70,95 90,70 140,70 155,35 170,92 190,70 260,70 275,30 290,95 310,70 380,70 395,20 410,92 430,70 500,70"/></svg>
+    </div>
+    <script>
+      function draw(samples){const data=Array.isArray(samples)&&samples.length?samples:[0,.1,.8,-.5,0,.05,.4,-.35,0];document.getElementById('line').setAttribute('points',data.map((v,i)=>((i/(data.length-1))*500)+','+(70-Number(v||0)*45)).join(' '))}
+      function init(){if(typeof SCARline==='undefined'){setTimeout(init,50);return}
+        SCARline.onBinding('health.ecg.samples',draw);
+        SCARline.onBinding('health.ecg.sampleRate',()=>{});
+        SCARline.onBinding('health.ecg.leadType',(v)=>document.getElementById('lead').textContent=v||'single');
+        SCARline.onTrigger(()=>document.getElementById('card').classList.add('ring-4','ring-emerald-300/50'));
+        SCARline.onStateChange((state)=>{document.body.style.opacity=state==='hidden'?'0':'1'});
+        SCARline.ready()}
+      init();
+    </script>
+  </body>
+</html>

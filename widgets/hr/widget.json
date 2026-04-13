@@ -1,0 +1,16 @@
+{
+  "id": "hr",
+  "name": "Heart Rate",
+  "description": "Displays live heart rate and status.",
+  "version": "1.0.0",
+  "category": "health",
+  "entry": "index.html",
+  "bindings": [
+    { "key": "health.heartrate.bpm", "type": "number", "label": "Heart Rate", "unit": "bpm" },
+    { "key": "health.heartrate.status", "type": "string", "label": "Status" }
+  ],
+  "triggers": [
+    { "action": "highlight", "description": "Highlights elevated heart rate." }
+  ],
+  "ui": { "minWidth": 150, "minHeight": 150, "preferredWidth": 250, "preferredHeight": 250 }
+}

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Contact Card</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>body{margin:0;background:transparent}</style>
+  </head>
+  <body>
+    <div id="card" class="flex h-full w-full items-center gap-5 rounded-[28px] border border-white/10 bg-slate-950/65 p-5 text-white shadow-[0_20px_45px_rgba(0,0,0,.35)]">
+      <div id="avatar" class="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-full bg-sky-300/20 text-3xl font-semibold">A</div>
+      <div class="min-w-0">
+        <p class="text-xs uppercase tracking-[0.25em] text-sky-200">Contact</p>
+        <h1 id="name" class="truncate text-3xl font-semibold">Alex Morgan</h1>
+        <p id="phone" class="mt-1 text-lg text-slate-300">+49 000 000000</p>
+      </div>
+    </div>
+    <script>
+      function init(){if(typeof SCARline==='undefined'){setTimeout(init,50);return}
+        SCARline.onBinding('contact.name',(value)=>{document.getElementById('name').textContent=value||'Unknown Contact';document.getElementById('avatar').textContent=String(value||'U').slice(0,1).toUpperCase()});
+        SCARline.onBinding('contact.phone',(value)=>{document.getElementById('phone').textContent=value||''});
+        SCARline.onBinding('contact.avatar',(value)=>{const node=document.getElementById('avatar');if(value && String(value).startsWith('http')){const img=document.createElement('img');img.alt='';img.className='h-full w-full object-cover';img.src=String(value);node.replaceChildren(img)}else if(value){node.textContent=String(value).slice(0,2).toUpperCase()}});
+        SCARline.onTrigger(()=>document.getElementById('card').classList.add('ring-4','ring-sky-300/50'));
+        SCARline.onStateChange((state)=>{document.body.style.opacity=state==='hidden'?'0':'1'});
+        SCARline.ready()}
+      init();
+    </script>
+  </body>
+</html>

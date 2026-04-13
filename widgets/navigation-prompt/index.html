@@ -15,8 +15,14 @@
   <body>
     <div id="card" class="h-full w-full rounded-[28px] border border-cyan-300/20 bg-slate-950/60 p-6 text-white shadow-[0_20px_40px_rgba(0,0,0,0.35)]">
       <p class="text-xs uppercase tracking-[0.25em] text-cyan-300">Next Maneuver</p>
-      <h2 id="instruction" class="mt-5 text-3xl font-semibold tracking-tight">Continue straight</h2>
-      <p id="distance" class="mt-3 text-lg text-slate-300">0 m</p>
+      <div class="mt-5 flex items-center gap-5">
+        <span id="direction" class="grid h-16 w-16 place-items-center rounded-full bg-cyan-300/15 text-4xl">^</span>
+        <div>
+          <h2 id="instruction" class="text-3xl font-semibold tracking-tight">Continue straight</h2>
+          <p id="road" class="mt-1 text-sm uppercase tracking-[0.2em] text-slate-400">Route</p>
+        </div>
+      </div>
+      <p id="distance" class="mt-4 text-lg text-slate-300">0 m</p>
     </div>
 
     <script>
@@ -26,11 +32,18 @@
           return;
         }
 
-        SCARline.onBinding('instruction', (value) => {
+        SCARline.onBinding('navigation.instruction', (value) => {
           document.getElementById('instruction').textContent = value || 'Continue straight';
         });
-        SCARline.onBinding('distance', (value) => {
+        SCARline.onBinding('navigation.distance', (value) => {
           document.getElementById('distance').textContent = `${Math.round(value || 0)} m`;
+        });
+        SCARline.onBinding('navigation.direction', (value) => {
+          const arrows = { left: '<', right: '>', straight: '^', 'u-turn': 'U', arrive: 'O' };
+          document.getElementById('direction').textContent = arrows[value] || '^';
+        });
+        SCARline.onBinding('navigation.roadName', (value) => {
+          document.getElementById('road').textContent = value || 'Route';
         });
         SCARline.onTrigger(() => {
           document.getElementById('card').classList.add('ring-4', 'ring-cyan-300/40');

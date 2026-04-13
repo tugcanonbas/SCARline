@@ -1,0 +1,18 @@
+{
+  "id": "contact",
+  "name": "Contact Card",
+  "description": "Displays a single contact with name, avatar, and phone number.",
+  "version": "1.0.0",
+  "category": "communication",
+  "entry": "index.html",
+  "bindings": [
+    { "key": "contact.name", "type": "string", "label": "Name", "description": "Contact full name." },
+    { "key": "contact.phone", "type": "string", "label": "Phone", "description": "Contact phone number." },
+    { "key": "contact.avatar", "type": "string", "label": "Avatar", "description": "Avatar image URL or initials." }
+  ],
+  "triggers": [
+    { "action": "show", "description": "Shows the contact card." },
+    { "action": "highlight", "description": "Highlights the active contact." }
+  ],
+  "ui": { "minWidth": 250, "minHeight": 80, "preferredWidth": 350, "preferredHeight": 120 }
+}

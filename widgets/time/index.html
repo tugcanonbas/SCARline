@@ -22,9 +22,14 @@
 
     <script>
       const clockNode = document.getElementById('clock');
+      let clockFormat = '24h';
 
       function renderFallback() {
-        clockNode.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        clockNode.textContent = new Date().toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: clockFormat === '12h'
+        });
       }
 
       function init() {
@@ -36,10 +41,14 @@
           return;
         }
 
-        SCARline.onBinding('clock.now', (value) => {
+        SCARline.onBinding('time.current', (value) => {
           if (value) {
             clockNode.textContent = value;
           }
+        });
+        SCARline.onBinding('time.format', (value) => {
+          clockFormat = value === '12h' ? '12h' : '24h';
+          renderFallback();
         });
         SCARline.ready();
       }

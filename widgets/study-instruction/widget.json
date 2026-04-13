@@ -1,0 +1,20 @@
+{
+  "id": "study-instruction",
+  "name": "Study Instruction",
+  "description": "Displays researcher-defined participant instructions.",
+  "version": "1.0.0",
+  "category": "study",
+  "entry": "index.html",
+  "bindings": [
+    { "key": "study.instruction.title", "type": "string", "label": "Title" },
+    { "key": "study.instruction.body", "type": "string", "label": "Body" },
+    { "key": "study.instruction.step", "type": "number", "label": "Step" },
+    { "key": "study.instruction.totalSteps", "type": "number", "label": "Total Steps" },
+    { "key": "study.instruction.priority", "type": "string", "label": "Priority" }
+  ],
+  "triggers": [
+    { "action": "show", "description": "Shows the instruction." },
+    { "action": "update", "description": "Updates instruction content." }
+  ],
+  "ui": { "minWidth": 300, "minHeight": 150, "preferredWidth": 500, "preferredHeight": 300 }
+}

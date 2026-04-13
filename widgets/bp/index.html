@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Blood Pressure</title><script src="https://cdn.tailwindcss.com"></script><style>body{margin:0;background:transparent}</style></head>
+  <body>
+    <div id="card" class="grid h-full w-full place-items-center rounded-[28px] border border-rose-300/20 bg-slate-950/70 p-5 text-center text-white shadow-[0_20px_45px_rgba(0,0,0,.35)]">
+      <div><p class="text-xs uppercase tracking-[0.25em] text-rose-200">Blood Pressure</p><p class="mt-4 text-5xl font-semibold"><span id="sys">120</span>/<span id="dia">80</span></p><p id="status" class="mt-2 text-slate-300">normal mmHg</p></div>
+    </div>
+    <script>
+      function init(){if(typeof SCARline==='undefined'){setTimeout(init,50);return}
+        SCARline.onBinding('health.bp.systolic',(v)=>document.getElementById('sys').textContent=Math.round(v||0));
+        SCARline.onBinding('health.bp.diastolic',(v)=>document.getElementById('dia').textContent=Math.round(v||0));
+        SCARline.onBinding('health.bp.status',(v)=>document.getElementById('status').textContent=(v||'normal')+' mmHg');
+        SCARline.onTrigger(()=>document.getElementById('card').classList.add('ring-4','ring-rose-300/50'));
+        SCARline.onStateChange((state)=>{document.body.style.opacity=state==='hidden'?'0':'1'});
+        SCARline.ready()}
+      init();
+    </script>
+  </body>
+</html>

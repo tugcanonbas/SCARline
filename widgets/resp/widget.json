@@ -1,0 +1,16 @@
+{
+  "id": "resp",
+  "name": "Respiratory Rate",
+  "description": "Displays respiratory rate and breathing amplitude.",
+  "version": "1.0.0",
+  "category": "health",
+  "entry": "index.html",
+  "bindings": [
+    { "key": "health.resp.breathRate", "type": "number", "label": "Breath Rate", "unit": "breaths/min" },
+    { "key": "health.resp.amplitude", "type": "number", "label": "Amplitude" }
+  ],
+  "triggers": [
+    { "action": "highlight", "description": "Highlights respiratory rate." }
+  ],
+  "ui": { "minWidth": 150, "minHeight": 120, "preferredWidth": 250, "preferredHeight": 200 }
+}
