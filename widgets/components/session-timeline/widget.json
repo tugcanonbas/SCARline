@@ -1,0 +1,48 @@
+{
+  "id": "session-timeline",
+  "name": "Session Timeline",
+  "description": "Displays current session state and timing details.",
+  "version": "1.0.0",
+  "category": "researcher",
+  "entry": "index.html",
+  "bindings": {
+    "session.status_label": {
+      "type": "string",
+      "description": "Current session status label.",
+      "default": "In Progress"
+    },
+    "session.runtime_state": {
+      "type": "string",
+      "description": "Current runtime state.",
+      "default": "running"
+    },
+    "session.started_at_label": {
+      "type": "string",
+      "description": "Session start timestamp label.",
+      "default": "Started 09:12"
+    },
+    "session.updated_at_label": {
+      "type": "string",
+      "description": "Last update timestamp label.",
+      "default": "Updated 09:38"
+    },
+    "session.duration_label": {
+      "type": "string",
+      "description": "Current duration label.",
+      "default": "26 min"
+    },
+    "session.condition_label": {
+      "type": "string",
+      "description": "Current condition label.",
+      "default": "Baseline condition"
+    }
+  },
+  "ui": {
+    "preferredSize": { "w": 316, "h": 197 },
+    "minSize": { "w": 316, "h": 197 }
+  },
+  "window": {
+    "frame": "none",
+    "transparent": true
+  }
+}

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time</title>
+    <link rel="stylesheet" href="../../dist.css" />
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Custom Grid Background - Scaled down pattern */
+        .bg-grid {
+            background-size: 10px 10px;
+            background-image:
+                linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+        }
+
+        .clock-container {
+            position: relative;
+            width: 60px;
+            height: 60px;
+            background: black;
+            border-radius: 50%;
+        }
+
+        .clock-hand {
+            position: absolute;
+            bottom: 50%;
+            left: 50%;
+            transform-origin: bottom center;
+            border-radius: 4px;
+        }
+
+        .hand-hour {
+            width: 2px;
+            height: 15px;
+            background: white;
+            z-index: 3;
+            transform: translateX(-50%) rotate(var(--hand-angle, 330deg));
+            transition: transform 0.35s ease-out;
+        }
+
+        .hand-minute {
+            width: 1.5px;
+            height: 22px;
+            background: white;
+            z-index: 2;
+            transform: translateX(-50%) rotate(var(--hand-angle, 90deg));
+            transition: transform 0.2s linear;
+        }
+
+        .hand-second {
+            width: 1px;
+            height: 25px;
+            background: #3b82f6;
+            /* Blue-500 */
+            z-index: 4;
+            transform: translateX(-50%) rotate(var(--hand-angle, 180deg));
+            transition: transform 0.12s linear;
+        }
+
+        /* Center point */
+        .clock-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 4px;
+            height: 4px;
+            background: white;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 5;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-200 min-h-screen flex items-center justify-center p-4">
+
+    <!-- Card Container: 150x129 -->
+    <div
+        class="bg-[#686d76] w-[150px] h-[129px] rounded-lg overflow-hidden shadow-md relative text-white flex flex-col items-center p-2 isolate">
+
+        <!-- Grid Background Overlay -->
+        <div class="absolute inset-0 bg-grid pointer-events-none opacity-50 z-0"></div>
+
+        <!-- Analog Clock -->
+        <div class="relative z-10 clock-container mt-1">
+            <div id="hour-hand" class="clock-hand hand-hour" data-bind="system.hour_angle"
+                data-bind-style="--hand-angle" data-style-unit="deg" data-bind-text="false"></div>
+            <div id="minute-hand" class="clock-hand hand-minute" data-bind="system.minute_angle"
+                data-bind-style="--hand-angle" data-style-unit="deg" data-bind-text="false"></div>
+            <div id="second-hand" class="clock-hand hand-second" data-bind="system.second_angle"
+                data-bind-style="--hand-angle" data-style-unit="deg" data-bind-text="false"></div>
+            <div class="clock-center"></div>
+        </div>
+
+        <!-- Digital Time -->
+        <div id="digital-time" class="relative z-10 text-[14px] font-bold mt-1 leading-none" data-bind="system.time_label">
+            01:38 PM
+        </div>
+
+        <!-- Date -->
+        <div id="date-display" class="relative z-10 text-[11px] font-medium text-white/90 mt-0.5 leading-none"
+            data-bind="system.date_label">
+            February 11
+        </div>
+
+        <!-- Day of Week -->
+        <div id="day-display" class="relative z-10 text-[10px] font-medium text-white/50 mt-0.5 leading-none"
+            data-bind="system.day_label">
+            Saturday
+        </div>
+
+    </div>
+</body>
+
+</html>

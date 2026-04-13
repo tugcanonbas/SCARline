@@ -1,0 +1,33 @@
+{
+  "id": "operator-notes",
+  "name": "Operator Notes",
+  "description": "Displays live researcher notes and reminders.",
+  "version": "1.0.0",
+  "category": "researcher",
+  "entry": "index.html",
+  "bindings": {
+    "notes.title": {
+      "type": "string",
+      "description": "Notes card title.",
+      "default": "Operator Notes"
+    },
+    "notes.body": {
+      "type": "string",
+      "description": "Primary note content.",
+      "default": "Use this surface for live annotations, reminders, or participant observations."
+    },
+    "notes.footer": {
+      "type": "string",
+      "description": "Secondary note metadata.",
+      "default": "Preview layout"
+    }
+  },
+  "ui": {
+    "preferredSize": { "w": 316, "h": 129 },
+    "minSize": { "w": 316, "h": 129 }
+  },
+  "window": {
+    "frame": "none",
+    "transparent": true
+  }
+}

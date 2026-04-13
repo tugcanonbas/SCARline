@@ -1,0 +1,79 @@
+{
+  "id": "calendar",
+  "name": "Calendar",
+  "description": "Displays a compact calendar summary.",
+  "version": "1.0.0",
+  "category": "utility",
+  "entry": "index.html",
+  "bindings": {
+    "calendar.month_label": {
+      "type": "string",
+      "description": "Current month label.",
+      "default": "February"
+    },
+    "calendar.year_label": {
+      "type": "string",
+      "description": "Current year label.",
+      "default": "2026"
+    },
+    "calendar.date_label": {
+      "type": "string",
+      "description": "Current day-of-month label.",
+      "default": "11"
+    },
+    "calendar.weekday_label": {
+      "type": "string",
+      "description": "Current weekday label.",
+      "default": "Saturday"
+    },
+    "calendar.today_label": {
+      "type": "string",
+      "description": "Relative calendar label.",
+      "default": "Today"
+    },
+    "calendar.event_1_title": {
+      "type": "string",
+      "description": "First calendar event title.",
+      "default": "Route briefing"
+    },
+    "calendar.event_1_time": {
+      "type": "string",
+      "description": "First calendar event time.",
+      "default": "09:00 - 09:20"
+    },
+    "calendar.event_2_title": {
+      "type": "string",
+      "description": "Second calendar event title.",
+      "default": "Participant setup"
+    },
+    "calendar.event_2_time": {
+      "type": "string",
+      "description": "Second calendar event time.",
+      "default": "10:15 - 10:45"
+    },
+    "calendar.event_3_title": {
+      "type": "string",
+      "description": "Third calendar event title.",
+      "default": "Navigation trial"
+    },
+    "calendar.event_3_time": {
+      "type": "string",
+      "description": "Third calendar event time.",
+      "default": "13:00 - 14:30"
+    }
+  },
+  "actions": {
+    "calendar.add_event": {
+      "description": "Create or queue a new calendar event.",
+      "interactionType": "click"
+    }
+  },
+  "ui": {
+    "preferredSize": { "w": 150, "h": 129 },
+    "minSize": { "w": 150, "h": 129 }
+  },
+  "window": {
+    "frame": "none",
+    "transparent": true
+  }
+}

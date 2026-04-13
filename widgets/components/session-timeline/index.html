@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Session Timeline</title>
+  <link rel="stylesheet" href="../../dist.css" />
+  <style>
+    body { font-family: "Inter", sans-serif; background: transparent; }
+  </style>
+</head>
+<body class="m-0 min-h-screen bg-transparent flex items-start justify-start">
+  <section class="w-[316px] h-[197px] rounded-2xl border border-white/10 bg-[#101520]/92 text-white shadow-2xl backdrop-blur-md p-5 flex flex-col">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <div class="text-[11px] uppercase tracking-[0.22em] text-white/50">Session Timeline</div>
+        <div class="mt-2 text-[24px] font-semibold leading-none" data-bind="session.status_label">In Progress</div>
+      </div>
+      <div class="rounded-full border border-sky-400/20 px-3 py-1 text-[11px] text-sky-300" data-bind="session.runtime_state">running</div>
+    </div>
+    <div class="mt-5 grid gap-3">
+      <div class="rounded-xl border border-white/8 bg-white/5 px-4 py-3">
+        <div class="text-[11px] uppercase tracking-[0.16em] text-white/40">Started</div>
+        <div class="mt-2 text-base" data-bind="session.started_at_label">Started 09:12</div>
+      </div>
+      <div class="rounded-xl border border-white/8 bg-white/5 px-4 py-3">
+        <div class="text-[11px] uppercase tracking-[0.16em] text-white/40">Last Update</div>
+        <div class="mt-2 text-base" data-bind="session.updated_at_label">Updated 09:38</div>
+      </div>
+    </div>
+    <div class="mt-auto flex items-end justify-between">
+      <div>
+        <div class="text-[11px] uppercase tracking-[0.16em] text-white/40">Duration</div>
+        <div class="mt-2 text-xl font-semibold" data-bind="session.duration_label">26 min</div>
+      </div>
+      <div class="text-right">
+        <div class="text-[11px] uppercase tracking-[0.16em] text-white/40">Condition</div>
+        <div class="mt-2 text-sm text-white/75" data-bind="session.condition_label">Baseline condition</div>
+      </div>
+    </div>
+  </section>
+</body>
+</html>

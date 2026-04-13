@@ -1,0 +1,51 @@
+{
+  "id": "time",
+  "name": "Time",
+  "description": "Displays the current local time and date.",
+  "version": "1.0.0",
+  "category": "utility",
+  "entry": "index.html",
+  "bindings": {
+    "system.time_label": {
+      "type": "string",
+      "description": "Current time label.",
+      "default": "01:38 PM"
+    },
+    "system.date_label": {
+      "type": "string",
+      "description": "Current date label.",
+      "default": "February 11"
+    },
+    "system.day_label": {
+      "type": "string",
+      "description": "Current weekday label.",
+      "default": "Saturday"
+    },
+    "system.hour_angle": {
+      "type": "number",
+      "unit": "deg",
+      "description": "Current analog hour-hand angle.",
+      "default": 330
+    },
+    "system.minute_angle": {
+      "type": "number",
+      "unit": "deg",
+      "description": "Current analog minute-hand angle.",
+      "default": 90
+    },
+    "system.second_angle": {
+      "type": "number",
+      "unit": "deg",
+      "description": "Current analog second-hand angle.",
+      "default": 180
+    }
+  },
+  "ui": {
+    "preferredSize": { "w": 150, "h": 129 },
+    "minSize": { "w": 150, "h": 129 }
+  },
+  "window": {
+    "frame": "none",
+    "transparent": true
+  }
+}

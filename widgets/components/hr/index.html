@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HR</title>
+    <link rel="stylesheet" href="../../dist.css" />
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Custom Grid Background - Scaled down pattern */
+        .bg-grid {
+            background-size: 10px 10px;
+            background-image:
+                linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+        }
+
+        @keyframes wave-scroll {
+            from {
+                transform: translateX(0);
+            }
+
+            to {
+                transform: translateX(-50%);
+            }
+        }
+
+        .wave-marquee {
+            --wave-duration: 1.35s;
+            animation: wave-scroll var(--wave-duration) linear infinite;
+            will-change: transform;
+        }
+
+        .wave-trace {
+            --wave-scale: 1;
+            transform-box: fill-box;
+            transform-origin: center;
+            transform: scaleY(var(--wave-scale));
+            transition: transform 0.3s ease-out;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-200 min-h-screen flex items-center justify-center p-4">
+
+    <!-- Card Container: 95x65 -->
+    <div
+        class="bg-[#686d76] w-[95px] h-[65px] rounded-lg overflow-hidden shadow-md relative text-white flex p-1.5 isolate">
+        <!-- Added isolate for z-index context -->
+
+        <!-- Grid Background Overlay -->
+        <div class="absolute inset-0 bg-grid pointer-events-none opacity-50 z-0"></div>
+
+        <!-- Waveform (Left, larger and centered vertically) -->
+        <div
+            class="absolute left-0 top-0 bottom-0 w-[70%] text-green-500 opacity-80 z-0 flex items-center overflow-hidden">
+            <div class="flex h-full w-[200%] wave-marquee" data-bind="vitals.heart_rate_wave_duration"
+                data-bind-style="--wave-duration" data-style-unit="s" data-bind-text="false">
+                <svg class="w-1/2 h-full shrink-0" preserveAspectRatio="none" data-bind="vitals.heart_rate_wave_scale"
+                    data-bind-style="--wave-scale" data-bind-text="false">
+                    <path class="wave-trace"
+                        d="M0,45 L10,45 L15,35 L20,55 L25,10 L30,60 L40,45 L50,45 L60,45 L70,45 L75,35 L80,55 L85,10 L90,60 L100,45"
+                        stroke="currentColor" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke" />
+                </svg>
+                <svg class="w-1/2 h-full shrink-0" preserveAspectRatio="none" data-bind="vitals.heart_rate_wave_scale"
+                    data-bind-style="--wave-scale" data-bind-text="false">
+                    <path class="wave-trace"
+                        d="M0,45 L10,45 L15,35 L20,55 L25,10 L30,60 L40,45 L50,45 L60,45 L70,45 L75,35 L80,55 L85,10 L90,60 L100,45"
+                        stroke="currentColor" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke" />
+                </svg>
+            </div>
+        </div>
+
+        <!-- Main Value (Right, with background to 'cut off' the wave) -->
+        <!-- Main Value (Right, with background to 'cut off' the wave) -->
+        <div
+            class="absolute right-0 top-0 bottom-0 w-[60%] flex flex-col items-end justify-center z-10 bg-gradient-to-l from-[#686d76] via-[#686d76] via-70% to-transparent pr-1.5 pl-4">
+
+            <!-- Icon & Label -->
+            <div class="flex items-center gap-1 mb-0.5">
+                <div class="text-[8px] font-medium text-white/60 leading-none" data-bind="vitals.unit">
+                    bpm
+                </div>
+            </div>
+
+            <!-- Main Value -->
+
+            <div
+                class="text-xl font-bold text-white tracking-tight leading-[0.8] text-right flex items-center justify-end gap-1">
+                <svg viewBox="0 0 24 24" class="w-2.5 h-2.5 fill-green-500 animate-pulse"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <path
+                        d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                </svg>
+                <span data-bind="vitals.heart_rate" data-format="number" data-decimals="0">102</span>
+            </div>
+
+            <!-- Min/Max -->
+            <div class="text-[7px] font-medium text-white/40 leading-none mt-0.5">
+                <span data-bind="vitals.heart_rate_min" data-format="number" data-decimals="0">87</span><span class="mx-0.5 text-white/20">/</span><span data-bind="vitals.heart_rate_max" data-format="number" data-decimals="0">113</span>
+            </div>
+        </div>
+
+    </div>
+
+</body>
+
+</html>

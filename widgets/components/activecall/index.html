@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Active Call</title>
+    <link rel="stylesheet" href="../../dist.css" />
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Custom Grid Background - Scaled down pattern */
+        .bg-grid {
+            background-size: 10px 10px;
+            background-image:
+                linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+        }
+    </style>
+</head>
+
+<body class="bg-gray-200 min-h-screen flex items-center justify-center p-4">
+
+    <!-- Card Container: 150x197 -->
+    <div
+        class="bg-[#686d76] w-[150px] h-[197px] rounded-lg overflow-hidden shadow-md relative text-white flex flex-col items-center p-1 isolate">
+
+        <!-- Grid Background Overlay -->
+        <div class="absolute inset-0 bg-grid pointer-events-none opacity-50 z-0"></div>
+
+        <!-- Caller Info (Top) -->
+        <div class="relative z-10 flex flex-col items-center mt-0 w-full mb-1">
+            <div class="w-12 h-12 rounded-full overflow-hidden mb-1">
+                <img id="caller-avatar" src="../../images/avatars/susan-smith.png" alt="Caller"
+                    class="w-full h-full object-cover">
+            </div>
+            <div id="caller-name" class="text-[9px] font-semibold tracking-tight text-white/95 leading-tight"
+                data-bind="call.caller_name">
+                Susan Smith
+            </div>
+            <div id="call-timer" class="text-[9px] font-medium text-white/60 tracking-wide" data-bind="call.duration_label">
+                00:00
+            </div>
+        </div>
+
+        <!-- Action Buttons Grid (Middle) -->
+        <div class="relative z-10 grid grid-cols-3 gap-y-1 gap-x-1 w-full px-1 mb-2">
+            <!-- Add Call -->
+            <button id="btn-add" type="button" data-action="call.add" class="flex flex-col items-center justify-center group">
+                <div
+                    class="w-8 h-6 flex items-center justify-center transition-opacity opacity-60 group-hover:opacity-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                </div>
+                <span
+                    class="text-[7px] font-medium text-white/50 group-hover:text-white tracking-wide leading-none">Add</span>
+            </button>
+
+            <!-- Hold (Inactive) -->
+            <button id="btn-hold" type="button" data-action="call.hold" class="flex flex-col items-center justify-center group">
+                <div
+                    class="w-8 h-6 flex items-center justify-center transition-opacity group-hover:opacity-100"
+                    data-bind="call.is_on_hold" data-bind-class="text-blue-500" data-bind-class-false="opacity-60">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                        fill="currentColor" stroke="none">
+                        <rect x="6" y="4" width="3" height="16" rx="1" />
+                        <rect x="15" y="4" width="3" height="16" rx="1" />
+                    </svg>
+                </div>
+                <span class="text-[7px] font-medium group-hover:text-white tracking-wide leading-none"
+                    data-bind="call.is_on_hold" data-bind-class="text-white" data-bind-class-false="text-white/50">Hold</span>
+            </button>
+
+            <!-- Bluetooth (Active) -->
+            <button id="btn-audio" type="button" data-action="call.bluetooth" class="flex flex-col items-center justify-center group">
+                <div class="w-8 h-6 flex items-center justify-center transition-opacity group-hover:opacity-100"
+                    data-bind="call.is_bluetooth" data-bind-class="text-blue-500" data-bind-class-false="opacity-60">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="m7 7 10 10-5 5V2l5 5L7 17" />
+                    </svg>
+                </div>
+                <span class="text-[7px] font-medium tracking-wide leading-none"
+                    data-bind="call.is_bluetooth" data-bind-class="text-white" data-bind-class-false="text-white/50">Bluetooth</span>
+            </button>
+
+            <!-- Speaker -->
+            <button id="btn-spkr" type="button" data-action="call.speaker" class="flex flex-col items-center justify-center group">
+                <div
+                    class="w-8 h-6 flex items-center justify-center transition-opacity group-hover:opacity-100"
+                    data-bind="call.is_speaker" data-bind-class="text-blue-500" data-bind-class-false="opacity-60">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+                    </svg>
+                </div>
+                <span class="text-[7px] font-medium group-hover:text-white tracking-wide leading-none"
+                    data-bind="call.is_speaker" data-bind-class="text-white" data-bind-class-false="text-white/50">Speaker</span>
+            </button>
+
+            <!-- Mute -->
+            <button id="btn-mute" type="button" data-action="call.mute" class="flex flex-col items-center justify-center group">
+                <div
+                    class="w-8 h-6 flex items-center justify-center transition-opacity group-hover:opacity-100"
+                    data-bind="call.is_muted" data-bind-class="text-blue-500" data-bind-class-false="opacity-60">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                        <line x1="12" y1="19" x2="12" y2="23" />
+                        <line x1="8" y1="23" x2="16" y2="23" />
+                    </svg>
+                </div>
+                <span class="text-[7px] font-medium group-hover:text-white tracking-wide leading-none"
+                    data-bind="call.is_muted" data-bind-class="text-white" data-bind-class-false="text-white/50">Mute</span>
+            </button>
+
+            <!-- Keypad -->
+            <button id="btn-keypad" type="button" data-action="call.keypad" class="flex flex-col items-center justify-center group">
+                <div
+                    class="w-8 h-6 flex items-center justify-center transition-opacity opacity-60 group-hover:opacity-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="7" height="7" />
+                        <rect x="14" y="3" width="7" height="7" />
+                        <rect x="14" y="14" width="7" height="7" />
+                        <rect x="3" y="14" width="7" height="7" />
+                    </svg>
+                </div>
+                <span
+                    class="text-[7px] font-medium text-white/50 group-hover:text-white tracking-wide leading-none">Keypad</span>
+            </button>
+        </div>
+
+
+        <!-- Hang Up Button (Bottom) -->
+        <div class="relative z-10 w-full flex justify-center mt-auto mb-1">
+            <button id="btn-hangup" type="button" data-action="call.hangup"
+                class="w-8 h-8 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center shadow-md transition-colors cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"
+                    class="text-white">
+                    <!-- SVG path for phone down -->
+                    <path
+                        d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"
+                        transform="rotate(135 12 12)" />
+                </svg>
+            </button>
+        </div>
+
+    </div>
+</body>
+
+</html>

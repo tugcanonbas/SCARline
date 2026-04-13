@@ -1,0 +1,117 @@
+{
+  "id": "ecg",
+  "name": "ECG",
+  "description": "Displays ECG rhythm status and heart rate.",
+  "version": "1.0.0",
+  "category": "biometrics",
+  "entry": "index.html",
+  "bindings": {
+    "vitals.heart_rate": {
+      "type": "number",
+      "unit": "bpm",
+      "description": "Current heart rate.",
+      "default": 82
+    },
+    "vitals.unit": {
+      "type": "string",
+      "description": "Display unit for heart rate.",
+      "default": "bpm"
+    },
+    "vitals.heart_rate_wave_scale": {
+      "type": "number",
+      "description": "Vertical scale factor for the animated ECG waveform.",
+      "default": 1
+    },
+    "vitals.heart_rate_wave_duration": {
+      "type": "number",
+      "unit": "s",
+      "description": "Horizontal animation duration for the ECG waveform.",
+      "default": 1.35
+    },
+    "vitals.ecg_status": {
+      "type": "string",
+      "description": "Current ECG status label.",
+      "default": "Normal sinus"
+    },
+    "vitals.blood_pressure_systolic": {
+      "type": "number",
+      "unit": "mmHg",
+      "description": "Current systolic blood pressure.",
+      "default": 123
+    },
+    "vitals.blood_pressure_diastolic": {
+      "type": "number",
+      "unit": "mmHg",
+      "description": "Current diastolic blood pressure.",
+      "default": 78
+    },
+    "vitals.blood_pressure_unit": {
+      "type": "string",
+      "description": "Display unit for blood pressure.",
+      "default": "mmHg"
+    },
+    "vitals.blood_pressure_wave_scale": {
+      "type": "number",
+      "description": "Vertical scale factor for the animated NIBP waveform.",
+      "default": 1
+    },
+    "vitals.blood_pressure_wave_duration": {
+      "type": "number",
+      "unit": "s",
+      "description": "Horizontal animation duration for the NIBP waveform.",
+      "default": 1.45
+    },
+    "vitals.spo2": {
+      "type": "number",
+      "unit": "%",
+      "description": "Current oxygen saturation.",
+      "default": 98
+    },
+    "vitals.spo2_unit": {
+      "type": "string",
+      "description": "Display unit for oxygen saturation.",
+      "default": "%"
+    },
+    "vitals.spo2_wave_scale": {
+      "type": "number",
+      "description": "Vertical scale factor for the animated SpO2 waveform.",
+      "default": 1
+    },
+    "vitals.spo2_wave_duration": {
+      "type": "number",
+      "unit": "s",
+      "description": "Horizontal animation duration for the SpO2 waveform.",
+      "default": 1.3
+    },
+    "vitals.respiration_rate": {
+      "type": "number",
+      "unit": "rpm",
+      "description": "Current respiration rate.",
+      "default": 18
+    },
+    "vitals.respiration_unit": {
+      "type": "string",
+      "description": "Display unit for respiration rate.",
+      "default": "rpm"
+    },
+    "vitals.respiration_wave_scale": {
+      "type": "number",
+      "description": "Vertical scale factor for the animated respiration waveform.",
+      "default": 1
+    },
+    "vitals.respiration_wave_duration": {
+      "type": "number",
+      "unit": "s",
+      "description": "Horizontal animation duration for the respiration waveform.",
+      "default": 3.8
+    }
+  },
+  "ui": {
+    "preferredSize": { "w": 316, "h": 197 },
+    "minSize": { "w": 316, "h": 197 }
+  },
+  "window": {
+    "frame": "none",
+    "transparent": true
+  }
+}

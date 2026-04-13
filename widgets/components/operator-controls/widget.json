@@ -1,0 +1,38 @@
+{
+  "id": "operator-controls",
+  "name": "Operator Controls",
+  "description": "Displays primary researcher runtime actions.",
+  "version": "1.0.0",
+  "category": "researcher",
+  "entry": "index.html",
+  "bindings": {
+    "controls.runtime_state": {
+      "type": "string",
+      "description": "Current runtime state label.",
+      "default": "running"
+    },
+    "controls.primary_label": {
+      "type": "string",
+      "description": "Primary operator action label.",
+      "default": "Pause Session"
+    },
+    "controls.secondary_label": {
+      "type": "string",
+      "description": "Secondary operator action label.",
+      "default": "Mark Event"
+    },
+    "controls.tertiary_label": {
+      "type": "string",
+      "description": "Tertiary operator action label.",
+      "default": "Recover Runtime"
+    }
+  },
+  "ui": {
+    "preferredSize": { "w": 316, "h": 129 },
+    "minSize": { "w": 316, "h": 129 }
+  },
+  "window": {
+    "frame": "none",
+    "transparent": true
+  }
+}

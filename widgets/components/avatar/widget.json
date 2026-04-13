@@ -1,0 +1,39 @@
+{
+  "id": "avatar",
+  "name": "Avatar",
+  "description": "Displays the current participant profile summary.",
+  "version": "1.0.0",
+  "category": "participant",
+  "entry": "index.html",
+  "bindings": {
+    "participant.name": {
+      "type": "string",
+      "description": "Current participant display name.",
+      "default": "Susan Smith"
+    },
+    "participant.role": {
+      "type": "string",
+      "description": "Current participant role label.",
+      "default": "Participant"
+    },
+    "participant.status": {
+      "type": "string",
+      "description": "Current participant session status.",
+      "default": "Drive Phase 2"
+    }
+  },
+  "actions": {
+    "participant.switch_profile": {
+      "description": "Advance to the next participant profile.",
+      "interactionType": "click"
+    }
+  },
+  "ui": {
+    "preferredSize": { "w": 150, "h": 129 },
+    "minSize": { "w": 150, "h": 129 }
+  },
+  "window": {
+    "frame": "none",
+    "transparent": true
+  }
+}

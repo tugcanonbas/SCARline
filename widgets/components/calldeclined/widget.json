@@ -1,0 +1,53 @@
+{
+  "id": "calldeclined",
+  "name": "Call Declined",
+  "description": "Displays a declined-call summary.",
+  "version": "1.0.0",
+  "category": "communication",
+  "entry": "index.html",
+  "bindings": {
+    "call.caller_name": {
+      "type": "string",
+      "description": "Declined call participant name.",
+      "default": "Susan Smith"
+    },
+    "call.caller_phone": {
+      "type": "string",
+      "description": "Declined call participant phone number.",
+      "default": "+49 1234 567890"
+    },
+    "call.status_label": {
+      "type": "string",
+      "description": "Declined call status label.",
+      "default": "Call Declined"
+    },
+    "call.duration_label": {
+      "type": "string",
+      "description": "Call duration before decline.",
+      "default": "0:00"
+    },
+    "call.note_label": {
+      "type": "string",
+      "description": "Supplemental declined call label.",
+      "default": "Missed connection"
+    }
+  },
+  "actions": {
+    "call.callback": {
+      "description": "Call the participant back.",
+      "interactionType": "click"
+    },
+    "call.send_message": {
+      "description": "Send a follow-up message.",
+      "interactionType": "click"
+    }
+  },
+  "ui": {
+    "preferredSize": { "w": 150, "h": 197 },
+    "minSize": { "w": 150, "h": 197 }
+  },
+  "window": {
+    "frame": "none",
+    "transparent": true
+  }
+}

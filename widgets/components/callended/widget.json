@@ -1,0 +1,53 @@
+{
+  "id": "callended",
+  "name": "Call Ended",
+  "description": "Displays the ended-call summary.",
+  "version": "1.0.0",
+  "category": "communication",
+  "entry": "index.html",
+  "bindings": {
+    "call.caller_name": {
+      "type": "string",
+      "description": "Ended call participant name.",
+      "default": "Susan Smith"
+    },
+    "call.caller_phone": {
+      "type": "string",
+      "description": "Ended call participant phone number.",
+      "default": "+49 1234 567890"
+    },
+    "call.status_label": {
+      "type": "string",
+      "description": "Ended call status label.",
+      "default": "Call Ended"
+    },
+    "call.duration_label": {
+      "type": "string",
+      "description": "Completed call duration.",
+      "default": "4:32"
+    },
+    "call.note_label": {
+      "type": "string",
+      "description": "Supplemental ended call label.",
+      "default": "Conversation saved"
+    }
+  },
+  "actions": {
+    "call.callback": {
+      "description": "Call the participant back.",
+      "interactionType": "click"
+    },
+    "call.send_message": {
+      "description": "Send a follow-up message.",
+      "interactionType": "click"
+    }
+  },
+  "ui": {
+    "preferredSize": { "w": 150, "h": 197 },
+    "minSize": { "w": 150, "h": 197 }
+  },
+  "window": {
+    "frame": "none",
+    "transparent": true
+  }
+}

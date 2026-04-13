@@ -359,6 +359,40 @@ function injectRuntime(html, metadata, instanceId) {
   return `${runtime}${html}`;
 }
 
+function normalizeWidgetMetadata(metadata) {
+  if (!metadata || typeof metadata !== 'object') {
+    throw new Error('Widget metadata must be an object');
+  }
+
+  const bindings = Array.isArray(metadata.bindings)
+    ? metadata.bindings
+    : metadata.bindings && typeof metadata.bindings === 'object'
+      ? Object.entries(metadata.bindings).map(([key, value]) => ({ key, ...(value || {}) }))
+      : [];
+  const triggers = Array.isArray(metadata.triggers)
+    ? metadata.triggers
+    : metadata.actions && typeof metadata.actions === 'object'
+      ? Object.entries(metadata.actions).map(([action, value]) => ({ action, ...(value || {}) }))
+      : [];
+  const ui = metadata.ui && typeof metadata.ui === 'object'
+    ? ('preferredWidth' in metadata.ui
+        ? metadata.ui
+        : {
+            minWidth: Number(metadata.ui?.minSize?.w || 0),
+            minHeight: Number(metadata.ui?.minSize?.h || 0),
+            preferredWidth: Number(metadata.ui?.preferredSize?.w || 0),
+            preferredHeight: Number(metadata.ui?.preferredSize?.h || 0)
+          })
+    : null;
+
+  return {
+    ...metadata,
+    bindings,
+    triggers,
+    ui
+  };
+}
+
 function widgetInitialState(widget) {
   const overrideState = state.widgetStateOverrides.get(widget.id) || state.widgetStateOverrides.get(widget.widgetId);
   if (overrideState) {
@@ -577,7 +611,7 @@ async function renderLayout() {
         fetch(`assets/${widget.widgetId}/widget.json`),
         fetch(`assets/${widget.widgetId}/index.html`)
       ]);
-      const metadata = await metadataResponse.json();
+      const metadata = normalizeWidgetMetadata(await metadataResponse.json());
       const html = await htmlResponse.text();
       validateWidgetCompatibility(metadata, widget);
       state.widgets.set(widget.id, { ...widget, metadata });

@@ -1,0 +1,53 @@
+{
+  "id": "outgoingcall",
+  "name": "Outgoing Call",
+  "description": "Displays an outgoing call state.",
+  "version": "1.0.0",
+  "category": "communication",
+  "entry": "index.html",
+  "bindings": {
+    "call.caller_name": {
+      "type": "string",
+      "description": "Target contact name.",
+      "default": "Susan Smith"
+    },
+    "call.caller_phone": {
+      "type": "string",
+      "description": "Target contact phone number.",
+      "default": "+49 1234 567890"
+    },
+    "call.status_label": {
+      "type": "string",
+      "description": "Current call state label.",
+      "default": "Calling"
+    },
+    "call.note_label": {
+      "type": "string",
+      "description": "Supplemental call prompt text.",
+      "default": "Waiting for answer"
+    },
+    "call.duration_label": {
+      "type": "string",
+      "description": "Elapsed call duration.",
+      "default": "0:18"
+    }
+  },
+  "actions": {
+    "call.hangup": {
+      "description": "Cancel or hang up the outgoing call.",
+      "interactionType": "click"
+    },
+    "call.send_message": {
+      "description": "Send a message instead of continuing the call.",
+      "interactionType": "click"
+    }
+  },
+  "ui": {
+    "preferredSize": { "w": 150, "h": 197 },
+    "minSize": { "w": 150, "h": 197 }
+  },
+  "window": {
+    "frame": "none",
+    "transparent": true
+  }
+}

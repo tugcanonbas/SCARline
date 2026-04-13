@@ -1,0 +1,57 @@
+{
+  "id": "incomingcall",
+  "name": "Incoming Call",
+  "description": "Displays an incoming call prompt.",
+  "version": "1.0.0",
+  "category": "communication",
+  "entry": "index.html",
+  "bindings": {
+    "call.caller_name": {
+      "type": "string",
+      "description": "Incoming caller name.",
+      "default": "Susan Smith"
+    },
+    "call.caller_phone": {
+      "type": "string",
+      "description": "Incoming caller phone number.",
+      "default": "+49 1234 567890"
+    },
+    "call.status_label": {
+      "type": "string",
+      "description": "Current call status label.",
+      "default": "Incoming Call"
+    },
+    "call.note_label": {
+      "type": "string",
+      "description": "Supplemental call prompt text.",
+      "default": "Tap to answer"
+    },
+    "call.duration_label": {
+      "type": "string",
+      "description": "Current call duration label.",
+      "default": "0:00"
+    }
+  },
+  "actions": {
+    "call.accept": {
+      "description": "Accept the incoming call.",
+      "interactionType": "click"
+    },
+    "call.decline": {
+      "description": "Decline the incoming call.",
+      "interactionType": "click"
+    },
+    "call.send_message": {
+      "description": "Send a canned message instead of answering.",
+      "interactionType": "click"
+    }
+  },
+  "ui": {
+    "preferredSize": { "w": 150, "h": 197 },
+    "minSize": { "w": 150, "h": 197 }
+  },
+  "window": {
+    "frame": "none",
+    "transparent": true
+  }
+}

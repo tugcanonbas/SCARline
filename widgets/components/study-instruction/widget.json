@@ -1,0 +1,33 @@
+{
+  "id": "study-instruction",
+  "name": "Study Instruction",
+  "description": "Displays the current participant task or prompt.",
+  "version": "1.0.0",
+  "category": "participant",
+  "entry": "index.html",
+  "bindings": {
+    "study.title": {
+      "type": "string",
+      "description": "Instruction card title.",
+      "default": "Current Task"
+    },
+    "study.current_prompt": {
+      "type": "string",
+      "description": "Participant-facing study prompt.",
+      "default": "Maintain lane position and keep your speed within the posted limit."
+    },
+    "study.helper_text": {
+      "type": "string",
+      "description": "Secondary helper text.",
+      "default": "Follow the scenario until the next researcher cue."
+    }
+  },
+  "ui": {
+    "preferredSize": { "w": 316, "h": 129 },
+    "minSize": { "w": 316, "h": 129 }
+  },
+  "window": {
+    "frame": "none",
+    "transparent": true
+  }
+}

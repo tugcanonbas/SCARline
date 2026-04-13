@@ -1,0 +1,48 @@
+{
+  "id": "contact",
+  "name": "Contact",
+  "description": "Displays a selected contact card.",
+  "version": "1.0.0",
+  "category": "communication",
+  "entry": "index.html",
+  "bindings": {
+    "contact.name": {
+      "type": "string",
+      "description": "Selected contact name.",
+      "default": "Susan Smith"
+    },
+    "contact.phone": {
+      "type": "string",
+      "description": "Selected contact phone number.",
+      "default": "+49 1234 567890"
+    },
+    "contact.email": {
+      "type": "string",
+      "description": "Selected contact email address.",
+      "default": "susan.smith@scarline.dev"
+    },
+    "contact.company": {
+      "type": "string",
+      "description": "Selected contact company.",
+      "default": "HCIS Lab"
+    }
+  },
+  "actions": {
+    "contact.call": {
+      "description": "Start a call with the selected contact.",
+      "interactionType": "click"
+    },
+    "contact.message": {
+      "description": "Send a message to the selected contact.",
+      "interactionType": "click"
+    }
+  },
+  "ui": {
+    "preferredSize": { "w": 150, "h": 197 },
+    "minSize": { "w": 150, "h": 197 }
+  },
+  "window": {
+    "frame": "none",
+    "transparent": true
+  }
+}

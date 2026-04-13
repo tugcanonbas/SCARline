@@ -1,0 +1,84 @@
+{
+  "id": "appointments",
+  "name": "Appointments",
+  "description": "Displays the current study-day agenda.",
+  "version": "1.0.0",
+  "category": "utility",
+  "entry": "index.html",
+  "bindings": {
+    "calendar.month_label": {
+      "type": "string",
+      "description": "Current month label.",
+      "default": "February"
+    },
+    "calendar.year_label": {
+      "type": "string",
+      "description": "Current year label.",
+      "default": "2026"
+    },
+    "calendar.date_label": {
+      "type": "string",
+      "description": "Current day-of-month label.",
+      "default": "11"
+    },
+    "calendar.weekday_label": {
+      "type": "string",
+      "description": "Current weekday label.",
+      "default": "Saturday"
+    },
+    "calendar.event_1_title": {
+      "type": "string",
+      "description": "First agenda item title.",
+      "default": "Route briefing"
+    },
+    "calendar.event_1_time": {
+      "type": "string",
+      "description": "First agenda item time.",
+      "default": "09:00 - 09:20"
+    },
+    "calendar.event_2_title": {
+      "type": "string",
+      "description": "Second agenda item title.",
+      "default": "Participant setup"
+    },
+    "calendar.event_2_time": {
+      "type": "string",
+      "description": "Second agenda item time.",
+      "default": "10:15 - 10:45"
+    },
+    "calendar.event_3_title": {
+      "type": "string",
+      "description": "Third agenda item title.",
+      "default": "Navigation trial"
+    },
+    "calendar.event_3_time": {
+      "type": "string",
+      "description": "Third agenda item time.",
+      "default": "13:00 - 14:30"
+    },
+    "calendar.event_4_title": {
+      "type": "string",
+      "description": "Fourth agenda item title.",
+      "default": "Debrief session"
+    },
+    "calendar.event_4_time": {
+      "type": "string",
+      "description": "Fourth agenda item time.",
+      "default": "16:15 - 17:00"
+    }
+  },
+  "actions": {
+    "calendar.add_event": {
+      "description": "Create or queue a new agenda event.",
+      "interactionType": "click"
+    }
+  },
+  "ui": {
+    "preferredSize": { "w": 150, "h": 197 },
+    "minSize": { "w": 150, "h": 197 }
+  },
+  "window": {
+    "frame": "none",
+    "transparent": true
+  }
+}

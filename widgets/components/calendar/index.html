@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendar</title>
+    <link rel="stylesheet" href="../../dist.css" />
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: transparent;
+        }
+
+        /* Custom Grid Background - matched to other widgets */
+        .bg-grid {
+            background-size: 10px 10px;
+            background-image:
+                linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            text-align: center;
+        }
+
+        .calendar-day-label {
+            font-size: 6px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.4);
+            letter-spacing: 0.02em;
+            margin-bottom: 2px;
+        }
+
+        .calendar-date {
+            font-size: 8px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.9);
+            height: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .highlight-row {
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        .active-day {
+            background-color: #3b82f6;
+            /* Blue-500 */
+            color: white;
+            border-radius: 4px;
+            width: 16px;
+            height: 16px;
+            margin: auto;
+        }
+
+        .selected-day::after {
+            content: '';
+            position: absolute;
+            bottom: 1px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 10px;
+            height: 1.5px;
+            background-color: rgba(255, 255, 255, 0.4);
+            border-radius: 1px;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-200 min-h-screen flex items-center justify-center p-4">
+
+    <!-- Card Container: 150x129 (from meta.json) -->
+    <div
+        class="bg-[#686d76] w-[150px] h-[129px] rounded-lg overflow-hidden shadow-lg relative text-white flex flex-col p-2 isolate">
+
+        <!-- Grid Background Overlay -->
+        <div class="absolute inset-0 bg-grid pointer-events-none opacity-50 z-0"></div>
+
+        <!-- Header -->
+        <div class="relative z-10 flex items-center justify-between mb-1.5 px-1">
+            <button
+                class="w-5 h-5 flex items-center justify-center rounded border border-white/20 text-white/40 hover:text-white transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6" />
+                </svg>
+            </button>
+            <div class="text-center">
+                <div id="month-name" class="text-[10px] font-semibold leading-none" data-bind="calendar.month_label">February</div>
+                <div id="year-label" class="text-[8px] font-medium text-white/40 leading-none mt-0.5" data-bind="calendar.year_label">2026</div>
+            </div>
+            <button
+                class="w-5 h-5 flex items-center justify-center rounded border border-white/20 text-white/40 hover:text-white transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Days of Week labels -->
+        <div class="relative z-10 calendar-grid mb-0.5">
+            <div class="calendar-day-label">MON</div>
+            <div class="calendar-day-label">TUE</div>
+            <div class="calendar-day-label">WED</div>
+            <div class="calendar-day-label">THU</div>
+            <div class="calendar-day-label">FRI</div>
+            <div class="calendar-day-label">SAT</div>
+            <div class="calendar-day-label">SUN</div>
+        </div>
+
+        <!-- Calendar Days Grid -->
+        <div id="calendar-days" class="relative z-10 calendar-grid gap-y-0.5">
+            <div class="calendar-date">3</div>
+            <div class="calendar-date">4</div>
+            <div class="calendar-date">5</div>
+            <div class="calendar-date selected-day">6</div>
+            <div class="calendar-date">7</div>
+            <div class="calendar-date">
+                <div class="active-day flex items-center justify-center" data-bind="calendar.date_label">11</div>
+            </div>
+            <div class="calendar-date">12</div>
+        </div>
+        <div class="sr-only">
+            <span data-bind="calendar.today_label">Today</span>
+            <span data-bind="calendar.weekday_label">Saturday</span>
+            <span data-bind="calendar.event_1_title">Route briefing</span>
+            <span data-bind="calendar.event_1_time">09:00 - 09:20</span>
+            <span data-bind="calendar.event_2_title">Participant setup</span>
+            <span data-bind="calendar.event_2_time">10:15 - 10:45</span>
+            <span data-bind="calendar.event_3_title">Navigation trial</span>
+            <span data-bind="calendar.event_3_time">13:00 - 14:30</span>
+        </div>
+    </div>
+</body>
+
+</html>
