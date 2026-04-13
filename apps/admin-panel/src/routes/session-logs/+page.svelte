@@ -4,6 +4,8 @@
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
 
   let { data } = $props();
+  const modalityCount = $derived(new Set(data.logs.map((entry) => entry.modality ?? 'unknown')).size);
+  const sourceCount = $derived(new Set(data.logs.map((entry) => entry.source ?? 'unknown')).size);
 </script>
 
 <PageHeader
@@ -12,7 +14,31 @@
   description="Browse persisted session events with filters for study, session, event type, and telemetry modality."
 />
 
-<SurfaceCard title="Filters">
+<div class="metric-grid">
+  <div class="metric-card">
+    <p class="metric-card__label">Visible Events</p>
+    <p class="metric-card__value">{data.logs.length}</p>
+    <p class="metric-card__hint">Current filtered result set</p>
+  </div>
+  <div class="metric-card">
+    <p class="metric-card__label">Studies</p>
+    <p class="metric-card__value">{data.studies.length}</p>
+    <p class="metric-card__hint">Available study filters</p>
+  </div>
+  <div class="metric-card">
+    <p class="metric-card__label">Modalities</p>
+    <p class="metric-card__value">{modalityCount}</p>
+    <p class="metric-card__hint">Modalities in current result</p>
+  </div>
+  <div class="metric-card">
+    <p class="metric-card__label">Sources</p>
+    <p class="metric-card__value">{sourceCount}</p>
+    <p class="metric-card__hint">Event producers represented</p>
+  </div>
+</div>
+
+<div class="mt-4">
+<SurfaceCard title="Filters" subtitle="Filter the persisted event stream without changing the underlying query contract.">
   <form class="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_1fr_0.6fr_auto]" method="GET">
     <select class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm" name="studyId">
       <option value="">All studies</option>
@@ -27,12 +53,13 @@
     <button class="rounded-2xl border border-[--color-line] px-4 py-3 text-sm" type="submit">Apply</button>
   </form>
 </SurfaceCard>
+</div>
 
 <div class="mt-4">
-  <SurfaceCard title="Events">
-    <div class="space-y-3">
+  <SurfaceCard title="Event Timeline" subtitle="Timeline-like view of persisted events; open a row for session-level detail.">
+    <div class="timeline-list">
       {#each data.logs as entry}
-        <a class="block rounded-2xl border border-[--color-line] bg-[--color-panel-soft] p-4 transition hover:border-[--color-accent]/40" href={appPath(`/session-logs/${entry.sessionId ?? entry.session_id}`)}>
+        <a class="timeline-entry block transition hover:border-[--color-accent]/40" href={appPath(`/session-logs/${entry.sessionId ?? entry.session_id}`)}>
           <div class="mb-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
               <p class="font-semibold text-white">{entry.eventType ?? entry.event_type}</p>

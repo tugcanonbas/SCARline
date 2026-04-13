@@ -121,6 +121,9 @@
   function sessionTimestamp(session: RecentSession) {
     return session.completedAt ?? session.pausedAt ?? session.startedAt;
   }
+
+  const runningSessions = $derived(recentSessions.filter((session) => session.status === 'running'));
+  const healthyComponents = $derived(componentHealth.filter((component) => ['healthy', 'running', 'ready'].includes(component.status)).length);
 </script>
 
 <PageHeader
@@ -129,22 +132,76 @@
   description="Health, study state, and recent session activity for the current lab runtime."
 >
   {#snippet actions()}
-    <div class="flex gap-3">
-      <a class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm" href={appPath('/user-studies/new')}>New Study</a>
-      <a class="rounded-2xl bg-[--color-accent-strong] px-4 py-3 text-sm font-semibold text-white" href={appPath('/startup')}>Startup View</a>
+    <div class="action-strip">
+      <a href={appPath('/user-studies/new')}>Create study</a>
+      <a href={appPath('/session-logs')}>Review logs</a>
+      <a href={appPath('/settings/components')}>Component health</a>
+      <a href={appPath('/startup')}>Startup view</a>
     </div>
   {/snippet}
 </PageHeader>
 
-<div class="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-  <div class="grid gap-4 md:grid-cols-2">
-    <SurfaceCard title="Active Studies"><p class="text-3xl font-semibold">{data.dashboard.activeStudies}</p></SurfaceCard>
-    <SurfaceCard title="Total Sessions"><p class="text-3xl font-semibold">{data.dashboard.totalSessions}</p></SurfaceCard>
-    <SurfaceCard title="Participants"><p class="text-3xl font-semibold">{data.dashboard.totalParticipants}</p></SurfaceCard>
-    <SurfaceCard title="Captured Events"><p class="text-3xl font-semibold">{data.dashboard.totalEvents}</p></SurfaceCard>
+<div class="metric-grid">
+  <div class="metric-card">
+    <p class="metric-card__label">Active Studies</p>
+    <p class="metric-card__value">{data.dashboard.activeStudies}</p>
+    <p class="metric-card__hint">Studies ready for operator work</p>
   </div>
+  <div class="metric-card">
+    <p class="metric-card__label">Total Sessions</p>
+    <p class="metric-card__value">{data.dashboard.totalSessions}</p>
+    <p class="metric-card__hint">{runningSessions.length} currently running</p>
+  </div>
+  <div class="metric-card">
+    <p class="metric-card__label">Participants</p>
+    <p class="metric-card__value">{data.dashboard.totalParticipants}</p>
+    <p class="metric-card__hint">Anonymized participant records</p>
+  </div>
+  <div class="metric-card">
+    <p class="metric-card__label">Captured Events</p>
+    <p class="metric-card__value">{data.dashboard.totalEvents}</p>
+    <p class="metric-card__hint">Persisted research events</p>
+  </div>
+</div>
+
+<div class="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+  <SurfaceCard title="Active Study Operations" subtitle="Start from the latest running sessions or move into setup when no session is live.">
+    <div class="space-y-3">
+      {#each runningSessions as session}
+        <a class="scarline-list-item block" href={appPath(`/user-studies/${session.studyId}/active-study`)}>
+          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p class="font-semibold">{session.name ?? session.id}</p>
+              <p class="mt-1 text-sm text-slate-400">
+                Participant {session.participantId ?? 'unassigned'} · Condition {session.conditionId ?? 'none'}
+              </p>
+            </div>
+            <StatusBadge status={session.status} />
+          </div>
+        </a>
+      {:else}
+        <div class="technical-panel">
+          <p class="technical-label">No live session</p>
+          <p class="technical-value">Use Study Setup to create a session, then start it from the session queue.</p>
+          <div class="action-strip mt-4">
+            <a href={appPath('/user-studies')}>Open studies</a>
+          </div>
+        </div>
+      {/each}
+    </div>
+  </SurfaceCard>
 
   <SurfaceCard title="Component Health">
+    <div class="mb-4 grid gap-3 md:grid-cols-2">
+      <div class="technical-panel">
+        <p class="technical-label">Known components</p>
+        <p class="technical-value">{componentHealth.length}</p>
+      </div>
+      <div class="technical-panel">
+        <p class="technical-label">Ready components</p>
+        <p class="technical-value">{healthyComponents}</p>
+      </div>
+    </div>
     <div class="space-y-3">
       {#each componentHealth as component}
         <div class="flex items-center justify-between rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm">

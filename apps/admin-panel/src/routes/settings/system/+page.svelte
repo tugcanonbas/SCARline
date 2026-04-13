@@ -8,6 +8,7 @@
   const processItems = $derived(
     Object.entries(data.processManager ?? {}).map(([label, value]) => ({ label, value }))
   );
+  const pmReachable = $derived(!data.processManager?.unavailable);
 </script>
 
 <PageHeader
@@ -16,8 +17,31 @@
   description="Runtime configuration and Process Manager controls for the current SCARline lab node."
 />
 
+<div class="metric-grid">
+  <div class="metric-card">
+    <p class="metric-card__label">Process Manager</p>
+    <p class="metric-card__value">{pmReachable ? 'Ready' : 'Down'}</p>
+    <p class="metric-card__hint">IPC-backed status and controls</p>
+  </div>
+  <div class="metric-card">
+    <p class="metric-card__label">Platform Port</p>
+    <p class="metric-card__value">{data.configuration.platformPort ?? 8088}</p>
+    <p class="metric-card__hint">Single-domain Nginx entrypoint</p>
+  </div>
+  <div class="metric-card">
+    <p class="metric-card__label">CARLA Port</p>
+    <p class="metric-card__value">{data.configuration.carlaServerPort ?? 2000}</p>
+    <p class="metric-card__hint">Simulator server endpoint</p>
+  </div>
+  <div class="metric-card">
+    <p class="metric-card__label">Overlay</p>
+    <p class="metric-card__value">{data.configuration.transparentOverlayEnabled ? 'On' : 'Off'}</p>
+    <p class="metric-card__hint">Transparent shell startup setting</p>
+  </div>
+</div>
+
 <div class="grid gap-4 xl:grid-cols-[1fr_0.9fr]">
-  <SurfaceCard title="Platform Configuration">
+  <SurfaceCard title="Platform Configuration" subtitle="Persisted system configuration used by the launcher and CoreAPI.">
     <form class="grid gap-4" method="POST" action="?/update">
       <label class="grid gap-2 text-sm">
         <span>CARLA Server Path</span>
@@ -77,14 +101,14 @@
   </SurfaceCard>
 
   <div class="grid gap-4">
-    <SurfaceCard title="Process Manager">
+    <SurfaceCard title="Process Manager" subtitle="Current IPC response from the OS-level launcher.">
       <div class="mb-4">
         <StatusBadge status={data.processManager?.unavailable ? 'disconnected' : 'running'} label={data.processManager?.unavailable ? 'Unavailable' : 'Reachable'} />
       </div>
       <KeyValueGrid items={processItems} />
     </SurfaceCard>
 
-    <SurfaceCard title="Runtime Controls">
+    <SurfaceCard title="Runtime Controls" subtitle="Only implemented server actions are exposed here.">
       <div class="grid gap-3">
         <form class="grid grid-cols-3 gap-2" method="POST" action="?/carla">
           {#each ['start', 'stop', 'restart'] as action}
@@ -103,6 +127,10 @@
             Reload Transparent Overlay
           </button>
         </form>
+        <div class="technical-panel">
+          <p class="technical-label">System restart</p>
+          <p class="technical-value">No restart-system action is currently exposed by this route; use the Process Manager command line for full restart.</p>
+        </div>
       </div>
     </SurfaceCard>
   </div>
