@@ -176,3 +176,66 @@ test('scarline compose wrapper forwards compose files and subcommands', async ()
     await rm(tempDir, { recursive: true, force: true });
   }
 });
+
+test('scarline launcher validates node and pnpm requirements before startup', async () => {
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'scarline-reqs-'));
+  try {
+    const harnessPath = path.join(tempDir, 'scarline-harness.sh');
+    const script = await readFile(path.join(root, 'scarline'), 'utf8');
+    await writeFile(harnessPath, script.replace(/\nmain "\$@"\s*$/, '\n'));
+
+    // Test outdated node (v14)
+    try {
+      await execFileAsync('bash', ['-lc', 'source "$1"; node(){ echo "v14.0.0"; }; check_runtime_requirements', '--', harnessPath], { cwd: root });
+      assert.fail('Should have failed for old node version');
+    } catch (err) {
+      assert.match(err.stderr, /Node\.js version 20 or higher is required/);
+    }
+
+    // Test missing pnpm
+    const mockBin = path.join(tempDir, 'mock-bin');
+    await execFileAsync('mkdir', [mockBin]);
+    // Create a mock node that passes the version check
+    await writeFile(path.join(mockBin, 'node'), '#!/bin/sh\necho "v20.0.0"', { mode: 0o755 });
+    
+    try {
+      // Use mockBin first in PATH, and include basic system paths for 'cut', 'sed' etc.
+      // We explicitly DO NOT include the real pnpm path.
+      await execFileAsync('bash', ['-lc', 'source "$1"; export PATH="$2:/usr/bin:/bin"; check_runtime_requirements', '--', harnessPath, mockBin], { cwd: root });
+      assert.fail('Should have failed for missing pnpm');
+    } catch (err) {
+      assert.ok(err.stderr, 'stderr should be defined');
+      assert.match(err.stderr, /pnpm is not installed/);
+    }
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('launcher correctly configures IPC socket paths for cross-platform fallback', async () => {
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'scarline-ipc-'));
+  try {
+    const harnessPath = path.join(tempDir, 'scarline-harness.sh');
+    const script = await readFile(path.join(root, 'scarline'), 'utf8');
+    await writeFile(harnessPath, script.replace(/\nmain "\$@"\s*$/, '\n'));
+
+    // Test macOS (Darwin) TCP fallback
+    const { stdout: macOut } = await execFileAsync(
+      'bash',
+      ['-lc', 'source "$1"; uname(){ echo "Darwin"; }; PM_CONTROL_PORT=9999; load_config; printf "%s" "$SOCKET_PATH"', '--', harnessPath],
+      { cwd: root }
+    );
+    assert.equal(macOut, 'tcp://127.0.0.1:9999');
+
+    // Test Linux socket path
+    const { stdout: linuxOut } = await execFileAsync(
+      'bash',
+      ['-lc', 'source "$1"; uname(){ echo "Linux"; }; load_config; printf "%s" "$SOCKET_PATH"', '--', harnessPath],
+      { cwd: root }
+    );
+    assert.equal(linuxOut, '/tmp/scarline.sock');
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
