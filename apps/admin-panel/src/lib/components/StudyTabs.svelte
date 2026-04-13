@@ -22,15 +22,11 @@
   });
 </script>
 
-<nav class="mb-6 flex flex-wrap gap-2">
+<nav class="study-tabs">
   {#each tabs as tab}
     <a
-      class={[
-        'rounded-full border px-4 py-2 text-sm transition',
-        current === tab.href
-          ? 'border-[--color-accent] bg-[--color-accent]/10 text-[--color-accent]'
-          : 'border-[--color-line] bg-[--color-panel-soft] text-slate-300 hover:border-[--color-accent]/40'
-      ].join(' ')}
+      class="study-tab"
+      aria-current={current === tab.href ? 'page' : undefined}
       href={appPath(tab.href)}
     >
       {tab.label}

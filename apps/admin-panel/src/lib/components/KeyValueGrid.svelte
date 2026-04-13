@@ -32,11 +32,11 @@
   }
 </script>
 
-<div class="grid gap-3 md:grid-cols-2">
+<div class="kv-grid">
   {#each items as item}
-    <div class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3">
-      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{item.label}</p>
-      <p class="mt-2 break-words text-sm text-slate-100">{format(item.value)}</p>
+    <div class="kv-item">
+      <p class="kv-label">{item.label}</p>
+      <p class="kv-value">{format(item.value)}</p>
     </div>
   {/each}
 </div>
