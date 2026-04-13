@@ -14,13 +14,37 @@
     { label: 'Traffic', value: data.config?.trafficConfig ?? data.config?.traffic_config ?? {} }
   ]);
   const configuredSensors = $derived(data.config?.sensors ?? []);
+  const trafficConfig = $derived((data.config?.trafficConfig ?? data.config?.traffic_config ?? {}) as Record<string, unknown>);
 </script>
 
 <PageHeader eyebrow="Study" title="CARLA Configuration" description="Baseline simulator settings used for session start commands and condition overrides." />
 <StudyTabs studyId={data.studyId} current={`/user-studies/${data.studyId}/carla-config`} />
 
+<div class="metric-grid">
+  <div class="metric-card">
+    <p class="metric-card__label">Map</p>
+    <p class="metric-card__value">{data.config?.map ?? 'Unset'}</p>
+    <p class="metric-card__hint">World loaded before session start</p>
+  </div>
+  <div class="metric-card">
+    <p class="metric-card__label">Weather</p>
+    <p class="metric-card__value">{data.config?.weatherPreset ?? data.config?.weather_preset ?? 'Default'}</p>
+    <p class="metric-card__hint">Baseline before condition overrides</p>
+  </div>
+  <div class="metric-card">
+    <p class="metric-card__label">Sensors</p>
+    <p class="metric-card__value">{configuredSensors.length}</p>
+    <p class="metric-card__hint">Simulator-attached devices</p>
+  </div>
+  <div class="metric-card">
+    <p class="metric-card__label">NPC Vehicles</p>
+    <p class="metric-card__value">{trafficConfig.npcVehicleCount ?? trafficConfig.npc_vehicle_count ?? 15}</p>
+    <p class="metric-card__hint">Traffic density baseline</p>
+  </div>
+</div>
+
 <div class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-  <SurfaceCard title="Simulator Defaults">
+  <SurfaceCard title="Simulator Defaults" subtitle="These values are persisted as the study-level CARLA baseline.">
     <form class="grid gap-4" method="POST">
       <label class="grid gap-2 text-sm">
         <span>Map</span>
@@ -55,8 +79,22 @@
     </form>
   </SurfaceCard>
 
-  <SurfaceCard title="Current Config">
+  <SurfaceCard title="Current Config" subtitle="Read-only command preview used when a session is started.">
     <KeyValueGrid items={configItems} />
+    <div class="mt-4 grid gap-3 md:grid-cols-3">
+      <div class="technical-panel">
+        <p class="technical-label">Mode</p>
+        <p class="technical-value">{data.config?.simulationMode ?? data.config?.simulation_mode ?? 'synchronous'}</p>
+      </div>
+      <div class="technical-panel">
+        <p class="technical-label">Tick Rate</p>
+        <p class="technical-value">{data.config?.fixedDeltaSeconds ?? data.config?.fixed_delta_seconds ?? 0.05}s fixed delta</p>
+      </div>
+      <div class="technical-panel">
+        <p class="technical-label">Condition Layer</p>
+        <p class="technical-value">Applied by session setup when a condition is selected</p>
+      </div>
+    </div>
     <div class="mt-4 space-y-3">
       <p class="text-sm font-semibold text-white">Attached Sensors</p>
       {#each configuredSensors as sensor}

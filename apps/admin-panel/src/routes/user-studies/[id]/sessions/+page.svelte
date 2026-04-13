@@ -22,13 +22,39 @@
     if (!value) return 'Not recorded';
     return new Date(value).toLocaleString();
   }
+
+  const runningCount = $derived(data.sessions.filter((session) => session.status === 'running').length);
+  const completedCount = $derived(data.sessions.filter((session) => session.status === 'completed').length);
 </script>
 
 <PageHeader eyebrow="Study" title="Sessions" description="Create sessions and drive lifecycle transitions through the CoreAPI command path." />
 <StudyTabs studyId={data.studyId} current={`/user-studies/${data.studyId}/sessions`} />
 
+<div class="metric-grid">
+  <div class="metric-card">
+    <p class="metric-card__label">Sessions</p>
+    <p class="metric-card__value">{data.sessions.length}</p>
+    <p class="metric-card__hint">Created session records</p>
+  </div>
+  <div class="metric-card">
+    <p class="metric-card__label">Running</p>
+    <p class="metric-card__value">{runningCount}</p>
+    <p class="metric-card__hint">Live operator workload</p>
+  </div>
+  <div class="metric-card">
+    <p class="metric-card__label">Completed</p>
+    <p class="metric-card__value">{completedCount}</p>
+    <p class="metric-card__hint">Ready for log review/export</p>
+  </div>
+  <div class="metric-card">
+    <p class="metric-card__label">Setup Inputs</p>
+    <p class="metric-card__value">{data.participants.length}/{data.conditions.length}</p>
+    <p class="metric-card__hint">Participants and conditions available</p>
+  </div>
+</div>
+
 <div class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-  <SurfaceCard title="Create Session">
+  <SurfaceCard title="Create Session" subtitle="Bind a participant and optional condition before starting the session.">
     {#if form?.message}
       <p class="mb-4 rounded-2xl border border-red-500/30 bg-red-950/40 px-4 py-3 text-sm text-red-100">
         {form.message}
@@ -62,7 +88,7 @@
     </form>
   </SurfaceCard>
 
-  <SurfaceCard title="Session Queue">
+  <SurfaceCard title="Session Queue" subtitle="State transitions use existing SvelteKit form actions and CoreAPI commands.">
     <div class="space-y-3">
       {#each data.sessions as session}
         <div class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] p-4">

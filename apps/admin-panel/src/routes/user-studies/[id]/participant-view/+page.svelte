@@ -18,13 +18,40 @@
     const config = layoutConfig(layout);
     return Array.isArray(config.widgets) ? config.widgets : [];
   }
+
+  const savedWidgetCount = $derived(
+    data.layouts.reduce((count: number, layout: Record<string, unknown>) => count + widgets(layout).length, 0)
+  );
 </script>
 
 <PageHeader eyebrow="Study" title="Participant View" description="Build the first overlay layout with a single display zone and a constrained widget catalogue." />
 <StudyTabs studyId={data.studyId} current={`/user-studies/${data.studyId}/participant-view`} />
 
+<div class="metric-grid">
+  <div class="metric-card">
+    <p class="metric-card__label">Layouts</p>
+    <p class="metric-card__value">{data.layouts.length}</p>
+    <p class="metric-card__hint">Saved participant-view records</p>
+  </div>
+  <div class="metric-card">
+    <p class="metric-card__label">Catalogue</p>
+    <p class="metric-card__value">{data.widgets.length}</p>
+    <p class="metric-card__hint">Static widgets available to the layout</p>
+  </div>
+  <div class="metric-card">
+    <p class="metric-card__label">Placed Widgets</p>
+    <p class="metric-card__value">{savedWidgetCount}</p>
+    <p class="metric-card__hint">Widget instances in saved layouts</p>
+  </div>
+  <div class="metric-card">
+    <p class="metric-card__label">Display Scope</p>
+    <p class="metric-card__value">1</p>
+    <p class="metric-card__hint">Milestone layout target display</p>
+  </div>
+</div>
+
 <div class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-  <SurfaceCard title="Layout Builder">
+  <SurfaceCard title="Layout Builder" subtitle="Select widgets using the current server action; the preview reflects saved layout records.">
     <form class="grid gap-4" method="POST">
       <label class="grid gap-2 text-sm">
         <span>Layout Name</span>
@@ -44,7 +71,22 @@
     </form>
   </SurfaceCard>
 
-  <SurfaceCard title="Current Layout Records">
+  <SurfaceCard title="Current Layout Records" subtitle="Saved overlay layouts and a static authoring preview.">
+    <div class="canvas-preview mb-4">
+      <div class="mb-4 flex items-center justify-between gap-3">
+        <p class="technical-label">Participant display preview</p>
+        <span class="status-badge status-badge--soft">Single zone</span>
+      </div>
+      {#if data.layouts[0]}
+        {#each widgets(data.layouts[0]) as widget, index}
+          <div class="canvas-widget mb-2 inline-block mr-2">
+            {widget.widgetId ?? widget.id ?? `Widget ${index + 1}`}
+          </div>
+        {/each}
+      {:else}
+        <p class="technical-value">Save a layout to populate this preview with selected widgets.</p>
+      {/if}
+    </div>
     <div class="space-y-3">
       {#each data.layouts as layout}
         <div class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] p-4">
