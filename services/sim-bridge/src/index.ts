@@ -2,7 +2,13 @@ import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 import websocket from '@fastify/websocket';
 import { z } from 'zod';
-import { makeEventRoutingKey, RABBITMQ_QUEUES, type ComponentId, type RabbitMessage } from '@scarline/contracts';
+import {
+  makeEventRoutingKey,
+  RABBITMQ_QUEUES,
+  SIM_BRIDGE_WEBSOCKET_PATHS,
+  type ComponentId,
+  type RabbitMessage
+} from '@scarline/contracts';
 import { AdapterRegistry } from './lib/adapter-registry.js';
 import { loadConfig } from './lib/config.js';
 import { RabbitManager } from './lib/rabbit.js';
@@ -29,6 +35,12 @@ interface PendingAdapterCommand {
   adapterId: string;
   simulatorType: string;
   timeout: NodeJS.Timeout;
+}
+
+interface AdapterSocket {
+  on: (event: 'message' | 'close', handler: (...args: any[]) => void) => void;
+  send: (message: string) => void;
+  close: () => void;
 }
 
 const pendingAdapterCommands = new Map<string, PendingAdapterCommand>();
@@ -222,7 +234,7 @@ app.get('/health', async () => ({
   adapters: adapters.list()
 }));
 
-app.get('/adapter', { websocket: true }, (socket) => {
+function handleAdapterSocket(socket: AdapterSocket) {
   let assignedId: string | null = null;
 
   socket.on('message', async (raw: Buffer) => {
@@ -346,7 +358,10 @@ app.get('/adapter', { websocket: true }, (socket) => {
       }
     }
   });
-});
+}
+
+app.get(SIM_BRIDGE_WEBSOCKET_PATHS.adapter, { websocket: true }, handleAdapterSocket);
+app.get(SIM_BRIDGE_WEBSOCKET_PATHS.bridgeCompatibility, { websocket: true }, handleAdapterSocket);
 
 await rabbit.consume(RABBITMQ_QUEUES.simBridgeCommands, async (message) => {
   const action = message.routingKey.replace('commands.simulator.', '');
