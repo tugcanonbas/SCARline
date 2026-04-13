@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { BookOpenText, Gauge, LayoutDashboard, LogOut, MonitorCog, PlayCircle, Settings2 } from 'lucide-svelte';
+  import { BookOpenText, DatabaseBackup, Gauge, LayoutDashboard, LogOut, MonitorCog, Settings2, UserRoundCog, UsersRound } from 'lucide-svelte';
   import { appPath } from '$lib/paths';
 
   let { data, children } = $props();
@@ -7,8 +7,14 @@
   const navigation = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/user-studies', label: 'User Studies', icon: Gauge },
+    { href: '/session-logs', label: 'Session Logs', icon: DatabaseBackup },
+    { href: '/exports', label: 'Exports', icon: DatabaseBackup },
+    { href: '/researchers', label: 'Researchers', icon: UsersRound },
+    { href: '/settings/system', label: 'System', icon: Settings2 },
+    { href: '/settings/users', label: 'Users', icon: UserRoundCog },
+    { href: '/settings/devices', label: 'Devices', icon: Settings2 },
     { href: '/settings/components', label: 'Components', icon: MonitorCog },
-    { href: '/docs/', label: 'Documentation', icon: BookOpenText, external: true }
+    { href: '/documentation', label: 'Documentation', icon: BookOpenText }
   ];
 </script>
 
@@ -25,7 +31,7 @@
         {#each navigation as item}
           <a
             class="flex items-center gap-3 rounded-2xl border border-transparent px-4 py-3 text-sm text-slate-200 transition hover:border-[--color-line] hover:bg-[--color-panel-soft]"
-            href={item.external ? item.href : appPath(item.href)}
+            href={appPath(item.href)}
           >
             <item.icon size={18} />
             <span>{item.label}</span>

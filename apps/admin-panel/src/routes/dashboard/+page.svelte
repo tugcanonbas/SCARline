@@ -1,6 +1,7 @@
 <script lang="ts">
   import { appPath } from '$lib/paths';
   import PageHeader from '$lib/components/PageHeader.svelte';
+  import StatusBadge from '$lib/components/StatusBadge.svelte';
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
   import { createRealtimeStore } from '$lib/stores/realtime';
 
@@ -111,6 +112,15 @@
       ...componentHealth.filter((component: ComponentHealth) => component.componentId !== normalized.componentId)
     ];
   });
+
+  function formatDate(value: string | null) {
+    if (!value) return 'Not recorded';
+    return new Date(value).toLocaleString();
+  }
+
+  function sessionTimestamp(session: RecentSession) {
+    return session.completedAt ?? session.pausedAt ?? session.startedAt;
+  }
 </script>
 
 <PageHeader
@@ -138,9 +148,14 @@
     <div class="space-y-3">
       {#each componentHealth as component}
         <div class="flex items-center justify-between rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm">
-          <span>{component.componentName ?? component.componentId}</span>
-          <span class="text-[--color-accent]">{component.status}</span>
+          <div>
+            <p class="font-semibold text-white">{component.componentName ?? component.componentId}</p>
+            <p class="text-xs text-slate-500">{formatDate(component.checkedAt)}</p>
+          </div>
+          <StatusBadge status={component.status} />
         </div>
+      {:else}
+        <p class="rounded-2xl border border-dashed border-[--color-line] px-4 py-6 text-sm text-slate-400">No component health events have been received yet.</p>
       {/each}
     </div>
   </SurfaceCard>
@@ -148,6 +163,25 @@
 
 <div class="mt-4">
   <SurfaceCard title="Recent Sessions">
-    <pre class="overflow-auto rounded-2xl bg-black/30 p-4 text-sm text-slate-300">{JSON.stringify(recentSessions, null, 2)}</pre>
+    <div class="space-y-3">
+      {#each recentSessions as session}
+        <a class="block rounded-2xl border border-[--color-line] bg-[--color-panel-soft] p-4 transition hover:border-[--color-accent]/40" href={appPath(`/user-studies/${session.studyId}/sessions`)}>
+          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p class="font-semibold text-white">{session.name ?? session.id}</p>
+              <p class="mt-1 text-sm text-slate-400">
+                Participant {session.participantId ?? 'unassigned'} · Condition {session.conditionId ?? 'none'}
+              </p>
+            </div>
+            <div class="text-left md:text-right">
+              <StatusBadge status={session.status} />
+              <p class="mt-2 text-xs text-slate-500">{formatDate(sessionTimestamp(session))}</p>
+            </div>
+          </div>
+        </a>
+      {:else}
+        <p class="rounded-2xl border border-dashed border-[--color-line] px-4 py-6 text-sm text-slate-400">No sessions have been created yet.</p>
+      {/each}
+    </div>
   </SurfaceCard>
 </div>

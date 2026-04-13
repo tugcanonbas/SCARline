@@ -4,6 +4,17 @@
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
 
   let { data } = $props();
+
+  function weather(condition: Record<string, unknown>) {
+    const overrides = (condition.carlaOverrides ?? condition.carla_overrides ?? {}) as Record<string, unknown>;
+    return overrides.weather ?? 'Default study weather';
+  }
+
+  function hiddenWidgets(condition: Record<string, unknown>) {
+    const overrides = (condition.widgetOverrides ?? condition.widget_overrides ?? {}) as Record<string, unknown>;
+    const hidden = overrides.hidden_widgets;
+    return Array.isArray(hidden) && hidden.length ? hidden.join(', ') : 'None';
+  }
 </script>
 
 <PageHeader eyebrow="Study" title="Conditions" description="Model milestone-1 weather and widget overrides for controlled session variants." />
@@ -33,6 +44,30 @@
   </SurfaceCard>
 
   <SurfaceCard title="Condition Set">
-    <pre class="overflow-auto rounded-2xl bg-black/30 p-4 text-sm text-slate-300">{JSON.stringify(data.conditions, null, 2)}</pre>
+    <div class="space-y-3">
+      {#each data.conditions as condition}
+        <div class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] p-4">
+          <div class="mb-3 flex items-start justify-between gap-4">
+            <div>
+              <p class="font-semibold text-white">{condition.name}</p>
+              <p class="mt-1 text-sm text-slate-400">{condition.description ?? 'No description'}</p>
+            </div>
+            <span class="rounded-full border border-[--color-line] px-3 py-1 text-xs text-slate-300">Order {condition.order ?? 0}</span>
+          </div>
+          <div class="grid gap-3 md:grid-cols-2">
+            <div class="rounded-2xl border border-[--color-line] bg-black/20 px-4 py-3 text-sm">
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Weather</p>
+              <p class="mt-1 text-slate-100">{weather(condition)}</p>
+            </div>
+            <div class="rounded-2xl border border-[--color-line] bg-black/20 px-4 py-3 text-sm">
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Hidden Widgets</p>
+              <p class="mt-1 text-slate-100">{hiddenWidgets(condition)}</p>
+            </div>
+          </div>
+        </div>
+      {:else}
+        <p class="rounded-2xl border border-dashed border-[--color-line] px-4 py-6 text-sm text-slate-400">No conditions have been defined yet.</p>
+      {/each}
+    </div>
   </SurfaceCard>
 </div>

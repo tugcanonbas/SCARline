@@ -1,15 +1,20 @@
 import { apiRequest } from '$lib/server/api';
+import { requireRole } from '$lib/server/rbac';
 
-export const load = async ({ fetch, locals, params }) => ({
-  config: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/carla-config`, locals.accessToken),
-  maps: await apiRequest(fetch, locals.apiBase, '/carla/presets/maps', locals.accessToken),
-  weather: await apiRequest(fetch, locals.apiBase, '/carla/presets/weather', locals.accessToken),
-  vehicles: await apiRequest(fetch, locals.apiBase, '/carla/presets/vehicles', locals.accessToken),
-  studyId: params.id
-});
+export const load = async ({ fetch, locals, params }) => {
+  await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator', 'viewer']);
+  return {
+    config: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/carla-config`, locals.accessToken),
+    maps: await apiRequest(fetch, locals.apiBase, '/carla/presets/maps', locals.accessToken),
+    weather: await apiRequest(fetch, locals.apiBase, '/carla/presets/weather', locals.accessToken),
+    vehicles: await apiRequest(fetch, locals.apiBase, '/carla/presets/vehicles', locals.accessToken),
+    studyId: params.id
+  };
+};
 
 export const actions = {
   default: async ({ fetch, locals, params, request }) => {
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
     const formData = await request.formData();
     await fetch(`${locals.apiBase}/studies/${params.id}/carla-config`, {
       method: 'PUT',

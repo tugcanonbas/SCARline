@@ -1,6 +1,7 @@
 import { redirect } from '@sveltejs/kit';
-import { appPath } from '$lib/paths';
+import { apiRequest } from '$lib/server/api';
 import { requireRole } from '$lib/server/rbac';
+import { appPath } from '$lib/paths';
 
 export const load = async ({ fetch, locals }) => {
   await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
@@ -11,18 +12,18 @@ export const actions = {
   default: async ({ fetch, locals, request }) => {
     await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
     const formData = await request.formData();
-    const response = await fetch(`${locals.apiBase}/studies`, {
+    const researcher = await apiRequest(fetch, locals.apiBase, '/researchers', locals.accessToken, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${locals.accessToken}`
-      },
       body: JSON.stringify({
         name: formData.get('name'),
-        description: formData.get('description') || undefined
+        institution: formData.get('institution') || null,
+        role: formData.get('role') || null,
+        email: formData.get('email') || null,
+        phone: formData.get('phone') || null,
+        notes: formData.get('notes') || null
       })
     });
-    const payload = await response.json();
-    throw redirect(303, appPath(`/user-studies/${payload.data.id}/overview`));
+
+    throw redirect(303, appPath(`/researchers/${researcher.id}`));
   }
 };

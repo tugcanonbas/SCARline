@@ -4,6 +4,20 @@
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
 
   let { data } = $props();
+
+  function layoutConfig(layout: Record<string, unknown>) {
+    return (layout.layoutConfig ?? layout.layout_config ?? {}) as Record<string, unknown>;
+  }
+
+  function zones(layout: Record<string, unknown>) {
+    const config = layoutConfig(layout);
+    return Array.isArray(config.zones) ? config.zones : [];
+  }
+
+  function widgets(layout: Record<string, unknown>) {
+    const config = layoutConfig(layout);
+    return Array.isArray(config.widgets) ? config.widgets : [];
+  }
 </script>
 
 <PageHeader eyebrow="Study" title="Participant View" description="Build the first overlay layout with a single display zone and a constrained widget catalogue." />
@@ -31,6 +45,30 @@
   </SurfaceCard>
 
   <SurfaceCard title="Current Layout Records">
-    <pre class="overflow-auto rounded-2xl bg-black/30 p-4 text-sm text-slate-300">{JSON.stringify(data.layouts, null, 2)}</pre>
+    <div class="space-y-3">
+      {#each data.layouts as layout}
+        <div class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] p-4">
+          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p class="font-semibold text-white">{layout.name}</p>
+              <p class="mt-1 text-sm text-slate-400">{layout.type} layout · display {layout.targetDisplay ?? layout.target_display ?? '0'}</p>
+            </div>
+            <span class="rounded-full border border-[--color-line] px-3 py-1 text-xs text-slate-300">{widgets(layout).length} widgets</span>
+          </div>
+          <div class="mt-4 grid gap-3 md:grid-cols-2">
+            <div class="rounded-2xl border border-[--color-line] bg-black/20 px-4 py-3 text-sm">
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Zones</p>
+              <p class="mt-1 text-slate-100">{zones(layout).map((zone) => zone.id).join(', ') || 'None'}</p>
+            </div>
+            <div class="rounded-2xl border border-[--color-line] bg-black/20 px-4 py-3 text-sm">
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Widgets</p>
+              <p class="mt-1 text-slate-100">{widgets(layout).map((widget) => widget.widgetId).join(', ') || 'None'}</p>
+            </div>
+          </div>
+        </div>
+      {:else}
+        <p class="rounded-2xl border border-dashed border-[--color-line] px-4 py-6 text-sm text-slate-400">No participant layout has been saved yet.</p>
+      {/each}
+    </div>
   </SurfaceCard>
 </div>

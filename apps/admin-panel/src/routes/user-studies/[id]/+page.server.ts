@@ -1,9 +1,8 @@
-import { apiRequest } from '$lib/server/api';
+import { redirect } from '@sveltejs/kit';
+import { appPath } from '$lib/paths';
 import { requireRole } from '$lib/server/rbac';
 
 export const load = async ({ fetch, locals, params }) => {
   await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator', 'viewer']);
-  return {
-    study: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}`, locals.accessToken)
-  };
+  throw redirect(303, appPath(`/user-studies/${params.id}/overview`));
 };

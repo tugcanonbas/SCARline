@@ -1,5 +1,6 @@
 <script lang="ts">
   import PageHeader from '$lib/components/PageHeader.svelte';
+  import StatusBadge from '$lib/components/StatusBadge.svelte';
   import StudyTabs from '$lib/components/StudyTabs.svelte';
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
 
@@ -15,6 +16,11 @@
 
   function canTransition(status: string, actionName: string) {
     return allowedTransitions[status]?.includes(actionName) ?? false;
+  }
+
+  function formatDate(value: string | null | undefined) {
+    if (!value) return 'Not recorded';
+    return new Date(value).toLocaleString();
   }
 </script>
 
@@ -60,35 +66,55 @@
     <div class="space-y-3">
       {#each data.sessions as session}
         <div class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] p-4">
-          <div class="mb-3 flex items-center justify-between">
+          <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p class="font-semibold text-white">{session.name ?? session.id}</p>
-              <p class="text-sm text-slate-400">{session.status}</p>
+              <p class="text-sm text-slate-400">
+                Participant {session.participantId ?? session.participant_id ?? 'unassigned'} · Condition {session.conditionId ?? session.condition_id ?? 'none'}
+              </p>
             </div>
-            <div class="flex flex-wrap gap-2">
-              {#each ['start', 'pause', 'resume', 'complete'] as actionName}
-                <form method="POST" action={`?/${actionName}`}>
-                  <input name="sessionId" type="hidden" value={session.id} />
-                  <button
-                    class="rounded-full border border-[--color-line] px-3 py-1 text-xs text-slate-200 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-600"
-                    type="submit"
-                    disabled={!canTransition(session.status, actionName)}
-                  >{actionName}</button>
-                </form>
-              {/each}
-              <form method="POST" action="?/cancel">
-                <input name="sessionId" type="hidden" value={session.id} />
-                <input name="reason" type="hidden" value="Operator cancelled session" />
-                <button
-                  class="rounded-full border border-[--color-danger]/40 px-3 py-1 text-xs text-red-200 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-600"
-                  type="submit"
-                  disabled={!canTransition(session.status, 'cancel')}
-                >cancel</button>
-              </form>
+            <StatusBadge status={session.status} />
+          </div>
+
+          <div class="mb-4 grid gap-3 md:grid-cols-3">
+            <div class="rounded-2xl border border-[--color-line] bg-black/20 px-4 py-3 text-sm">
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Started</p>
+              <p class="mt-1 text-slate-100">{formatDate(session.startedAt ?? session.started_at)}</p>
+            </div>
+            <div class="rounded-2xl border border-[--color-line] bg-black/20 px-4 py-3 text-sm">
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Duration</p>
+              <p class="mt-1 text-slate-100">{session.durationSeconds ?? session.duration_seconds ?? 0}s</p>
+            </div>
+            <div class="rounded-2xl border border-[--color-line] bg-black/20 px-4 py-3 text-sm">
+              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Completed</p>
+              <p class="mt-1 text-slate-100">{formatDate(session.completedAt ?? session.completed_at)}</p>
             </div>
           </div>
-          <pre class="overflow-auto rounded-2xl bg-black/30 p-3 text-xs text-slate-300">{JSON.stringify(session, null, 2)}</pre>
-        </div>
+
+          <div class="flex flex-wrap gap-2">
+            {#each ['start', 'pause', 'resume', 'complete'] as actionName}
+              <form method="POST" action={`?/${actionName}`}>
+                <input name="sessionId" type="hidden" value={session.id} />
+                <button
+                  class="rounded-full border border-[--color-line] px-3 py-1 text-xs text-slate-200 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-600"
+                  type="submit"
+                  disabled={!canTransition(session.status, actionName)}
+                >{actionName}</button>
+              </form>
+            {/each}
+            <form method="POST" action="?/cancel">
+              <input name="sessionId" type="hidden" value={session.id} />
+              <input name="reason" type="hidden" value="Operator cancelled session" />
+              <button
+                class="rounded-full border border-[--color-danger]/40 px-3 py-1 text-xs text-red-200 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-600"
+                type="submit"
+                disabled={!canTransition(session.status, 'cancel')}
+              >cancel</button>
+            </form>
+          </div>
+       </div>
+      {:else}
+        <p class="rounded-2xl border border-dashed border-[--color-line] px-4 py-6 text-sm text-slate-400">No sessions have been created yet.</p>
       {/each}
     </div>
   </SurfaceCard>

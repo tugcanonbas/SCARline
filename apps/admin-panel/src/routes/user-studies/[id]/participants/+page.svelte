@@ -4,6 +4,14 @@
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
 
   let { data } = $props();
+
+  function participantCode(participant: Record<string, unknown>) {
+    return String(participant.participantCode ?? participant.participant_code ?? participant.id);
+  }
+
+  function participantNotes(participant: Record<string, unknown>) {
+    return String(participant.notes ?? 'No notes recorded');
+  }
 </script>
 
 <PageHeader eyebrow="Study" title="Participants" description="Create anonymized participant records and attach operator notes." />
@@ -25,6 +33,20 @@
   </SurfaceCard>
 
   <SurfaceCard title="Current Participants">
-    <pre class="overflow-auto rounded-2xl bg-black/30 p-4 text-sm text-slate-300">{JSON.stringify(data.participants, null, 2)}</pre>
+    <div class="space-y-3">
+      {#each data.participants as participant}
+        <div class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] p-4">
+          <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p class="font-semibold text-white">{participantCode(participant)}</p>
+              <p class="mt-1 text-sm text-slate-400">{participantNotes(participant)}</p>
+            </div>
+            <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Participant</p>
+          </div>
+        </div>
+      {:else}
+        <p class="rounded-2xl border border-dashed border-[--color-line] px-4 py-6 text-sm text-slate-400">No participants have been added yet.</p>
+      {/each}
+    </div>
   </SurfaceCard>
 </div>

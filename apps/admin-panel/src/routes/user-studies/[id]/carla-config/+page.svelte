@@ -1,9 +1,19 @@
 <script lang="ts">
+  import KeyValueGrid from '$lib/components/KeyValueGrid.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import StudyTabs from '$lib/components/StudyTabs.svelte';
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
 
   let { data } = $props();
+  const configItems = $derived([
+    { label: 'Map', value: data.config?.map ?? 'Not configured' },
+    { label: 'Weather', value: data.config?.weatherPreset ?? data.config?.weather_preset ?? 'Default' },
+    { label: 'Ego Vehicle', value: data.config?.egoVehicleBlueprint ?? data.config?.ego_vehicle_blueprint ?? 'Not configured' },
+    { label: 'Simulation Mode', value: data.config?.simulationMode ?? data.config?.simulation_mode ?? 'synchronous' },
+    { label: 'Fixed Delta', value: data.config?.fixedDeltaSeconds ?? data.config?.fixed_delta_seconds ?? 0.05 },
+    { label: 'Traffic', value: data.config?.trafficConfig ?? data.config?.traffic_config ?? {} }
+  ]);
+  const configuredSensors = $derived(data.config?.sensors ?? []);
 </script>
 
 <PageHeader eyebrow="Study" title="CARLA Configuration" description="Baseline simulator settings used for session start commands and condition overrides." />
@@ -46,6 +56,17 @@
   </SurfaceCard>
 
   <SurfaceCard title="Current Config">
-    <pre class="overflow-auto rounded-2xl bg-black/30 p-4 text-sm text-slate-300">{JSON.stringify(data.config, null, 2)}</pre>
+    <KeyValueGrid items={configItems} />
+    <div class="mt-4 space-y-3">
+      <p class="text-sm font-semibold text-white">Attached Sensors</p>
+      {#each configuredSensors as sensor}
+        <div class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm">
+          <p class="font-semibold text-white">{sensor.id ?? sensor.type}</p>
+          <p class="text-slate-400">{sensor.type} · transform x={sensor.transform?.x ?? 0}, y={sensor.transform?.y ?? 0}, z={sensor.transform?.z ?? 0}</p>
+        </div>
+      {:else}
+        <p class="rounded-2xl border border-dashed border-[--color-line] px-4 py-6 text-sm text-slate-400">No simulator sensors are configured.</p>
+      {/each}
+    </div>
   </SurfaceCard>
 </div>

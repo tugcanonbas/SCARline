@@ -1,12 +1,16 @@
 import { apiRequest } from '$lib/server/api';
+import { requireRole } from '$lib/server/rbac';
 import { fail } from '@sveltejs/kit';
 
-export const load = async ({ fetch, locals, params }) => ({
-  sessions: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/sessions`, locals.accessToken),
-  participants: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/participants`, locals.accessToken),
-  conditions: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/conditions`, locals.accessToken),
-  studyId: params.id
-});
+export const load = async ({ fetch, locals, params }) => {
+  await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator', 'viewer']);
+  return {
+    sessions: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/sessions`, locals.accessToken),
+    participants: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/participants`, locals.accessToken),
+    conditions: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/conditions`, locals.accessToken),
+    studyId: params.id
+  };
+};
 
 async function postSessionAction(fetch: typeof globalThis.fetch, locals: App.Locals, studyId: string, sessionId: string, action: string) {
   const response = await fetch(`${locals.apiBase}/studies/${studyId}/sessions/${sessionId}/${action}`, {
@@ -28,6 +32,7 @@ async function postSessionAction(fetch: typeof globalThis.fetch, locals: App.Loc
 
 export const actions = {
   create: async ({ fetch, locals, params, request }) => {
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator']);
     const formData = await request.formData();
     const response = await fetch(`${locals.apiBase}/studies/${params.id}/sessions`, {
       method: 'POST',
@@ -49,11 +54,24 @@ export const actions = {
       });
     }
   },
-  start: async ({ fetch, locals, params, request }) => postSessionAction(fetch, locals, params.id, String((await request.formData()).get('sessionId')), 'start'),
-  pause: async ({ fetch, locals, params, request }) => postSessionAction(fetch, locals, params.id, String((await request.formData()).get('sessionId')), 'pause'),
-  resume: async ({ fetch, locals, params, request }) => postSessionAction(fetch, locals, params.id, String((await request.formData()).get('sessionId')), 'resume'),
-  complete: async ({ fetch, locals, params, request }) => postSessionAction(fetch, locals, params.id, String((await request.formData()).get('sessionId')), 'complete'),
+  start: async ({ fetch, locals, params, request }) => {
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator']);
+    return postSessionAction(fetch, locals, params.id, String((await request.formData()).get('sessionId')), 'start');
+  },
+  pause: async ({ fetch, locals, params, request }) => {
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator']);
+    return postSessionAction(fetch, locals, params.id, String((await request.formData()).get('sessionId')), 'pause');
+  },
+  resume: async ({ fetch, locals, params, request }) => {
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator']);
+    return postSessionAction(fetch, locals, params.id, String((await request.formData()).get('sessionId')), 'resume');
+  },
+  complete: async ({ fetch, locals, params, request }) => {
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator']);
+    return postSessionAction(fetch, locals, params.id, String((await request.formData()).get('sessionId')), 'complete');
+  },
   cancel: async ({ fetch, locals, params, request }) => {
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator']);
     const formData = await request.formData();
     const response = await fetch(`${locals.apiBase}/studies/${params.id}/sessions/${String(formData.get('sessionId'))}/cancel`, {
       method: 'POST',

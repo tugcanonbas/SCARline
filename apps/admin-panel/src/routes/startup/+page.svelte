@@ -1,8 +1,13 @@
 <script lang="ts">
+  import KeyValueGrid from '$lib/components/KeyValueGrid.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
+  import StatusBadge from '$lib/components/StatusBadge.svelte';
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
 
   let { data } = $props();
+  const healthItems = $derived(
+    Object.entries(data.health ?? {}).map(([label, value]) => ({ label, value }))
+  );
 </script>
 
 <div class="mx-auto max-w-4xl py-10">
@@ -13,9 +18,10 @@
   />
 
   <SurfaceCard title="Health Snapshot">
-    <pre class="overflow-auto rounded-2xl bg-black/30 p-4 text-sm text-slate-300">{JSON.stringify(data.health, null, 2)}</pre>
-    <p class="mt-4 text-sm text-slate-400">
-      Onboarding complete: <strong class="text-white">{data.bootstrap.onboardingCompleted ? 'yes' : 'no'}</strong>
-    </p>
+    <div class="mb-4 flex flex-wrap items-center gap-3">
+      <StatusBadge status={data.health?.status ?? 'unknown'} />
+      <StatusBadge status={data.bootstrap.onboardingCompleted ? 'healthy' : 'pending'} label={data.bootstrap.onboardingCompleted ? 'Onboarding complete' : 'Onboarding pending'} />
+    </div>
+    <KeyValueGrid items={healthItems} />
   </SurfaceCard>
 </div>
