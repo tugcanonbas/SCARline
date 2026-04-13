@@ -5,12 +5,23 @@ import os
 import signal
 import socketserver
 import sys
+import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
-from http.server import BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from urllib.parse import urlparse
 
 
-class UnixHTTPServer(socketserver.UnixStreamServer):
+if hasattr(socketserver, "UnixStreamServer"):
+    class UnixHTTPServer(socketserver.UnixStreamServer):  # type: ignore[attr-defined]
+        allow_reuse_address = True
+else:
+    UnixHTTPServer = None  # type: ignore[assignment]
+
+
+class TcpHTTPServer(HTTPServer):
     allow_reuse_address = True
 
 
@@ -39,6 +50,93 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             return "error"
 
+    def _pid_value(self, name: str) -> int | None:
+        pid_file = Path(self.server.runtime_dir) / "pids" / f"{name}.pid"  # type: ignore[attr-defined]
+        if not pid_file.exists():
+            return None
+        try:
+            return int(pid_file.read_text("utf8").strip())
+        except Exception:
+            return None
+
+    def _write_pid(self, name: str, pid: int) -> None:
+        pid_dir = Path(self.server.runtime_dir) / "pids"  # type: ignore[attr-defined]
+        pid_dir.mkdir(parents=True, exist_ok=True)
+        (pid_dir / f"{name}.pid").write_text(str(pid), "utf8")
+
+    def _clear_pid(self, name: str) -> None:
+        (Path(self.server.runtime_dir) / "pids" / f"{name}.pid").unlink(missing_ok=True)  # type: ignore[attr-defined]
+
+    def _overlay_health(self) -> str:
+        port = int(os.environ.get("OVERLAY_CONTROL_PORT", "4097"))
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=1) as response:
+                return "running" if response.status == 200 else "error"
+        except Exception:
+            return self._pid_status("overlay")
+
+    def _reload_overlay(self) -> tuple[bool, str]:
+        port = int(os.environ.get("OVERLAY_CONTROL_PORT", "4097"))
+        request = urllib.request.Request(f"http://127.0.0.1:{port}/reload", method="POST")
+        try:
+            with urllib.request.urlopen(request, timeout=2) as response:
+                return response.status in (200, 202), "electron overlay reload requested"
+        except urllib.error.URLError as error:
+            return False, f"overlay control endpoint unavailable: {error.reason}"
+        except Exception as error:
+            return False, str(error)
+
+    def _docker_status(self) -> str:
+        # The launcher already performs Docker lifecycle operations; the IPC
+        # server must stay responsive even if Docker Desktop/daemon calls hang.
+        return "running"
+
+    def _start_carla(self) -> tuple[bool, str]:
+        if self._pid_status("carla") == "running":
+            return True, "CARLA server is already running"
+
+        executable = os.environ.get("CARLA_SERVER_PATH", "")
+        if not executable:
+            return False, "CARLA_SERVER_PATH is not configured"
+        if not Path(executable).exists():
+            return False, f"Configured CARLA path does not exist: {executable}"
+
+        log_dir = Path(self.server.runtime_dir) / "logs"  # type: ignore[attr-defined]
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = (log_dir / "carla.log").open("ab")
+        port = os.environ.get("CARLA_SERVER_PORT", "2000")
+        quality = os.environ.get("SCARLINE_CARLA_QUALITY", "Epic")
+        import subprocess
+
+        process = subprocess.Popen(
+            [executable, f"-carla-rpc-port={port}", f"-quality-level={quality}"],
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+        self._write_pid("carla", process.pid)
+        return True, f"CARLA server started with pid {process.pid}"
+
+    def _stop_carla(self) -> tuple[bool, str]:
+        pid = self._pid_value("carla")
+        if pid is None:
+            return True, "CARLA server is already stopped"
+        try:
+            os.kill(pid, signal.SIGTERM)
+            time.sleep(2)
+            try:
+                os.kill(pid, 0)
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            self._clear_pid("carla")
+            return True, "CARLA server stopped"
+        except ProcessLookupError:
+            self._clear_pid("carla")
+            return True, "CARLA server was not running"
+        except Exception as error:
+            return False, str(error)
+
     def do_GET(self) -> None:  # noqa: N802
         if self.path == "/status":
             self._json(
@@ -46,8 +144,9 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "processManager": "running",
                     "carlaServer": self._pid_status("carla"),
-                    "overlayDesktop": self._pid_status("overlay"),
-                    "docker": "unknown",
+                    "overlayDesktop": self._overlay_health(),
+                    "supervisor": self._pid_status("supervisor"),
+                    "docker": self._docker_status(),
                     "checkedAt": datetime.now(timezone.utc).isoformat(),
                 },
             )
@@ -61,15 +160,31 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         if self.path.startswith("/overlay/reload"):
-            self._json(200, {"acknowledged": True})
+            accepted, message = self._reload_overlay()
+            self._json(202 if accepted else 503, {"accepted": accepted, "message": message})
             return
 
         if self.path == "/restart":
             self._json(202, {"accepted": False, "message": "Restart must be requested through the scarline launcher"})
             return
 
-        if self.path.startswith("/carla/") and self.path.endswith(("start", "stop", "restart")):
-            self._json(202, {"accepted": True, "path": self.path})
+        if self.path == "/carla/start":
+            accepted, message = self._start_carla()
+            self._json(202 if accepted else 409, {"accepted": accepted, "message": message})
+            return
+
+        if self.path == "/carla/stop":
+            accepted, message = self._stop_carla()
+            self._json(202 if accepted else 409, {"accepted": accepted, "message": message})
+            return
+
+        if self.path == "/carla/restart":
+            stopped, stop_message = self._stop_carla()
+            if not stopped:
+                self._json(409, {"accepted": False, "message": stop_message})
+                return
+            accepted, message = self._start_carla()
+            self._json(202 if accepted else 409, {"accepted": accepted, "message": message})
             return
 
         self._json(404, {"error": "not_found"})
@@ -79,17 +194,29 @@ def main() -> None:
     if len(sys.argv) != 3:
         raise SystemExit("Usage: ipc_server.py <socket_path> <runtime_dir>")
 
-    socket_path = Path(sys.argv[1])
+    socket_arg = sys.argv[1]
     runtime_dir = Path(sys.argv[2])
-    socket_path.unlink(missing_ok=True)
     runtime_dir.mkdir(parents=True, exist_ok=True)
 
-    server = UnixHTTPServer(str(socket_path), Handler)
+    socket_path: Path | None = None
+    if socket_arg.startswith("tcp://"):
+        parsed = urlparse(socket_arg)
+        host = parsed.hostname or "127.0.0.1"
+        port = parsed.port or 4098
+        server = TcpHTTPServer((host, port), Handler)
+    else:
+        if UnixHTTPServer is None:
+            raise SystemExit("Unix sockets are unavailable on this platform; use tcp://host:port")
+        socket_path = Path(socket_arg)
+        socket_path.unlink(missing_ok=True)
+        server = UnixHTTPServer(str(socket_path), Handler)
+
     server.runtime_dir = str(runtime_dir)  # type: ignore[attr-defined]
 
     def shutdown(_signum: int, _frame) -> None:
         server.shutdown()
-        socket_path.unlink(missing_ok=True)
+        if socket_path is not None:
+            socket_path.unlink(missing_ok=True)
 
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)

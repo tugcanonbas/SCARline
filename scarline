@@ -7,6 +7,7 @@ RUNTIME_DIR="${ROOT_DIR}/.scarline-runtime"
 PID_DIR="${RUNTIME_DIR}/pids"
 LOG_DIR="${RUNTIME_DIR}/logs"
 SOCKET_PATH="/tmp/scarline.sock"
+PM_CONTROL_PORT="${PM_CONTROL_PORT:-4098}"
 
 mkdir -p "${PID_DIR}" "${LOG_DIR}"
 
@@ -59,6 +60,17 @@ load_config() {
   export CARLA_SERVER_PORT="${SCARLINE_carla_server_port:-2000}"
   export CARLA_SERVER_PATH="${SCARLINE_carla_server_path:-}"
   export OVERLAY_TRANSPARENT_ENABLED="${SCARLINE_overlay_transparent_enabled:-true}"
+  export OVERLAY_CONTROL_PORT="${SCARLINE_overlay_control_port:-4097}"
+  export OVERLAY_DISPLAY="${SCARLINE_overlay_target_display:-0}"
+  export PM_CONTROL_PORT="${SCARLINE_process_manager_control_port:-${PM_CONTROL_PORT}}"
+
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    SOCKET_PATH="tcp://127.0.0.1:${PM_CONTROL_PORT}"
+    export PM_SOCKET_PATH="${PM_SOCKET_PATH:-http://host.docker.internal:${PM_CONTROL_PORT}}"
+  else
+    SOCKET_PATH="${SCARLINE_process_manager_socket_path:-/tmp/scarline.sock}"
+    export PM_SOCKET_PATH="${PM_SOCKET_PATH:-/host-tmp/$(basename "${SOCKET_PATH}")}"
+  fi
 }
 
 compose_files() {
@@ -89,10 +101,35 @@ require_cmd() {
   fi
 }
 
+port_in_use() {
+  local port="$1"
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -nP -iTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1
+    return $?
+  fi
+
+  if command -v nc >/dev/null 2>&1; then
+    nc -z 127.0.0.1 "${port}" >/dev/null 2>&1
+    return $?
+  fi
+
+  return 1
+}
+
+validate_port_available() {
+  local port="$1"
+  local label="$2"
+  if port_in_use "${port}" && ! compose ps --services --filter "status=running" 2>/dev/null | grep -q '^nginx$'; then
+    echo "Port ${port} is already in use (${label}). Stop the conflicting process or change .scarline.yaml." >&2
+    exit 1
+  fi
+}
+
 validate_prerequisites() {
   require_cmd docker
   require_cmd awk
   require_cmd sed
+  validate_port_available "${SCARLINE_PORT}" "SCARline gateway"
 
   if [[ "${NO_CARLA:-false}" == "true" ]]; then
     return 0
@@ -101,6 +138,10 @@ validate_prerequisites() {
   if [[ -n "${CARLA_SERVER_PATH}" && ! -e "${CARLA_SERVER_PATH}" ]]; then
     echo "Configured CARLA path does not exist: ${CARLA_SERVER_PATH}" >&2
     exit 1
+  fi
+
+  if [[ -n "${CARLA_SERVER_PATH}" ]]; then
+    validate_port_available "${CARLA_SERVER_PORT}" "CARLA server"
   fi
 }
 
@@ -152,6 +193,9 @@ start_overlay_desktop() {
   fi
 
   echo "Starting desktop overlay shell"
+  OVERLAY_URL="${OVERLAY_URL:-http://localhost:${SCARLINE_PORT}/overlay/?chrome=transparent}" \
+  OVERLAY_CONTROL_PORT="${OVERLAY_CONTROL_PORT}" \
+  OVERLAY_DISPLAY="${OVERLAY_DISPLAY}" \
   nohup pnpm --dir "${ROOT_DIR}/apps/desktop-overlay" dev > "${LOG_DIR}/overlay-desktop.log" 2>&1 &
   echo $! > "${PID_DIR}/overlay.pid"
 }
@@ -165,16 +209,88 @@ stop_overlay_desktop() {
   fi
 }
 
+supervisor_loop() {
+  while true; do
+    if [[ "${NO_CARLA:-false}" != "true" && -n "${CARLA_SERVER_PATH}" && -e "${CARLA_SERVER_PATH}" ]]; then
+      if [[ ! -f "${PID_DIR}/carla.pid" ]] || ! kill -0 "$(cat "${PID_DIR}/carla.pid")" 2>/dev/null; then
+        echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") restarting carla-server" >> "${LOG_DIR}/supervisor.log"
+        rm -f "${PID_DIR}/carla.pid"
+        start_carla || true
+      fi
+    fi
+
+    if [[ "${NO_OVERLAY:-false}" != "true" && "${OVERLAY_TRANSPARENT_ENABLED}" == "true" ]]; then
+      if [[ ! -f "${PID_DIR}/overlay.pid" ]] || ! kill -0 "$(cat "${PID_DIR}/overlay.pid")" 2>/dev/null; then
+        echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") restarting overlay-desktop" >> "${LOG_DIR}/supervisor.log"
+        rm -f "${PID_DIR}/overlay.pid"
+        start_overlay_desktop || true
+      fi
+    fi
+
+    local services=(postgres rabbitmq core-api sim-bridge admin-panel overlay-web nginx io-client)
+    if [[ "${NO_CARLA:-false}" == "true" ]]; then
+      services+=(mock-simulator)
+    else
+      services+=(mock-simulator carla-client)
+    fi
+    for service in "${services[@]}"; do
+      local state
+      state="$(compose ps --format json "${service}" 2>/dev/null || true)"
+      if [[ -z "${state}" || "${state}" =~ \"State\":[[:space:]]*\"exited\" || "${state}" =~ \"Health\":[[:space:]]*\"unhealthy\" ]]; then
+        echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") restarting docker service ${service}" >> "${LOG_DIR}/supervisor.log"
+        compose up -d "${service}" >> "${LOG_DIR}/supervisor.log" 2>&1 || true
+      fi
+    done
+
+    sleep "${SCARLINE_SUPERVISOR_INTERVAL:-15}"
+  done
+}
+
+start_supervisor() {
+  if [[ -f "${PID_DIR}/supervisor.pid" ]] && kill -0 "$(cat "${PID_DIR}/supervisor.pid")" 2>/dev/null; then
+    return 0
+  fi
+
+  supervisor_loop > "${LOG_DIR}/supervisor.out.log" 2>&1 &
+  echo $! > "${PID_DIR}/supervisor.pid"
+}
+
+stop_supervisor() {
+  if [[ -f "${PID_DIR}/supervisor.pid" ]]; then
+    local pid
+    pid="$(cat "${PID_DIR}/supervisor.pid")"
+    kill "${pid}" 2>/dev/null || true
+    rm -f "${PID_DIR}/supervisor.pid"
+  fi
+}
+
 start_ipc_server() {
   if ! command -v python3 >/dev/null 2>&1; then
     echo "python3 not installed; skipping process manager IPC server" >&2
     return 0
   fi
 
-  if [[ -f "${PID_DIR}/ipc.pid" ]] && kill -0 "$(cat "${PID_DIR}/ipc.pid")" 2>/dev/null; then
-    return 0
+  if [[ -f "${PID_DIR}/ipc.pid" ]]; then
+    local pid
+    pid="$(cat "${PID_DIR}/ipc.pid")"
+    if [[ "${SOCKET_PATH}" == tcp://* ]]; then
+      if kill -0 "${pid}" 2>/dev/null && port_in_use "${PM_CONTROL_PORT}"; then
+        return 0
+      fi
+    elif kill -0 "${pid}" 2>/dev/null && [[ -S "${SOCKET_PATH}" ]]; then
+      return 0
+    fi
+    kill "${pid}" 2>/dev/null || true
+    rm -f "${PID_DIR}/ipc.pid"
+    if [[ "${SOCKET_PATH}" != tcp://* ]]; then
+      rm -f "${SOCKET_PATH}"
+    fi
   fi
 
+  OVERLAY_CONTROL_PORT="${OVERLAY_CONTROL_PORT}" \
+  CARLA_SERVER_PATH="${CARLA_SERVER_PATH}" \
+  CARLA_SERVER_PORT="${CARLA_SERVER_PORT}" \
+  SCARLINE_CARLA_QUALITY="${SCARLINE_carla_quality:-Epic}" \
   nohup python3 "${ROOT_DIR}/infra/process-manager/ipc_server.py" "${SOCKET_PATH}" "${RUNTIME_DIR}" \
     > "${LOG_DIR}/process-manager-ipc.log" 2>&1 &
   echo $! > "${PID_DIR}/ipc.pid"
@@ -208,21 +324,77 @@ stop_ipc_server() {
     kill "${pid}" 2>/dev/null || true
     rm -f "${PID_DIR}/ipc.pid"
   fi
-  rm -f "${SOCKET_PATH}"
+  if [[ "${SOCKET_PATH}" != tcp://* ]]; then
+    rm -f "${SOCKET_PATH}"
+  fi
 }
 
 wait_for_health() {
+  local services=("$@")
   local attempts=0
-  local max_attempts=24
+  local max_attempts=36
   while (( attempts < max_attempts )); do
-    if compose ps --format json >/dev/null 2>&1; then
+    local unhealthy="false"
+    for service in "${services[@]}"; do
+      local state
+      state="$(compose ps --format json "${service}" 2>/dev/null || true)"
+      if [[ -z "${state}" ]]; then
+        unhealthy="true"
+        break
+      fi
+      if echo "${state}" | grep -Eq '"Health":\s*"(unhealthy|starting)"|"State":\s*"exited"'; then
+        unhealthy="true"
+        break
+      fi
+    done
+
+    if [[ "${unhealthy}" == "false" ]]; then
       return 0
     fi
+
     attempts=$((attempts + 1))
     sleep 5
   done
 
-  echo "Timed out waiting for docker compose services" >&2
+  echo "Timed out waiting for docker compose health: ${services[*]}" >&2
+  return 1
+}
+
+wait_for_successful_exit() {
+  local service="$1"
+  local attempts=0
+  local max_attempts=36
+  while (( attempts < max_attempts )); do
+    local state
+    state="$(compose ps -a --format json "${service}" 2>/dev/null || true)"
+    if [[ -z "${state}" ]]; then
+      attempts=$((attempts + 1))
+      sleep 2
+      continue
+    fi
+
+    if echo "${state}" | grep -Eq '"State":\s*"exited"'; then
+      if echo "${state}" | grep -Eq '"ExitCode":\s*0'; then
+        return 0
+      fi
+
+      echo "${service} exited with a non-zero status" >&2
+      compose logs --no-color "${service}" >&2 || true
+      return 1
+    fi
+
+    if echo "${state}" | grep -Eq '"State":\s*"(dead|removing)"'; then
+      echo "${service} entered an invalid container state" >&2
+      compose logs --no-color "${service}" >&2 || true
+      return 1
+    fi
+
+    attempts=$((attempts + 1))
+    sleep 2
+  done
+
+  echo "Timed out waiting for ${service} to complete" >&2
+  compose logs --no-color "${service}" >&2 || true
   return 1
 }
 
@@ -236,8 +408,10 @@ notify_core_api() {
 start_stack() {
   validate_prerequisites
   compose up --build -d postgres rabbitmq schema-bootstrap
-  wait_for_health
+  wait_for_health postgres rabbitmq
+  wait_for_successful_exit schema-bootstrap
   compose up --build -d core-api sim-bridge admin-panel overlay-web docs io-client nginx
+  wait_for_health core-api sim-bridge admin-panel overlay-web nginx
   if [[ "${NO_CARLA:-false}" == "true" ]]; then
     compose up --build -d mock-simulator
   else
@@ -246,6 +420,7 @@ start_stack() {
   start_carla
   start_overlay_desktop
   start_ipc_server
+  start_supervisor
   notify_core_api "ready"
   open_admin_ui
   echo "SCARline started on http://localhost:${SCARLINE_PORT}"
@@ -253,6 +428,7 @@ start_stack() {
 
 stop_stack() {
   notify_core_api "shutdown"
+  stop_supervisor
   stop_ipc_server
   stop_overlay_desktop
   stop_carla
@@ -266,6 +442,9 @@ show_status() {
   fi
   if [[ -f "${PID_DIR}/overlay.pid" ]]; then
     echo "overlay-desktop: host pid $(cat "${PID_DIR}/overlay.pid")"
+  fi
+  if [[ -f "${PID_DIR}/supervisor.pid" ]]; then
+    echo "supervisor: host pid $(cat "${PID_DIR}/supervisor.pid")"
   fi
 }
 

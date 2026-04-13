@@ -96,8 +96,12 @@ services:
       PORT: 8080
       DATABASE_URL: postgresql://${POSTGRES_USER:-scarline}:${POSTGRES_PASSWORD:-scarline}@postgres:5432/${POSTGRES_DB:-scarline}
       AMQP_URL: amqp://${RABBITMQ_USER:-scarline}:${RABBITMQ_PASSWORD:-scarline}@rabbitmq:5672
-      PM_SOCKET_PATH: /tmp/scarline.sock
+      PM_SOCKET_PATH: ${PM_SOCKET_PATH:-/host-tmp/scarline.sock}
       WIDGETS_DIR: /workspace/widgets
+      EXPORTS_DIR: /data/scarline/exports
+    volumes:
+      - /tmp:/host-tmp
+      - ./.scarline-runtime/exports:/data/scarline/exports
     healthcheck:
       test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:8080/api/health || exit 1"]
       interval: 10s
