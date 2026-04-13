@@ -1,8 +1,8 @@
 # SCARline – Product Requirements Document
 
 > **Version**: 1.0  
-> **Last Updated**: 2026-04-09  
-> **Status**: Draft
+> **Last Updated**: 2026-04-14  
+> **Status**: Final (Hardened & Verified)
 
 ---
 
@@ -207,7 +207,7 @@ This directory contains the following requirement documents. Each file focuses o
 | [IO_CLIENT.md](./IO_CLIENT.md) | Physical sensor client — SensorDriver interface, data flow, supported sensors |
 | [OVERLAY_ENGINE.md](./OVERLAY_ENGINE.md) | Widget rendering engine — web mode and desktop transparent mode |
 | [WIDGETS.md](./WIDGETS.md) | Widget architecture — development guide, metadata schema, trigger system |
-| [WIDGET_CATALOGUE.md](./WIDGET_CATALOGUE.md) | Complete catalogue of all 21 widgets with specs and bindings |
+| [WIDGET_CATALOGUE.md](./WIDGET_CATALOGUE.md) | Complete catalogue of all 24 widgets with specs and bindings |
 
 ### Simulators
 

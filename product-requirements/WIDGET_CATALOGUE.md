@@ -7,7 +7,7 @@
 
 ## 1. Overview
 
-This catalogue defines all 21 widgets included in the SCARline platform. Each widget entry specifies its identity, category, data bindings, default sizing, and intended behavior.
+This catalogue defines all 24 widgets included in the SCARline platform. Each widget entry specifies its identity, category, data bindings, default sizing, and intended behavior.
 
 For the technical architecture, development guide, and `widget.json` schema, see [WIDGETS.md](./WIDGETS.md).
 
@@ -18,9 +18,9 @@ For the technical architecture, development guide, and `widget.json` schema, see
 | **Driving** | 2 | speedometer, navigation-prompt |
 | **Communication** | 8 | contact, contactlist, incomingcall, activecall, outgoingcall, callended, calldeclined, music |
 | **Health / Biometric** | 5 | bp, ecg, hr, resp, spo2 |
-| **Study Management** | 2 | study-instruction, session-timeline |
+| **Study Management** | 5 | study-instruction, session-timeline, operator-controls, operator-notes, sensor-health |
 | **General / Infotainment** | 4 | time, calendar, appointments, avatar |
-| **Total** | **21** | |
+| **Total** | **24** | |
 
 ---
 

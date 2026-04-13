@@ -32,6 +32,7 @@ CoreAPI is the **central control plane** and sole API boundary for the SCARline 
 | **WebSocket** | [`@fastify/websocket`](https://github.com/fastify/fastify-websocket) |
 | **Validation** | [Zod](https://zod.dev) schemas |
 | **Authentication** | [JWT](https://jwt.io) tokens + Zod-validated role claims |
+| **Rate Limiting** | [`@fastify/rate-limit`](https://github.com/fastify/fastify-rate-limit) (100 req/min default) |
 
 ---
 
@@ -73,6 +74,7 @@ All endpoints are prefixed with `/api`. Responses use standard JSON format with 
 | `POST` | `/api/system/shutdown` | Notify API of impending shutdown |
 | `POST` | `/api/system/component-status` | Receive component status updates from Process Manager |
 | `GET` | `/api/system/components` | List all components with current health status |
+| `GET` | `/api/system/carla/test-connection` | Diagnostic report for CARLA bridge and client connectivity |
 
 ---
 
