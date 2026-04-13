@@ -22,6 +22,18 @@ test('rabbitmq definitions expose milestone queues and exchanges', async () => {
   assert.ok(queues.has('scarline.io-client.commands'));
 });
 
+test('rabbitmq queues are durable and dead-lettered except the terminal DLQ', async () => {
+  const definitions = JSON.parse(await readFile(path.join(root, 'infra/rabbitmq/definitions.json'), 'utf8'));
+  for (const queue of definitions.queues) {
+    assert.equal(queue.durable, true, `${queue.name} should be durable`);
+    if (queue.name === 'scarline.dlq') {
+      continue;
+    }
+
+    assert.equal(queue.arguments?.['x-dead-letter-exchange'], 'scarline.dlx', `${queue.name} should use the DLX`);
+  }
+});
+
 test('scarline launcher advertises required commands and IPC socket', async () => {
   const script = await readFile(path.join(root, 'scarline'), 'utf8');
   assert.match(script, /start\|stop\|restart\|status\|logs\|reset-db/);
@@ -29,6 +41,23 @@ test('scarline launcher advertises required commands and IPC socket', async () =
   assert.match(script, /ipc_server\.py/);
   assert.match(script, /core-api sim-bridge admin-panel overlay-web docs io-client nginx/);
   assert.match(script, /open_admin_ui/);
+});
+
+test('windows launcher advertises command parity and no-carla mode', async () => {
+  const script = await readFile(path.join(root, 'scarline.ps1'), 'utf8');
+  assert.match(script, /ValidateSet\("start", "stop", "restart", "status", "logs", "reset-db"\)/);
+  assert.match(script, /\[switch\]\$NoCarla/);
+  assert.match(script, /docker compose/);
+  assert.match(script, /admin\/dashboard/);
+});
+
+test('database schema includes PRD foundation tables and columns', async () => {
+  const schema = await readFile(path.join(root, 'infra/database/schema.sql'), 'utf8');
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS study_trigger_rules/);
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS session_summaries/);
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS activity_log/);
+  assert.match(schema, /ALTER TABLE devices ADD COLUMN IF NOT EXISTS display_configuration/);
+  assert.match(schema, /ALTER TABLE export_jobs ADD COLUMN IF NOT EXISTS parameters/);
 });
 
 test('nginx exposes PRD-aligned single-domain routing', async () => {

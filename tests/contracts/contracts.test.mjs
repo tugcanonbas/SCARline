@@ -18,6 +18,21 @@ test('shared rabbitmq contract keeps dual exchanges and simulator apply-control'
   assert.match(source, /stop-session/);
 });
 
+test('shared API contract exports full PRD DTO schemas', async () => {
+  const source = await readFile(path.join(root, 'packages/contracts/src/api.ts'), 'utf8');
+  for (const schema of [
+    'researcherSchema',
+    'userAdminSchema',
+    'deviceSchema',
+    'triggerRuleSchema',
+    'exportJobSchema',
+    'sessionLogEntrySchema',
+    'sessionSummarySchema'
+  ]) {
+    assert.match(source, new RegExp(`export const ${schema}`));
+  }
+});
+
 test('widget catalogue directories contain widget.json and index.html', async () => {
   const widgetsDir = path.join(root, 'widgets');
   const entries = await readdir(widgetsDir, { withFileTypes: true });
