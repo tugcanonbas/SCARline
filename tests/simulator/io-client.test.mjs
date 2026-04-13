@@ -12,6 +12,10 @@ test('io client discovers plugins and publishes degraded sensor health', async (
   assert.match(source, /DRIVER_FACTORIES/);
   assert.match(source, /publish_component_status/);
   assert.match(source, /publish_sensor_status/);
+  assert.match(source, /publish_driver_status_event/);
+  assert.match(source, /io\.driver_status/);
+  assert.match(source, /configSchema/);
+  assert.match(source, /degraded/);
   assert.match(source, /Driver initialized in degraded mode/);
   assert.match(source, /commands\.io\.\*/);
   assert.match(source, /message\.process\(requeue=False\)/);

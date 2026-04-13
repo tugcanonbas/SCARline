@@ -12,9 +12,11 @@ test('mock simulator supports deterministic YAML scenario catalogue and runtime 
   assert.match(source, /SCENARIO_CATALOGUE_PATH/);
   assert.match(source, /yaml\.safe_load/);
   assert.match(source, /MOCK_SCENARIO_SEED/);
-  assert.match(source, /lane-invasion/);
+  assert.match(source, /lane_invasion/);
   assert.match(source, /vehicle\.collision/);
-  assert.match(source, /sensor\.camera-frame/);
+  assert.match(source, /sensor\.camera/);
+  assert.match(source, /sensor\.gnss/);
+  assert.match(source, /sensor\.imu/);
   assert.match(source, /RECONNECT_DELAY_SECONDS/);
 
   for (const scenario of ['city_drive', 'highway', 'parking', 'stop_go', 'collision_course']) {

@@ -64,8 +64,11 @@ test('database schema includes PRD foundation tables and columns', async () => {
   assert.match(schema, /CREATE TABLE IF NOT EXISTS study_trigger_rules/);
   assert.match(schema, /CREATE TABLE IF NOT EXISTS session_summaries/);
   assert.match(schema, /CREATE TABLE IF NOT EXISTS activity_log/);
+  assert.match(schema, /refresh_session_summary_after_event/);
+  assert.match(schema, /refresh_session_summary_after_session_change/);
   assert.match(schema, /ALTER TABLE devices ADD COLUMN IF NOT EXISTS display_configuration/);
   assert.match(schema, /ALTER TABLE export_jobs ADD COLUMN IF NOT EXISTS parameters/);
+  assert.match(schema, /requested_by UUID REFERENCES users/);
 });
 
 test('nginx exposes PRD-aligned single-domain routing', async () => {

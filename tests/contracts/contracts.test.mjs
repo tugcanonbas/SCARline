@@ -16,6 +16,21 @@ test('shared rabbitmq contract keeps dual exchanges and simulator apply-control'
   assert.match(source, /apply-control/);
   assert.match(source, /start-session/);
   assert.match(source, /stop-session/);
+  assert.match(source, /vehicle\.lane_invasion/);
+  assert.match(source, /world\.snapshot/);
+  assert.match(source, /sensor\.camera/);
+  assert.match(source, /sensor\.gnss/);
+  assert.match(source, /sensor\.imu/);
+  assert.match(source, /exportProgressPayloadSchema/);
+  assert.match(source, /io\.driver_status/);
+});
+
+test('shared websocket contract preserves sim-bridge bridge compatibility and export progress', async () => {
+  const source = await readFile(path.join(root, 'packages/contracts/src/websocket.ts'), 'utf8');
+  assert.match(source, /SIM_BRIDGE_WEBSOCKET_PATHS/);
+  assert.match(source, /bridgeCompatibility: '\/bridge'/);
+  assert.match(source, /export\.progress/);
+  assert.match(source, /exportProgressWebSocketPayloadSchema/);
 });
 
 test('shared API contract exports full PRD DTO schemas', async () => {
@@ -84,10 +99,30 @@ test('overlay runtime implements PRD widget lifecycle controls', async () => {
   assert.match(source, /reconnectAttempt/);
   assert.match(source, /widgetOverrides/);
   assert.match(source, /hidden_widgets/);
+  assert.match(source, /highlighted_widgets/);
+  assert.match(source, /export\.progress/);
+  assert.match(source, /applyExportProgress/);
+  assert.match(source, /setExportIndicator/);
+  assert.match(source, /blockNetwork/);
+  assert.match(source, /allowedBindings/);
   assert.match(source, /setWidgetState/);
   assert.match(source, /sandbox', 'allow-scripts/);
   assert.match(source, /widget-send/);
   assert.match(source, /targetZone/);
   assert.match(source, /postJson/);
   assert.match(source, /assets\/\$\{widget\.widgetId\}\/widget\.json/);
+});
+
+test('overlay services expose widget validation and desktop recovery controls', async () => {
+  const webServer = await readFile(path.join(root, 'apps/overlay-web/src/server.ts'), 'utf8');
+  assert.match(webServer, /validateWidgetMetadata/);
+  assert.match(webServer, /validWidgetCategories/);
+  assert.match(webServer, /validBindingTypes/);
+  assert.match(webServer, /entry must be index\.html/);
+
+  const desktopOverlay = await readFile(path.join(root, 'apps/desktop-overlay/src/main.mjs'), 'utf8');
+  assert.match(desktopOverlay, /render-process-gone/);
+  assert.match(desktopOverlay, /did-fail-load/);
+  assert.match(desktopOverlay, /\/click-through/);
+  assert.match(desktopOverlay, /overlayStatus/);
 });
