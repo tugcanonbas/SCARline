@@ -23,6 +23,24 @@ $OverlayControlPort = if ($env:OVERLAY_CONTROL_PORT) { $env:OVERLAY_CONTROL_PORT
 
 New-Item -ItemType Directory -Force -Path $RuntimeDir, $LogDir, $PidDir | Out-Null
 
+function Test-RuntimeRequirements {
+  if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+    throw "Error: Node.js is not installed."
+  }
+
+  $nodeVersionStr = node -v
+  if ($nodeVersionStr -match "v(\d+)\.") {
+    $nodeVersion = [int]$Matches[1]
+    if ($nodeVersion -lt 20) {
+      throw "Error: Node.js version 20 or higher is required. Found $nodeVersionStr"
+    }
+  }
+
+  if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
+    throw "Error: pnpm is not installed."
+  }
+}
+
 function Get-ConfigValue {
   param([string]$Key, [string]$Default = "")
   if (-not (Test-Path $ConfigFile)) {
@@ -390,6 +408,7 @@ $env:PM_SOCKET_PATH = if ($env:PM_SOCKET_PATH) { $env:PM_SOCKET_PATH } else { "h
 
 switch ($Command) {
   "start" {
+    Test-RuntimeRequirements
     Invoke-Compose @("up", "--build", "-d", "postgres", "rabbitmq", "schema-bootstrap")
     Wait-ForComposeHealth @("postgres", "rabbitmq")
     Wait-ForComposeExit "schema-bootstrap"

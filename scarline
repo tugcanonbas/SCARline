@@ -11,6 +11,25 @@ PM_CONTROL_PORT="${PM_CONTROL_PORT:-4098}"
 
 mkdir -p "${PID_DIR}" "${LOG_DIR}"
 
+check_runtime_requirements() {
+  if ! command -v node >/dev/null 2>&1; then
+    echo "Error: Node.js is not installed." >&2
+    exit 1
+  fi
+
+  local node_version
+  node_version=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
+  if (( node_version < 20 )); then
+    echo "Error: Node.js version 20 or higher is required. Found v$(node -v | cut -d'v' -f2)" >&2
+    exit 1
+  fi
+
+  if ! command -v pnpm >/dev/null 2>&1; then
+    echo "Error: pnpm is not installed." >&2
+    exit 1
+  fi
+}
+
 parse_yaml() {
   local file="$1"
   local prefix="$2"
@@ -636,6 +655,7 @@ wait_for_carla_process() {
 }
 
 start_stack() {
+  check_runtime_requirements
   validate_prerequisites
   compose up --build -d postgres rabbitmq schema-bootstrap
   wait_for_health postgres rabbitmq
