@@ -10,6 +10,7 @@ const targetDisplay = Number(process.env.OVERLAY_DISPLAY ?? 0);
 let windows = [];
 let quitting = false;
 let controlServer = null;
+let mousePassthrough = clickThrough;
 
 function displayBounds() {
   const displays = screen.getAllDisplays();
@@ -54,13 +55,27 @@ function createOverlayWindow(bounds, url) {
   const overlayWindow = new BrowserWindow(windowOptions(bounds));
   overlayWindow.setAlwaysOnTop(true, 'screen-saver');
   overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  if (clickThrough) {
+  if (mousePassthrough) {
     overlayWindow.setIgnoreMouseEvents(true, { forward: true });
   }
 
   overlayWindow.webContents.on('render-process-gone', () => {
     if (!quitting) {
-      overlayWindow.reload();
+      setTimeout(() => {
+        if (!overlayWindow.isDestroyed()) {
+          overlayWindow.reload();
+        }
+      }, 500);
+    }
+  });
+
+  overlayWindow.webContents.on('did-fail-load', () => {
+    if (!quitting) {
+      setTimeout(() => {
+        if (!overlayWindow.isDestroyed()) {
+          overlayWindow.loadURL(url);
+        }
+      }, 1500);
     }
   });
 
@@ -117,15 +132,42 @@ function reloadWindows() {
   }
 }
 
+function overlayStatus() {
+  return {
+    status: 'running',
+    windows: windows.length,
+    url: overlayUrl,
+    mode: windowMode,
+    display: targetDisplay,
+    clickThrough: mousePassthrough,
+    bounds: windows.map((overlayWindow) => overlayWindow.getBounds()),
+    displays: screen.getAllDisplays().map((display, index) => ({
+      index,
+      id: display.id,
+      bounds: display.bounds,
+      scaleFactor: display.scaleFactor
+    }))
+  };
+}
+
+function setClickThrough(enabled) {
+  mousePassthrough = enabled;
+  for (const overlayWindow of windows) {
+    overlayWindow.setIgnoreMouseEvents(enabled, { forward: true });
+  }
+}
+
 function startControlServer() {
   controlServer = http.createServer((request, response) => {
     if (request.url === '/health') {
       response.writeHead(200, { 'content-type': 'application/json' });
-      response.end(JSON.stringify({
-        status: 'running',
-        windows: windows.length,
-        url: overlayUrl
-      }));
+      response.end(JSON.stringify(overlayStatus()));
+      return;
+    }
+
+    if (request.url === '/status') {
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify(overlayStatus()));
       return;
     }
 
@@ -133,6 +175,25 @@ function startControlServer() {
       reloadWindows();
       response.writeHead(202, { 'content-type': 'application/json' });
       response.end(JSON.stringify({ accepted: true }));
+      return;
+    }
+
+    if (request.method === 'POST' && request.url === '/click-through') {
+      let body = '';
+      request.on('data', (chunk) => {
+        body += chunk;
+      });
+      request.on('end', () => {
+        try {
+          const payload = body ? JSON.parse(body) : {};
+          setClickThrough(payload.enabled !== false);
+          response.writeHead(202, { 'content-type': 'application/json' });
+          response.end(JSON.stringify({ accepted: true, clickThrough: mousePassthrough }));
+        } catch {
+          response.writeHead(400, { 'content-type': 'application/json' });
+          response.end(JSON.stringify({ error: 'invalid_json' }));
+        }
+      });
       return;
     }
 
