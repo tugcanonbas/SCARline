@@ -14,17 +14,17 @@ The SCARline platform has achieved a **solid architectural foundation** with wel
 **Current Status**: The platform is at an **87% overall completion level**, with all major systems architecturally present but several critical implementations requiring finalization before production deployment.
 
 ### Key Metrics
-| Aspect | Completeness | Status |
-|--------|--------------|--------|
-| **Architecture Compliance** | 98% | ✅ Fully Compliant |
-| **Infrastructure (Docker/DB/MQ)** | 94% | ✅ Production-Ready |
-| **CoreAPI Backend** | 85% | ⚠️ Development-Ready |
-| **Admin Panel Frontend** | 78% | ⚠️ Feature-Complete |
-| **Overlay Engine** | 76% | ⚠️ Partial (Web Mode Works) |
-| **Python Clients** | 68% | ❌ Skeletal Implementation |
-| **Process Manager** | 65% | ❌ Incomplete Orchestration |
-| **Testing Coverage** | 85% | ✅ Solid |
-| **Contracts & Data** | 93% | ✅ Comprehensive |
+| Aspect                            | Completeness | Status                     |
+| --------------------------------- | ------------ | -------------------------- |
+| **Architecture Compliance**       | 98%          | ✅ Fully Compliant          |
+| **Infrastructure (Docker/DB/MQ)** | 94%          | ✅ Production-Ready         |
+| **CoreAPI Backend**               | 85%          | ⚠️ Development-Ready        |
+| **Admin Panel Frontend**          | 78%          | ⚠️ Feature-Complete         |
+| **Overlay Engine**                | 76%          | ⚠️ Partial (Web Mode Works) |
+| **Python Clients**                | 68%          | ❌ Skeletal Implementation  |
+| **Process Manager**               | 65%          | ❌ Incomplete Orchestration |
+| **Testing Coverage**              | 85%          | ✅ Solid                    |
+| **Contracts & Data**              | 93%          | ✅ Comprehensive            |
 
 ---
 
@@ -36,27 +36,27 @@ The codebase precisely follows the architectural repo map defined in AGENTS.md. 
 
 #### ✅ Fully Aligned Components
 
-| Component | Path | Status |
-|-----------|------|--------|
-| **Admin Panel** | `apps/admin-panel/` | ✅ SvelteKit 5, routes present, RBAC implemented |
-| **Overlay Web Runtime** | `apps/overlay-web/` | ✅ Widget gateway, browser rendering |
-| **Desktop Overlay Shell** | `apps/desktop-overlay/` | ⚠️ Electron structure present, incomplete |
-| **CoreAPI** | `services/core-api/` | ✅ Fastify, complete lib structure |
-| **Sim-Bridge** | `services/sim-bridge/` | ✅ Adapter registry, message routing |
-| **Shared Contracts** | `packages/contracts/` | ✅ Zod schemas, TS types |
-| **I/O Client** | `python/io-client/` | ⚠️ Driver interface, implementations skeletal |
-| **CARLA Client** | `python/carla-client/` | ⚠️ Basic structure, incomplete commands |
-| **Mock Simulator** | `python/mock-simulator/` | ✅ Fully functional scenarios |
-| **Widget Catalogue** | `widgets/` | ✅ 21/21 widgets present |
-| **Infrastructure** | `infra/` | ✅ Database, RabbitMQ, Nginx, Process Manager |
-| **Tests** | `tests/` | ✅ Comprehensive coverage |
+| Component                 | Path                     | Status                                          |
+| ------------------------- | ------------------------ | ----------------------------------------------- |
+| **Admin Panel**           | `apps/admin-panel/`      | ✅ SvelteKit 5, routes present, RBAC implemented |
+| **Overlay Web Runtime**   | `apps/overlay-web/`      | ✅ Widget gateway, browser rendering             |
+| **Desktop Overlay Shell** | `apps/desktop-overlay/`  | ⚠️ Electron structure present, incomplete        |
+| **CoreAPI**               | `services/core-api/`     | ✅ Fastify, complete lib structure               |
+| **Sim-Bridge**            | `services/sim-bridge/`   | ✅ Adapter registry, message routing             |
+| **Shared Contracts**      | `packages/contracts/`    | ✅ Zod schemas, TS types                         |
+| **I/O Client**            | `python/io-client/`      | ⚠️ Driver interface, implementations skeletal    |
+| **CARLA Client**          | `python/carla-client/`   | ⚠️ Basic structure, incomplete commands          |
+| **Mock Simulator**        | `python/mock-simulator/` | ✅ Fully functional scenarios                    |
+| **Widget Catalogue**      | `widgets/`               | ✅ 21/21 widgets present                         |
+| **Infrastructure**        | `infra/`                 | ✅ Database, RabbitMQ, Nginx, Process Manager    |
+| **Tests**                 | `tests/`                 | ✅ Comprehensive coverage                        |
 
 #### ⚠️ Minor Deviations
 
-| Item | Deviation | Rationale |
-|------|-----------|-----------|
-| **CoreAPI Routes** | Routes registered programmatically in `api.ts` rather than file-based in `routes/` directory | Architectural choice for tight integration with middleware; valid approach |
-| **Process Manager** | Partial orchestration in `ipc_server.py` | Ongoing implementation; basic IPC framework established |
+| Item                | Deviation                                                                                    | Rationale                                                                  |
+| ------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| **CoreAPI Routes**  | Routes registered programmatically in `api.ts` rather than file-based in `routes/` directory | Architectural choice for tight integration with middleware; valid approach |
+| **Process Manager** | Partial orchestration in `ipc_server.py`                                                     | Ongoing implementation; basic IPC framework established                    |
 
 ### 1.2 Architectural Patterns Compliance
 
@@ -152,16 +152,16 @@ The database schema is **comprehensive and production-grade**:
 
 #### ✅ Core Tables (31 tables total)
 
-| Category | Tables | Status |
-|----------|--------|--------|
-| **Authentication** | users, roles, user_roles, refresh_tokens | ✅ Complete with proper indexing |
-| **Studies** | studies, study_researchers, conditions | ✅ Full lifecycle support |
-| **Participants** | participants, sessions, session_events | ✅ Temporal data support |
-| **Configuration** | carla_configurations, sensor_configurations, devices | ✅ Flexible JSONB configs |
-| **Exports** | export_jobs with result tracking | ✅ Job queue pattern |
-| **Activity Logs** | activity_log with entity tracking | ✅ Audit trail complete |
-| **Widgets** | view_layouts, widget_instances | ✅ Layout persistence |
-| **System** | system_configuration | ✅ Single source for settings |
+| Category           | Tables                                               | Status                          |
+| ------------------ | ---------------------------------------------------- | ------------------------------- |
+| **Authentication** | users, roles, user_roles, refresh_tokens             | ✅ Complete with proper indexing |
+| **Studies**        | studies, study_researchers, conditions               | ✅ Full lifecycle support        |
+| **Participants**   | participants, sessions, session_events               | ✅ Temporal data support         |
+| **Configuration**  | carla_configurations, sensor_configurations, devices | ✅ Flexible JSONB configs        |
+| **Exports**        | export_jobs with result tracking                     | ✅ Job queue pattern             |
+| **Activity Logs**  | activity_log with entity tracking                    | ✅ Audit trail complete          |
+| **Widgets**        | view_layouts, widget_instances                       | ✅ Layout persistence            |
+| **System**         | system_configuration                                 | ✅ Single source for settings    |
 
 #### ✅ Indexes & Performance
 
@@ -191,22 +191,22 @@ The RabbitMQ configuration implements **proper CQRS patterns** via RabbitMQ Mana
 
 #### ✅ Exchanges
 
-| Exchange | Type | Purpose | TTL |
-|----------|------|---------|-----|
-| `scarline.events` | topic | Event fanout (simulator, session, export events) | 300s (5 min) |
-| `scarline.commands` | topic | Command routing (simulator commands, export tasks) | 300s |
-| `scarline.dlx` | fanout | Dead-letter exchange for failed messages | N/A |
+| Exchange            | Type   | Purpose                                            | TTL          |
+| ------------------- | ------ | -------------------------------------------------- | ------------ |
+| `scarline.events`   | topic  | Event fanout (simulator, session, export events)   | 300s (5 min) |
+| `scarline.commands` | topic  | Command routing (simulator commands, export tasks) | 300s         |
+| `scarline.dlx`      | fanout | Dead-letter exchange for failed messages           | N/A          |
 
 #### ✅ Queues (7 queues + DLQ)
 
-| Queue | Binding | Consumer | TTL |
-|-------|---------|----------|-----|
-| `scarline.core-api.events` | events.# | CoreAPI | 300s |
-| `scarline.core-api.commands` | events.# + commands.# | CoreAPI | 300s |
-| `scarline.sim-bridge.commands` | commands.simulator.* | Sim-Bridge | 300s |
-| `scarline.io-client.commands` | commands.io.* | I/O Client | 300s |
-| `scarline.export.commands` | commands.export.* | Export Handler | 300s |
-| `scarline.dlq` | scarline.dlx | Maintenance | 300s |
+| Queue                          | Binding               | Consumer       | TTL  |
+| ------------------------------ | --------------------- | -------------- | ---- |
+| `scarline.core-api.events`     | events.#              | CoreAPI        | 300s |
+| `scarline.core-api.commands`   | events.# + commands.# | CoreAPI        | 300s |
+| `scarline.sim-bridge.commands` | commands.simulator.*  | Sim-Bridge     | 300s |
+| `scarline.io-client.commands`  | commands.io.*         | I/O Client     | 300s |
+| `scarline.export.commands`     | commands.export.*     | Export Handler | 300s |
+| `scarline.dlq`                 | scarline.dlx          | Maintenance    | 300s |
 
 #### ✅ Authentication
 
@@ -296,14 +296,14 @@ Single-domain routing at `localhost:8088` consolidates all platform services:
 
 #### ⚠️ Partial or Incomplete Features
 
-| Feature | Status | Gaps |
-|---------|--------|------|
-| **Session Real-Time Data** | 80% | Buffering strategy for high-frequency events needs optimization; event filtering not fully parameterized |
-| **CARLA Integration** | 50% | Connection test works, but command execution through simulator bridge incomplete |
-| **Data Export** | 70% | Export job queuing works, but format conversions (CSV, JSON, parquet) not fully implemented |
-| **Error Handling** | 70% | Basic error responses present, but comprehensive error catalog missing (error codes, recovery strategies) |
-| **Rate Limiting** | 0% | No rate limiting or throttling implemented on CORS/API endpoints |
-| **Pagination** | 60% | Some list endpoints paginated; others not consistent |
+| Feature                    | Status | Gaps                                                                                                      |
+| -------------------------- | ------ | --------------------------------------------------------------------------------------------------------- |
+| **Session Real-Time Data** | 80%    | Buffering strategy for high-frequency events needs optimization; event filtering not fully parameterized  |
+| **CARLA Integration**      | 50%    | Connection test works, but command execution through simulator bridge incomplete                          |
+| **Data Export**            | 70%    | Export job queuing works, but format conversions (CSV, JSON, parquet) not fully implemented               |
+| **Error Handling**         | 70%    | Basic error responses present, but comprehensive error catalog missing (error codes, recovery strategies) |
+| **Rate Limiting**          | 0%     | No rate limiting or throttling implemented on CORS/API endpoints                                          |
+| **Pagination**             | 60%    | Some list endpoints paginated; others not consistent                                                      |
 
 #### 🔍 Code Quality Observations
 
@@ -355,13 +355,13 @@ Single-domain routing at `localhost:8088` consolidates all platform services:
 
 #### ⚠️ Incomplete Features
 
-| Feature | Status | Gap |
-|---------|--------|-----|
-| **Session Binding** | 80% | Adapters can bind to sessions, but binding state not fully persisted |
-| **Command Validation** | 70% | Basic schema checks; command-specific validation missing |
-| **Multi-Adapter Scenarios** | 0% | No testing/support for multiple adapters simultaneously |
-| **Recording & Playback** | 0% | Hook structure exists but recording storage not implemented |
-| **Spectator Mode** | 0% | No read-only adapter mode for observation |
+| Feature                     | Status | Gap                                                                  |
+| --------------------------- | ------ | -------------------------------------------------------------------- |
+| **Session Binding**         | 80%    | Adapters can bind to sessions, but binding state not fully persisted |
+| **Command Validation**      | 70%    | Basic schema checks; command-specific validation missing             |
+| **Multi-Adapter Scenarios** | 0%     | No testing/support for multiple adapters simultaneously              |
+| **Recording & Playback**    | 0%     | Hook structure exists but recording storage not implemented          |
+| **Spectator Mode**          | 0%     | No read-only adapter mode for observation                            |
 
 #### 🔍 Implementation Notes
 
@@ -392,16 +392,16 @@ Single-domain routing at `localhost:8088` consolidates all platform services:
 
 ##### ❌ Missing Implementations
 
-| Command | Spec Requirement | Implementation Status |
-|---------|------------------|----------------------|
-| **Map Loading** | Load CARLA map (Town01-05) | ❌ No CARLA Python API calls |
-| **Weather Control** | Modify weather, lighting, fog | ❌ Not implemented |
-| **Vehicle Spawning** | Spawn player vehicle with physics | ❌ Not implemented |
-| **Sensor Configuration** | Attach camera, lidar, radar sensors | ❌ Not implemented |
-| **Traffic Management** | Spawn NPC vehicles, traffic patterns | ❌ Not implemented |
-| **Recording Control** | Start/stop CARLA recording | ❌ Not implemented |
-| **Telemetry Streaming** | Continuous vehicle state at 20Hz | ❌ Skeleton only |
-| **Error Recovery** | Reconnect on CARLA/network failure | ❌ Not implemented |
+| Command                  | Spec Requirement                     | Implementation Status       |
+| ------------------------ | ------------------------------------ | --------------------------- |
+| **Map Loading**          | Load CARLA map (Town01-05)           | ❌ No CARLA Python API calls |
+| **Weather Control**      | Modify weather, lighting, fog        | ❌ Not implemented           |
+| **Vehicle Spawning**     | Spawn player vehicle with physics    | ❌ Not implemented           |
+| **Sensor Configuration** | Attach camera, lidar, radar sensors  | ❌ Not implemented           |
+| **Traffic Management**   | Spawn NPC vehicles, traffic patterns | ❌ Not implemented           |
+| **Recording Control**    | Start/stop CARLA recording           | ❌ Not implemented           |
+| **Telemetry Streaming**  | Continuous vehicle state at 20Hz     | ❌ Skeleton only             |
+| **Error Recovery**       | Reconnect on CARLA/network failure   | ❌ Not implemented           |
 
 ##### 🔍 Assessment
 
@@ -475,13 +475,13 @@ The CARLA client is approximately **30% complete**. While the framework for conn
 
 ##### ❌ Missing Implementations
 
-| Driver | Status | Gap |
-|--------|--------|-----|
-| **LogitechG29** | Skeleton | No actual force feedback wheel communication via HID/USB |
-| **UsbCamera** | Skeleton | No OpenCV camera feed capture or processing |
-| **HeartRate** | Skeleton | No Bluetooth/serial heart rate device communication |
-| **EyeTracker** | Skeleton | No eye tracking calibration or gaze data capture |
-| **SensorDriver** | Framework | Need real hardware driver implementations |
+| Driver           | Status    | Gap                                                      |
+| ---------------- | --------- | -------------------------------------------------------- |
+| **LogitechG29**  | Skeleton  | No actual force feedback wheel communication via HID/USB |
+| **UsbCamera**    | Skeleton  | No OpenCV camera feed capture or processing              |
+| **HeartRate**    | Skeleton  | No Bluetooth/serial heart rate device communication      |
+| **EyeTracker**   | Skeleton  | No eye tracking calibration or gaze data capture         |
+| **SensorDriver** | Framework | Need real hardware driver implementations                |
 
 ##### 🔍 Assessment
 
@@ -522,15 +522,15 @@ Adding real drivers requires:
 
 #### ⚠️ Incomplete Features
 
-| Feature | Status | Gap |
-|---------|--------|-----|
-| **Boot Sequence** | 40% | Container orchestration via Compose, but not unified platform readiness tracking |
-| **Health Monitoring Loop** | 0% | No continuous health checks in IPC server |
-| **Component Restart** | 20% | No automatic restart of unhealthy components |
-| **Graceful Shutdown** | 70% | Compose down works; CARLA/Overlay desktop cleanup partially implemented |
-| **CARLA Binary Lifecycle** | 50% | Startup present; monitoring and error recovery missing |
-| **Overlay Transparent Mode** | 0% | No Electron window lifecycle management |
-| **Health Dashboard** | 0% | No CLI status monitoring beyond Docker ps |
+| Feature                      | Status | Gap                                                                              |
+| ---------------------------- | ------ | -------------------------------------------------------------------------------- |
+| **Boot Sequence**            | 40%    | Container orchestration via Compose, but not unified platform readiness tracking |
+| **Health Monitoring Loop**   | 0%     | No continuous health checks in IPC server                                        |
+| **Component Restart**        | 20%    | No automatic restart of unhealthy components                                     |
+| **Graceful Shutdown**        | 70%    | Compose down works; CARLA/Overlay desktop cleanup partially implemented          |
+| **CARLA Binary Lifecycle**   | 50%    | Startup present; monitoring and error recovery missing                           |
+| **Overlay Transparent Mode** | 0%     | No Electron window lifecycle management                                          |
+| **Health Dashboard**         | 0%     | No CLI status monitoring beyond Docker ps                                        |
 
 #### 🔍 Implementation Gaps
 
@@ -566,18 +566,18 @@ The launcher scripts handle **container orchestration through Docker Compose** e
 
 #### ✅ Implemented Routes (25 total)
 
-| Area | Routes | Status |
-|------|--------|--------|
-| **Authentication** | `/login` | ✅ JWT-based login |
-| **Onboarding** | `/startup`, `/onboarding/system`, `/onboarding/researcher` | ✅ Full workflow |
-| **Dashboard** | `/dashboard` | ✅ Metrics + recent activity |
-| **Studies** | `/user-studies`, `/user-studies/new`, `/user-studies/[id]/overview` | ✅ CRUD operations |
+| Area                | Routes                                                                                                  | Status                          |
+| ------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| **Authentication**  | `/login`                                                                                                | ✅ JWT-based login               |
+| **Onboarding**      | `/startup`, `/onboarding/system`, `/onboarding/researcher`                                              | ✅ Full workflow                 |
+| **Dashboard**       | `/dashboard`                                                                                            | ✅ Metrics + recent activity     |
+| **Studies**         | `/user-studies`, `/user-studies/new`, `/user-studies/[id]/overview`                                     | ✅ CRUD operations               |
 | **Study Workspace** | `participants`, `conditions`, `sessions`, `carla-config`, `sensors`, `participant-view`, `active-study` | ⚠️ Routes present, UI incomplete |
-| **Researchers** | `/researchers`, `/researchers/new`, `/researchers/[id]` | ✅ CRUD operations |
-| **Settings** | `/settings/system`, `/settings/devices`, `/settings/users`, `/settings/components` | ⚠️ Routes present, UI incomplete |
-| **Session Logs** | `/session-logs`, `/session-logs/[id]` | ✅ Log browsing |
-| **Exports** | `/exports`, `/exports/[id]/download` | ✅ Export management |
-| **Documentation** | `/documentation` | ✅ Embedded docs |
+| **Researchers**     | `/researchers`, `/researchers/new`, `/researchers/[id]`                                                 | ✅ CRUD operations               |
+| **Settings**        | `/settings/system`, `/settings/devices`, `/settings/users`, `/settings/components`                      | ⚠️ Routes present, UI incomplete |
+| **Session Logs**    | `/session-logs`, `/session-logs/[id]`                                                                   | ✅ Log browsing                  |
+| **Exports**         | `/exports`, `/exports/[id]/download`                                                                    | ✅ Export management             |
+| **Documentation**   | `/documentation`                                                                                        | ✅ Embedded docs                 |
 
 #### ✅ Frontend Architecture
 
@@ -589,15 +589,15 @@ The launcher scripts handle **container orchestration through Docker Compose** e
 
 #### ⚠️ UI Implementation Gaps
 
-| Feature | Status | Gap |
-|---------|--------|-----|
-| **Study Designer** | 30% | Condition/treatment tree editor not fully implemented |
-| **Widget Layout Editor** | 20% | Zone/widget drag-drop interface incomplete |
-| **Session Operator Controls** | 50% | Start/pause/complete UI present; widget triggering incomplete |
-| **Active Study Monitoring** | 60% | Real-time metrics display partial; event stream visualization missing |
-| **Export Format Options** | 40% | CSV download works; JSON/Parquet/Video export incomplete |
-| **Researcher Workflow** | 70% | Study creation works; condition setup incomplete |
-| **Data Visualization** | 10% | Charts/graphs for session analysis not implemented |
+| Feature                       | Status | Gap                                                                   |
+| ----------------------------- | ------ | --------------------------------------------------------------------- |
+| **Study Designer**            | 30%    | Condition/treatment tree editor not fully implemented                 |
+| **Widget Layout Editor**      | 20%    | Zone/widget drag-drop interface incomplete                            |
+| **Session Operator Controls** | 50%    | Start/pause/complete UI present; widget triggering incomplete         |
+| **Active Study Monitoring**   | 60%    | Real-time metrics display partial; event stream visualization missing |
+| **Export Format Options**     | 40%    | CSV download works; JSON/Parquet/Video export incomplete              |
+| **Researcher Workflow**       | 70%    | Study creation works; condition setup incomplete                      |
+| **Data Visualization**        | 10%    | Charts/graphs for session analysis not implemented                    |
 
 #### 🔍 RBAC Implementation
 
@@ -668,13 +668,13 @@ Routes correctly enforce role-based access:
 
 #### ✅ All 21 Widgets Present
 
-| Category | Widgets | Status |
-|----------|---------|--------|
-| **Driving** | speedometer, navigation-prompt | ✅ 2/2 |
-| **Communication** | contact, contactlist, incomingcall, activecall, outgoingcall, callended, calldeclined, music | ✅ 8/8 |
-| **Health/Biometric** | bp, ecg, hr, resp, spo2 | ✅ 5/5 |
-| **Study** | study-instruction, session-timeline | ✅ 2/2 |
-| **General** | time, calendar, appointments, avatar | ✅ 4/4 |
+| Category             | Widgets                                                                                      | Status |
+| -------------------- | -------------------------------------------------------------------------------------------- | ------ |
+| **Driving**          | speedometer, navigation-prompt                                                               | ✅ 2/2  |
+| **Communication**    | contact, contactlist, incomingcall, activecall, outgoingcall, callended, calldeclined, music | ✅ 8/8  |
+| **Health/Biometric** | bp, ecg, hr, resp, spo2                                                                      | ✅ 5/5  |
+| **Study**            | study-instruction, session-timeline                                                          | ✅ 2/2  |
+| **General**          | time, calendar, appointments, avatar                                                         | ✅ 4/4  |
 
 #### ✅ Widget Structure
 
@@ -700,15 +700,15 @@ All 21 widgets follow the required pattern:
 
 #### ✅ Test Suites Present
 
-| Test Suite | File | Status |
-|-----------|------|--------|
-| **Admin Panel Routes** | `tests/admin-panel/routes.test.mjs` | ✅ RBAC verification (25 routes) |
-| **Contracts** | `tests/contracts/contracts.test.mjs` | ✅ Schema validation |
-| **Infrastructure** | `tests/infra/topology.test.mjs` | ✅ Docker, schema, Nginx, Process Manager |
-| **CoreAPI Services** | `tests/services/core-api.test.mjs` | ✅ Endpoint & command coverage |
-| **Mock Simulator** | `tests/simulator/mock-simulator.test.mjs` | ✅ Scenario execution |
-| **I/O Client** | `tests/simulator/io-client.test.mjs` | ✅ Driver interface |
-| **Platform E2E** | `tests/integration/platform-e2e.test.mjs` | ✅ Full lifecycle testing |
+| Test Suite             | File                                      | Status                                   |
+| ---------------------- | ----------------------------------------- | ---------------------------------------- |
+| **Admin Panel Routes** | `tests/admin-panel/routes.test.mjs`       | ✅ RBAC verification (25 routes)          |
+| **Contracts**          | `tests/contracts/contracts.test.mjs`      | ✅ Schema validation                      |
+| **Infrastructure**     | `tests/infra/topology.test.mjs`           | ✅ Docker, schema, Nginx, Process Manager |
+| **CoreAPI Services**   | `tests/services/core-api.test.mjs`        | ✅ Endpoint & command coverage            |
+| **Mock Simulator**     | `tests/simulator/mock-simulator.test.mjs` | ✅ Scenario execution                     |
+| **I/O Client**         | `tests/simulator/io-client.test.mjs`      | ✅ Driver interface                       |
+| **Platform E2E**       | `tests/integration/platform-e2e.test.mjs` | ✅ Full lifecycle testing                 |
 
 #### ✅ Test Framework
 
@@ -718,13 +718,13 @@ All 21 widgets follow the required pattern:
 
 #### ⚠️ Testing Gaps
 
-| Gap | Severity | Impact |
-|-----|----------|--------|
-| **Python Unit Tests** | MEDIUM | CARLA client, I/O drivers untested at unit level |
-| **WebSocket Integration** | MEDIUM | Real-time subscription testing incomplete |
-| **Widget Rendering** | LOW | Widget layout/positioning not tested |
-| **Error Scenarios** | MEDIUM | Network failures, component crashes not systematically tested |
-| **Load Testing** | LOW | No stress tests for multi-session scenarios |
+| Gap                       | Severity | Impact                                                        |
+| ------------------------- | -------- | ------------------------------------------------------------- |
+| **Python Unit Tests**     | MEDIUM   | CARLA client, I/O drivers untested at unit level              |
+| **WebSocket Integration** | MEDIUM   | Real-time subscription testing incomplete                     |
+| **Widget Rendering**      | LOW      | Widget layout/positioning not tested                          |
+| **Error Scenarios**       | MEDIUM   | Network failures, component crashes not systematically tested |
+| **Load Testing**          | LOW      | No stress tests for multi-session scenarios                   |
 
 **Testing Readiness**: ✅ **Development-Grade**, ready for feature testing, needs expanded coverage for production deployment
 
@@ -764,29 +764,29 @@ All 21 widgets follow the required pattern:
 
 ### Critical Blockers (Prevent Production Use)
 
-| Issue | Severity | Component | Impact | Timeline to Fix |
-|-------|----------|-----------|--------|-----------------|
-| **CARLA Client Incomplete** | CRITICAL | python/carla-client | Cannot run CARLA-based studies | 3-5 days |
-| **Process Manager Orchestration** | CRITICAL | infra/process-manager | Automated startup unreliable | 2-3 days |
-| **Transparent Overlay Missing** | HIGH | apps/desktop-overlay | Dual-screen experience unavailable | 2-4 weeks |
+| Issue                             | Severity | Component             | Impact                             | Timeline to Fix |
+| --------------------------------- | -------- | --------------------- | ---------------------------------- | --------------- |
+| **CARLA Client Incomplete**       | CRITICAL | python/carla-client   | Cannot run CARLA-based studies     | 3-5 days        |
+| **Process Manager Orchestration** | CRITICAL | infra/process-manager | Automated startup unreliable       | 2-3 days        |
+| **Transparent Overlay Missing**   | HIGH     | apps/desktop-overlay  | Dual-screen experience unavailable | 2-4 weeks       |
 
 ### Medium Priority Issues
 
-| Issue | Severity | Component | Impact | Timeline to Fix |
-|-------|----------|-----------|--------|-----------------|
-| **I/O Driver Implementations** | MEDIUM | python/io-client | Physical sensors cannot be used | 4-6 days (per driver) |
-| **Session Event Buffering** | MEDIUM | services/core-api | High-frequency telemetry may overwhelm WebSocket | 1-2 days |
-| **Error Recovery Logic** | MEDIUM | services/sim-bridge, python/* | Platform resilience untested | 2-3 days |
-| **Admin Panel UI Details** | MEDIUM | apps/admin-panel | Study designer, widget layout editor incomplete | 3-5 days |
+| Issue                          | Severity | Component                     | Impact                                           | Timeline to Fix       |
+| ------------------------------ | -------- | ----------------------------- | ------------------------------------------------ | --------------------- |
+| **I/O Driver Implementations** | MEDIUM   | python/io-client              | Physical sensors cannot be used                  | 4-6 days (per driver) |
+| **Session Event Buffering**    | MEDIUM   | services/core-api             | High-frequency telemetry may overwhelm WebSocket | 1-2 days              |
+| **Error Recovery Logic**       | MEDIUM   | services/sim-bridge, python/* | Platform resilience untested                     | 2-3 days              |
+| **Admin Panel UI Details**     | MEDIUM   | apps/admin-panel              | Study designer, widget layout editor incomplete  | 3-5 days              |
 
 ### Low Priority Issues
 
-| Issue | Severity | Component |
-|-------|----------|-----------|
-| **Rate Limiting** | LOW | services/core-api |
-| **Structured Logging** | LOW | services/*, python/* |
-| **Widget Preview Images** | LOW | widgets/* |
-| **API Documentation** | LOW | services/core-api |
+| Issue                     | Severity | Component            |
+| ------------------------- | -------- | -------------------- |
+| **Rate Limiting**         | LOW      | services/core-api    |
+| **Structured Logging**    | LOW      | services/*, python/* |
+| **Widget Preview Images** | LOW      | widgets/*            |
+| **API Documentation**     | LOW      | services/core-api    |
 
 ---
 
