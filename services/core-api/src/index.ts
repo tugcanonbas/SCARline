@@ -22,8 +22,6 @@ const app = Fastify({
   logger: true
 });
 
-// @ts-expect-error: @fastify/websocket@10 has a known TypeProvider mismatch with Fastify 4 generic overloads
-// at the type-system level. The runtime behavior is correct. See https://github.com/fastify/fastify-websocket/issues/309
 await app.register(websocket);
 
 // Global Rate Limiting: 100 requests per minute per IP

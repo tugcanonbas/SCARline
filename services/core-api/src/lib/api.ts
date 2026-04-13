@@ -1785,6 +1785,5 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     }
   };
 
-  // @ts-expect-error: @fastify/websocket@10 FastifyPluginCallback TypeProvider mismatch with Fastify 4 — runtime is correct
   app.get('/ws', { websocket: true }, wsHandler);
 }

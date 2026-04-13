@@ -20,6 +20,10 @@ export class ComponentRegistry {
     this.map.set(state.componentId, state);
   }
 
+  get(id: ComponentId): ComponentState | undefined {
+    return this.map.get(id);
+  }
+
   list(): ComponentState[] {
     return Array.from(this.map.values()).sort((left, right) => left.componentId.localeCompare(right.componentId));
   }
