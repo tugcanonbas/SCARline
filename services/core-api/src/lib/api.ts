@@ -653,6 +653,38 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     }
   });
 
+  app.get('/api/system/carla/test-connection', async (request, reply) => {
+    const roles = await requireUser(request, reply, config, ['admin']);
+    if (!roles) {
+      return {
+        success: false,
+        data: null,
+        error: {
+          code: 'AUTH_REQUIRED',
+          message: 'Authentication required',
+          details: {}
+        }
+      };
+    }
+
+    const bridgeStatus = components.get('sim-bridge');
+    const simulationStatus = components.get('mock-simulator') || components.get('carla-client');
+
+    const connected = bridgeStatus?.status === 'running' && !!simulationStatus;
+
+    return {
+      success: true,
+      data: {
+        connected,
+        bridgeStatus: bridgeStatus?.status ?? 'disconnected',
+        simulationStatus: simulationStatus?.status ?? 'disconnected',
+        simulationId: simulationStatus?.componentId ?? 'none',
+        timestamp: new Date().toISOString()
+      },
+      error: null
+    };
+  });
+
   app.get('/api/system/configuration', async (request, reply) => {
     const roles = await requireUser(request, reply, config, ['admin']);
     if (!roles) {
