@@ -42,6 +42,7 @@ import {
   verifyPassword
 } from './auth.js';
 import { loadWidgetCatalogue } from './widget-catalogue.js';
+import { registerPrdRoutes } from './prd-routes.js';
 
 interface Dependencies {
   config: CoreApiConfig;
@@ -58,6 +59,22 @@ function getBearerToken(request: FastifyRequest): string | null {
   }
 
   return header.slice('Bearer '.length);
+}
+
+function apiError(code: string, message: string): {
+  success: false;
+  data: null;
+  error: { code: string; message: string; details: Record<string, unknown> };
+} {
+  return {
+    success: false,
+    data: null,
+    error: {
+      code,
+      message,
+      details: {}
+    }
+  };
 }
 
 async function requireUser(
@@ -85,6 +102,43 @@ async function requireUser(
     reply.code(401);
     return null;
   }
+}
+
+function rolesForRoute(method: string, path: string): Array<z.infer<typeof RoleSchema>> | undefined {
+  if (
+    path.startsWith('/api/users')
+    || path.startsWith('/api/devices')
+    || path.startsWith('/api/system/configuration')
+    || path.startsWith('/api/system/process-manager')
+    || path.startsWith('/api/system/carla')
+    || path.startsWith('/api/system/overlay')
+    || path.startsWith('/api/system/restart')
+  ) {
+    return ['admin'];
+  }
+
+  if (method === 'GET') {
+    return ['admin', 'researcher', 'operator', 'viewer'];
+  }
+
+  if (
+    path.includes('/sessions/') && (
+      path.endsWith('/start')
+      || path.endsWith('/pause')
+      || path.endsWith('/resume')
+      || path.endsWith('/complete')
+      || path.endsWith('/cancel')
+      || path.endsWith('/triggers')
+    )
+  ) {
+    return ['admin', 'researcher', 'operator'];
+  }
+
+  if (path.startsWith('/api/exports')) {
+    return ['admin', 'researcher'];
+  }
+
+  return ['admin', 'researcher'];
 }
 
 async function scanWidgetsDir(config: CoreApiConfig): Promise<string[]> {
@@ -424,6 +478,18 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     error: null
   }));
 
+  app.addHook('preHandler', async (request, reply) => {
+    const path = request.url.split('?')[0];
+    if (!path.startsWith('/api/') || path.startsWith('/api/auth/') || path === '/api/health' || path.startsWith('/api/onboarding/') || path === '/api/system/bootstrap') {
+      return;
+    }
+
+    const roles = await requireUser(request, reply, config, rolesForRoute(request.method, path));
+    if (!roles) {
+      return reply.send(apiError(reply.statusCode === 403 ? 'FORBIDDEN' : 'AUTH_REQUIRED', reply.statusCode === 403 ? 'Forbidden' : 'Authentication required'));
+    }
+  });
+
   app.get('/api/system/configuration', async (request, reply) => {
     const roles = await requireUser(request, reply, config, ['admin']);
     if (!roles) {
@@ -525,7 +591,27 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     return { success: true, data, error: null };
   });
 
-  app.get('/api/studies', async () => {
+  app.get('/api/studies', async (request) => {
+    const query = z.object({
+      status: z.enum(['draft', 'active', 'completed', 'archived']).optional(),
+      researcher: z.string().uuid().optional(),
+      search: z.string().optional()
+    }).parse(request.query ?? {});
+    const values: unknown[] = [];
+    const clauses: string[] = [];
+    if (query.status) {
+      values.push(query.status);
+      clauses.push(`studies.status = $${values.length}`);
+    }
+    if (query.researcher) {
+      values.push(query.researcher);
+      clauses.push(`study_researchers.researcher_id = $${values.length}`);
+    }
+    if (query.search) {
+      values.push(`%${query.search.replaceAll('%', '\\%').replaceAll('_', '\\_')}%`);
+      clauses.push(`(studies.name ILIKE $${values.length} OR studies.description ILIKE $${values.length})`);
+    }
+
     const rows = await queryMany(pool, `
       SELECT studies.id,
              studies.name,
@@ -536,11 +622,13 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
              COUNT(DISTINCT participants.id) AS participant_count,
              COUNT(DISTINCT sessions.id) AS session_count
       FROM studies
+      LEFT JOIN study_researchers ON study_researchers.study_id = studies.id
       LEFT JOIN participants ON participants.study_id = studies.id
       LEFT JOIN sessions ON sessions.study_id = studies.id
+      ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''}
       GROUP BY studies.id
       ORDER BY studies.created_at DESC
-    `);
+    `, values);
     const data = rows.map((row) => studySummarySchema.parse({
       id: row.id,
       name: row.name,
@@ -938,12 +1026,16 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     const payload = z.object({
       sensors: z.array(z.record(z.string(), z.unknown())).default([])
     }).parse(request.body ?? {});
+    const sensors = payload.sensors.map((sensor) => {
+      const driver = sensor.driver ?? sensor.driverId;
+      return driver ? { ...sensor, driver, driverId: driver } : sensor;
+    });
     const row = await queryOne(pool, `
       INSERT INTO sensor_configurations (study_id, sensors)
       VALUES ($1, $2::jsonb)
       ON CONFLICT (study_id) DO UPDATE SET sensors = EXCLUDED.sensors, updated_at = NOW()
       RETURNING *
-    `, [params.studyId, JSON.stringify(payload.sensors)]);
+    `, [params.studyId, JSON.stringify(sensors)]);
     return { success: true, data: row, error: null };
   });
 
@@ -1111,7 +1203,13 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
 
   app.get('/api/sensors/status', async () => ({
     success: true,
-    data: [],
+    data: await queryMany(
+      pool,
+      `SELECT id, name, type, status, status_message, metadata, last_seen_at, updated_at
+       FROM devices
+       WHERE type IN ('steering_wheel', 'camera', 'eye_tracker', 'heart_rate')
+       ORDER BY updated_at DESC`
+    ),
     error: null
   }));
 
@@ -1120,6 +1218,14 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     data: await scanWidgetsDir(config),
     error: null
   }));
+
+  await registerPrdRoutes(app, {
+    config,
+    pool,
+    rabbit,
+    wsHub,
+    components
+  });
 
   app.get('/ws', { websocket: true }, (socket, request) => {
     const query = z.object({ token: z.string().min(1) }).safeParse(request.query);
