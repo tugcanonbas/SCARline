@@ -33,8 +33,44 @@ export const rabbitMessageSchema = z.object({
 
 export type RabbitMessage = z.infer<typeof rabbitMessageSchema>;
 
-export const eventRoutingKeySchema = z.string().regex(/^events\.[^.]+\.[^.]+\.[^.]+\.[^.]+$/);
+export const eventRoutingKeySchema = z.string().regex(/^events\.[^.]+\.[^.]+\.[^.]+\..+$/);
 export const commandRoutingKeySchema = z.string().regex(/^commands\.[^.]+\.[^.]+$/);
+
+export const SIMULATOR_EVENT_TYPES = {
+  vehicleTelemetry: 'vehicle.telemetry',
+  vehicleCollision: 'vehicle.collision',
+  vehicleLaneInvasion: 'vehicle.lane_invasion',
+  worldSnapshot: 'world.snapshot',
+  sensorCamera: 'sensor.camera',
+  sensorLidar: 'sensor.lidar',
+  sensorGnss: 'sensor.gnss',
+  sensorImu: 'sensor.imu',
+  adapterHeartbeat: 'adapter.heartbeat'
+} as const;
+
+export const simulatorEventTypeSchema = z.enum([
+  SIMULATOR_EVENT_TYPES.vehicleTelemetry,
+  SIMULATOR_EVENT_TYPES.vehicleCollision,
+  SIMULATOR_EVENT_TYPES.vehicleLaneInvasion,
+  SIMULATOR_EVENT_TYPES.worldSnapshot,
+  SIMULATOR_EVENT_TYPES.sensorCamera,
+  SIMULATOR_EVENT_TYPES.sensorLidar,
+  SIMULATOR_EVENT_TYPES.sensorGnss,
+  SIMULATOR_EVENT_TYPES.sensorImu,
+  SIMULATOR_EVENT_TYPES.adapterHeartbeat
+]);
+
+export const IO_EVENT_TYPES = {
+  steering: 'io.steering',
+  camera: 'io.camera',
+  driverStatus: 'io.driver_status'
+} as const;
+
+export const ioEventTypeSchema = z.enum([
+  IO_EVENT_TYPES.steering,
+  IO_EVENT_TYPES.camera,
+  IO_EVENT_TYPES.driverStatus
+]);
 
 export const simulatorCommandActionSchema = z.enum([
   'bind-session',
@@ -93,7 +129,27 @@ export const sensorStatusPayloadSchema = z.object({
   connected: z.boolean(),
   sampleRate: z.number().int().nonnegative(),
   message: z.string().optional(),
-  checkedAt: z.string().datetime()
+  checkedAt: z.string().datetime(),
+  capabilities: z.array(z.string()).default([]),
+  configSchema: z.record(z.string(), z.unknown()).default({}),
+  degraded: z.boolean().default(false)
+});
+
+export const simulatorRuntimeEventPayloadSchema = z.object({
+  timestamp: z.string().datetime().optional(),
+  frame: z.number().int().nonnegative().optional(),
+  vehicle: z.record(z.string(), z.unknown()).optional(),
+  sensorId: z.string().optional(),
+  dataRef: z.string().optional(),
+  scenario: z.string().optional()
+}).passthrough();
+
+export const exportProgressPayloadSchema = z.object({
+  exportJobId: z.string().uuid(),
+  status: z.enum(['queued', 'running', 'completed', 'failed', 'cancelled']),
+  progress: z.number().int().min(0).max(100),
+  artifactPath: z.string().optional(),
+  errorMessage: z.string().optional()
 });
 
 export const sessionLifecycleCommandSchema = z.object({
