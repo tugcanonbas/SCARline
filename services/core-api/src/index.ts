@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import type { IncomingMessage, ServerResponse, Server } from 'node:http';
 import websocket from '@fastify/websocket';
+import rateLimit from '@fastify/rate-limit';
 import { ComponentRegistry } from './lib/component-status.js';
 import { loadConfig } from './lib/config.js';
 import { handleCoreCommand } from './lib/commands.js';
@@ -24,6 +25,12 @@ const app = Fastify({
 // @ts-expect-error: @fastify/websocket@10 has a known TypeProvider mismatch with Fastify 4 generic overloads
 // at the type-system level. The runtime behavior is correct. See https://github.com/fastify/fastify-websocket/issues/309
 await app.register(websocket);
+
+// Global Rate Limiting: 100 requests per minute per IP
+await app.register(rateLimit, {
+  max: 100,
+  timeWindow: '1 minute'
+});
 
 // Centralized error handler — normalizes Zod, JWT, PostgreSQL, and unhandled errors
 app.setErrorHandler(globalErrorHandler);
