@@ -282,6 +282,73 @@ CREATE TABLE IF NOT EXISTS activity_log (
 CREATE INDEX IF NOT EXISTS idx_activity_log_entity ON activity_log(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log(created_at DESC);
 
+CREATE OR REPLACE FUNCTION refresh_session_summary(target_session_id UUID)
+RETURNS VOID AS $$
+BEGIN
+  INSERT INTO session_summaries (
+    session_id,
+    study_id,
+    event_count,
+    modality_count,
+    first_event_at,
+    last_event_at,
+    summary,
+    updated_at
+  )
+  SELECT sessions.id,
+         sessions.study_id,
+         COUNT(session_events.id)::int,
+         COUNT(DISTINCT session_events.modality)::int,
+         MIN(session_events.timestamp),
+         MAX(session_events.timestamp),
+         jsonb_build_object(
+           'status', sessions.status,
+           'durationSeconds', sessions.duration_seconds,
+           'startedAt', sessions.started_at,
+           'completedAt', sessions.completed_at
+         ),
+         NOW()
+  FROM sessions
+  LEFT JOIN session_events ON session_events.session_id = sessions.id
+  WHERE sessions.id = target_session_id
+  GROUP BY sessions.id
+  ON CONFLICT (session_id) DO UPDATE SET
+    study_id = EXCLUDED.study_id,
+    event_count = EXCLUDED.event_count,
+    modality_count = EXCLUDED.modality_count,
+    first_event_at = EXCLUDED.first_event_at,
+    last_event_at = EXCLUDED.last_event_at,
+    summary = EXCLUDED.summary,
+    updated_at = NOW();
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION refresh_session_summary_from_event()
+RETURNS TRIGGER AS $$
+BEGIN
+  PERFORM refresh_session_summary(NEW.session_id);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION refresh_session_summary_from_session()
+RETURNS TRIGGER AS $$
+BEGIN
+  PERFORM refresh_session_summary(NEW.id);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS refresh_session_summary_after_event ON session_events;
+CREATE TRIGGER refresh_session_summary_after_event
+AFTER INSERT ON session_events
+FOR EACH ROW EXECUTE FUNCTION refresh_session_summary_from_event();
+
+DROP TRIGGER IF EXISTS refresh_session_summary_after_session_change ON sessions;
+CREATE TRIGGER refresh_session_summary_after_session_change
+AFTER INSERT OR UPDATE OF status, started_at, paused_at, completed_at, duration_seconds ON sessions
+FOR EACH ROW EXECUTE FUNCTION refresh_session_summary_from_session();
+
 DO $$
 DECLARE
   target_table TEXT;
