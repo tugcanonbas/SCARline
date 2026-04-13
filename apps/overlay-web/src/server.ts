@@ -12,6 +12,10 @@ const app = Fastify({
   logger: true
 });
 
+const validWidgetCategories = new Set(['driving', 'health', 'navigation', 'study', 'general', 'communication']);
+const validBindingTypes = new Set(['number', 'string', 'boolean', 'object', 'array']);
+const validTriggerActions = new Set(['show', 'hide', 'highlight', 'reset', 'toggle', 'notify', 'update']);
+
 function assertSafeAssetPath(widgetId: string, file: string): void {
   if (!/^[a-z0-9-]+$/.test(widgetId) || !/^[a-zA-Z0-9._-]+$/.test(file)) {
     throw new Error('Invalid overlay asset path');
@@ -32,8 +36,57 @@ function validateWidgetMetadata(metadata: Record<string, unknown>, widgetId: str
   const errors: string[] = [];
   if (metadata.id !== widgetId) errors.push('metadata id must match widget directory');
   if (typeof metadata.name !== 'string' || !metadata.name) errors.push('name is required');
+  if (typeof metadata.description !== 'string' || !metadata.description) errors.push('description is required');
+  if (metadata.entry !== 'index.html') errors.push('entry must be index.html');
+  if (typeof metadata.category !== 'string' || !validWidgetCategories.has(metadata.category)) {
+    errors.push('category must be a supported widget category');
+  }
   if (!Array.isArray(metadata.bindings)) errors.push('bindings must be an array');
   if (!Array.isArray(metadata.triggers)) errors.push('triggers must be an array');
+  if (Array.isArray(metadata.bindings)) {
+    const bindingKeys = new Set<string>();
+    for (const [index, binding] of metadata.bindings.entries()) {
+      if (typeof binding !== 'object' || binding === null) {
+        errors.push(`bindings.${index} must be an object`);
+        continue;
+      }
+
+      const entry = binding as Record<string, unknown>;
+      if (typeof entry.key !== 'string' || !/^[a-z][A-Za-z0-9]*(\.[a-z][A-Za-z0-9]*)+$/.test(entry.key)) {
+        errors.push(`bindings.${index}.key must be a dotted lower-camel path`);
+      } else if (bindingKeys.has(entry.key)) {
+        errors.push(`bindings.${index}.key must be unique`);
+      } else {
+        bindingKeys.add(entry.key);
+      }
+
+      if (typeof entry.type !== 'string' || !validBindingTypes.has(entry.type)) {
+        errors.push(`bindings.${index}.type must be supported`);
+      }
+    }
+  }
+  if (Array.isArray(metadata.triggers)) {
+    const triggerActions = new Set<string>();
+    for (const [index, trigger] of metadata.triggers.entries()) {
+      if (typeof trigger !== 'object' || trigger === null) {
+        errors.push(`triggers.${index} must be an object`);
+        continue;
+      }
+
+      const entry = trigger as Record<string, unknown>;
+      if (typeof entry.action !== 'string' || !validTriggerActions.has(entry.action)) {
+        errors.push(`triggers.${index}.action must be supported`);
+      } else if (triggerActions.has(entry.action)) {
+        errors.push(`triggers.${index}.action must be unique`);
+      } else {
+        triggerActions.add(entry.action);
+      }
+
+      if (typeof entry.description !== 'string' || !entry.description) {
+        errors.push(`triggers.${index}.description is required`);
+      }
+    }
+  }
   if (typeof metadata.ui !== 'object' || metadata.ui === null) {
     errors.push('ui sizing metadata is required');
   } else {
@@ -107,7 +160,13 @@ app.get('/catalogue.json', async (_request, reply) => {
 
     try {
       const raw = await fs.readFile(path.join(widgetsDir, entry.name, 'widget.json'), 'utf8');
-      catalogue.push(JSON.parse(raw));
+      const metadata = JSON.parse(raw) as Record<string, unknown>;
+      const errors = validateWidgetMetadata(metadata, entry.name);
+      if (errors.length > 0) {
+        app.log.warn({ widgetId: entry.name, errors }, 'skipping incompatible widget metadata');
+        continue;
+      }
+      catalogue.push(metadata);
     } catch {
       app.log.warn({ widgetId: entry.name }, 'skipping invalid widget metadata');
     }

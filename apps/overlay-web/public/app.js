@@ -16,11 +16,17 @@ const state = {
   frames: new Map(),
   wrappers: new Map(),
   hiddenWidgetIds: new Set(),
+  highlightedWidgetIds: new Set(),
+  widgetStateOverrides: new Map(),
+  bindingOverrides: new Map(),
+  widgetStateTimers: new Map(),
   socket: null,
   reconnectTimer: null,
   reconnectAttempt: 0,
+  reconnecting: false,
   currentSession: null,
-  targetZone: query.get('zone') || ''
+  targetZone: query.get('zone') || '',
+  lastExportProgress: null
 };
 
 const rootShell = document.createElement('div');
@@ -29,6 +35,7 @@ const stage = document.createElement('main');
 const statusNode = document.createElement('span');
 const sessionNode = document.createElement('span');
 const layoutNode = document.createElement('span');
+const exportNode = document.createElement('span');
 
 function getPath(source, path) {
   return path.split('.').reduce((value, key) => value?.[key], source);
@@ -51,6 +58,30 @@ function makeShell(title, detail = '') {
 function setConnectionStatus(label, tone = 'idle') {
   statusNode.textContent = label;
   statusNode.dataset.tone = tone;
+}
+
+function setSessionIndicator(sessionEvent = state.currentSession) {
+  if (!sessionEvent) {
+    sessionNode.textContent = 'No active session';
+    return;
+  }
+
+  const status = sessionEvent.status || sessionEvent.state || 'active';
+  const sessionId = sessionEvent.sessionId || sessionEvent.id || '';
+  sessionNode.textContent = sessionId ? `Session ${status} · ${String(sessionId).slice(0, 8)}` : `Session ${status}`;
+}
+
+function setExportIndicator(progress = state.lastExportProgress) {
+  if (!progress) {
+    exportNode.textContent = 'No export';
+    exportNode.dataset.tone = 'idle';
+    return;
+  }
+
+  const status = progress.status || progress.state || 'running';
+  const percent = Number(progress.progress ?? progress.percent ?? progress.percentage ?? 0);
+  exportNode.textContent = `Export ${status} ${Math.max(0, Math.min(100, Math.round(percent)))}%`;
+  exportNode.dataset.tone = status === 'failed' ? 'error' : status === 'completed' ? 'ready' : 'warn';
 }
 
 function setupChrome() {
@@ -84,6 +115,7 @@ function setupChrome() {
   toolbar.hidden = !showToolbar;
   sessionNode.textContent = 'No active session';
   layoutNode.textContent = 'Layout pending';
+  setExportIndicator();
 
   const fullscreenButton = document.createElement('button');
   fullscreenButton.type = 'button';
@@ -104,7 +136,7 @@ function setupChrome() {
     stage.replaceChildren(makeShell('Overlay closed', 'Close this browser tab if it remains open.'));
   });
 
-  toolbar.append(statusNode, sessionNode, layoutNode, fullscreenButton, exitButton);
+  toolbar.append(statusNode, sessionNode, layoutNode, exportNode, fullscreenButton, exitButton);
   stage.className = 'overlay-stage';
   rootShell.append(toolbar, stage);
   appRoot.replaceChildren(rootShell);
@@ -138,8 +170,62 @@ async function postJson(path, payload) {
   return response.json();
 }
 
+function collectStringSet(...sources) {
+  const values = new Set();
+  for (const source of sources) {
+    if (Array.isArray(source)) {
+      source.forEach((value) => values.add(String(value)));
+      continue;
+    }
+
+    if (source && typeof source === 'object') {
+      for (const [key, enabled] of Object.entries(source)) {
+        if (enabled) values.add(String(key));
+      }
+    }
+  }
+  return values;
+}
+
+function collectStateOverrides(...sources) {
+  const overrides = new Map();
+  for (const source of sources) {
+    if (!source || typeof source !== 'object' || Array.isArray(source)) {
+      continue;
+    }
+
+    for (const [key, value] of Object.entries(source)) {
+      if (typeof value === 'string') {
+        overrides.set(String(key), value);
+      } else if (value && typeof value === 'object' && typeof value.state === 'string') {
+        overrides.set(String(key), value.state);
+      }
+    }
+  }
+  return overrides;
+}
+
+function collectBindingOverrides(...sources) {
+  const overrides = new Map();
+  for (const source of sources) {
+    if (!source || typeof source !== 'object' || Array.isArray(source)) {
+      continue;
+    }
+
+    for (const [key, value] of Object.entries(source)) {
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        overrides.set(String(key), value);
+      }
+    }
+  }
+  return overrides;
+}
+
 async function loadConditionOverrides(conditionId = state.conditionId) {
   state.hiddenWidgetIds = new Set();
+  state.highlightedWidgetIds = new Set();
+  state.widgetStateOverrides = new Map();
+  state.bindingOverrides = new Map();
   if (!state.studyId || !conditionId || !token) {
     return;
   }
@@ -147,46 +233,88 @@ async function loadConditionOverrides(conditionId = state.conditionId) {
   const payload = await fetchJson(`/api/studies/${state.studyId}/conditions`);
   const condition = (payload.data || []).find((entry) => entry.id === conditionId);
   const overrides = condition?.widgetOverrides || condition?.widget_overrides || {};
-  const hidden = overrides.hidden_widgets || overrides.hiddenWidgets || [];
-  if (Array.isArray(hidden)) {
-    state.hiddenWidgetIds = new Set(hidden.map(String));
-  }
+  state.hiddenWidgetIds = collectStringSet(
+    overrides.hidden_widgets,
+    overrides.hiddenWidgets,
+    overrides.hidden,
+    overrides.visibility?.hidden
+  );
+  state.highlightedWidgetIds = collectStringSet(
+    overrides.highlighted_widgets,
+    overrides.highlightedWidgets,
+    overrides.highlighted,
+    overrides.visibility?.highlighted
+  );
+  state.widgetStateOverrides = collectStateOverrides(
+    overrides.widget_states,
+    overrides.widgetStates,
+    overrides.states,
+    overrides.visibility?.states
+  );
+  state.bindingOverrides = collectBindingOverrides(
+    overrides.binding_values,
+    overrides.bindingValues,
+    overrides.bindings
+  );
 }
 
 function injectRuntime(html, metadata, instanceId) {
+  const metadataLiteral = JSON.stringify(metadata).replace(/<\//g, '<\\/');
+  const instanceLiteral = JSON.stringify(instanceId);
+  const allowedBindingsLiteral = JSON.stringify((metadata.bindings || []).map((binding) => binding.key));
+  const allowedTriggersLiteral = JSON.stringify((metadata.triggers || []).map((trigger) => trigger.action));
   const runtime = `
   <script>
     (() => {
+      const instanceId = ${instanceLiteral};
+      const metadata = ${metadataLiteral};
+      const allowedBindings = new Set(${allowedBindingsLiteral});
+      const allowedTriggers = new Set(${allowedTriggersLiteral});
       const bindings = new Map();
       const bindingHandlers = new Map();
       const triggerHandlers = [];
       const stateHandlers = [];
-      const sendHandlers = [];
       let currentState = 'visible';
+      const blockNetwork = (api) => function blockedNetworkAccess() {
+        throw new Error('SCARline widgets must use window.SCARline.send instead of direct ' + api + ' calls');
+      };
+      window.fetch = blockNetwork('fetch');
+      window.WebSocket = blockNetwork('WebSocket');
+      window.EventSource = blockNetwork('EventSource');
+      window.XMLHttpRequest = blockNetwork('XMLHttpRequest');
       function emitBinding(key, value) {
         bindings.set(key, value);
         const handlers = bindingHandlers.get(key) || [];
-        handlers.forEach((handler) => handler(value));
+        handlers.forEach((handler) => {
+          try { handler(value); } catch (error) { console.error(error); }
+        });
       }
       window.SCARline = {
         onBinding(key, callback) {
+          if (!allowedBindings.has(key)) {
+            console.warn('Ignoring undeclared widget binding', key, metadata.id);
+            return;
+          }
+          if (typeof callback !== 'function') return;
           const handlers = bindingHandlers.get(key) || [];
           handlers.push(callback);
           bindingHandlers.set(key, handlers);
           if (bindings.has(key)) callback(bindings.get(key));
         },
         onTrigger(callback) {
+          if (typeof callback !== 'function') return;
           triggerHandlers.push(callback);
         },
         onStateChange(callback) {
+          if (typeof callback !== 'function') return;
           stateHandlers.push(callback);
           callback(currentState);
         },
-        onSend(callback) {
-          sendHandlers.push(callback);
-        },
         send(type, payload) {
-          parent.postMessage({ type: 'widget-send', instanceId: '${instanceId}', eventType: type, payload }, '*');
+          if (typeof type !== 'string' || type.length > 80) {
+            throw new Error('SCARline.send requires a short string event type');
+          }
+          parent.postMessage({ type: 'widget-send', instanceId, eventType: type, payload }, '*');
         },
         getBinding(key) {
           return bindings.get(key);
@@ -195,19 +323,29 @@ function injectRuntime(html, metadata, instanceId) {
           return currentState;
         },
         getMetadata() {
-          return ${JSON.stringify(metadata)};
+          return metadata;
         },
         ready() {
-          parent.postMessage({ type: 'widget-ready', instanceId: '${instanceId}' }, '*');
+          parent.postMessage({ type: 'widget-ready', instanceId }, '*');
         }
       };
       window.addEventListener('message', (event) => {
-        if (event.data?.instanceId !== '${instanceId}') return;
+        if (event.data?.instanceId !== instanceId) return;
         if (event.data.type === 'binding') emitBinding(event.data.key, event.data.value);
-        if (event.data.type === 'trigger') triggerHandlers.forEach((handler) => handler(event.data.payload));
+        if (event.data.type === 'trigger') {
+          const action = event.data.payload?.action || event.data.payload?.payload?.action;
+          if (action && allowedTriggers.size > 0 && !allowedTriggers.has(action)) {
+            console.warn('Received undeclared widget trigger', action, metadata.id);
+          }
+          triggerHandlers.forEach((handler) => {
+            try { handler(event.data.payload); } catch (error) { console.error(error); }
+          });
+        }
         if (event.data.type === 'state') {
           currentState = event.data.state;
-          stateHandlers.forEach((handler) => handler(currentState));
+          stateHandlers.forEach((handler) => {
+            try { handler(currentState); } catch (error) { console.error(error); }
+          });
         }
       });
     })();
@@ -220,20 +358,51 @@ function injectRuntime(html, metadata, instanceId) {
 }
 
 function widgetInitialState(widget) {
+  const overrideState = state.widgetStateOverrides.get(widget.id) || state.widgetStateOverrides.get(widget.widgetId);
+  if (overrideState) {
+    return overrideState;
+  }
+
   if (state.hiddenWidgetIds.has(widget.widgetId) || state.hiddenWidgetIds.has(widget.id)) {
     return 'hidden';
   }
+
+  if (state.highlightedWidgetIds.has(widget.widgetId) || state.highlightedWidgetIds.has(widget.id)) {
+    return 'highlighted';
+  }
+
   return 'visible';
 }
 
-function setWidgetState(instanceId, nextState) {
+function normalizeWidgetState(nextState) {
+  if (nextState === 'hide') return 'hidden';
+  if (nextState === 'show' || nextState === 'reset') return 'visible';
+  if (['visible', 'hidden', 'highlighted'].includes(nextState)) return nextState;
+  return 'visible';
+}
+
+function setWidgetState(instanceId, nextState, options = {}) {
   const wrapper = state.wrappers.get(instanceId);
   const frame = state.frames.get(instanceId);
   if (!wrapper || !frame) {
     return;
   }
-  wrapper.dataset.state = nextState;
-  frame.contentWindow?.postMessage({ type: 'state', instanceId, state: nextState }, '*');
+
+  const normalizedState = normalizeWidgetState(nextState);
+  clearTimeout(state.widgetStateTimers.get(instanceId));
+  state.widgetStateTimers.delete(instanceId);
+
+  wrapper.dataset.state = normalizedState;
+  wrapper.hidden = normalizedState === 'hidden';
+  frame.contentWindow?.postMessage({ type: 'state', instanceId, state: normalizedState }, '*');
+
+  if (normalizedState === 'highlighted' && Number(options.durationMs) > 0) {
+    const timer = setTimeout(() => {
+      state.widgetStateTimers.delete(instanceId);
+      setWidgetState(instanceId, widgetInitialState(state.widgets.get(instanceId) || {}));
+    }, Number(options.durationMs));
+    state.widgetStateTimers.set(instanceId, timer);
+  }
 }
 
 function postBinding(instanceId, key, value) {
@@ -245,7 +414,10 @@ function applyTelemetryBindings(payload) {
   for (const [instanceId, entry] of state.widgets.entries()) {
     for (const binding of entry.metadata.bindings || []) {
       const configuredPath = entry.bindingsConfig?.[binding.key];
-      const value = getPath(payload, String(configuredPath || binding.key));
+      const overrideValues = state.bindingOverrides.get(instanceId) || state.bindingOverrides.get(entry.widgetId);
+      const value = Object.prototype.hasOwnProperty.call(overrideValues || {}, binding.key)
+        ? overrideValues[binding.key]
+        : getPath(payload, String(configuredPath || binding.key));
       if (typeof value !== 'undefined') {
         postBinding(instanceId, binding.key, value);
       }
@@ -253,9 +425,32 @@ function applyTelemetryBindings(payload) {
   }
 }
 
-function targetWidgetIds(update) {
+function applyConditionOverridesToWidgets() {
+  for (const [instanceId, entry] of state.widgets.entries()) {
+    setWidgetState(instanceId, widgetInitialState(entry));
+    const overrideValues = state.bindingOverrides.get(instanceId) || state.bindingOverrides.get(entry.widgetId);
+    if (overrideValues) {
+      for (const [key, value] of Object.entries(overrideValues)) {
+        postBinding(instanceId, key, value);
+      }
+    }
+  }
+}
+
+function targetWidgetIds(update = {}) {
+  if (Array.isArray(update.instanceIds)) {
+    return update.instanceIds.map(String).filter((id) => state.widgets.has(id));
+  }
+
   if (update.instanceId) {
     return [String(update.instanceId)];
+  }
+
+  if (Array.isArray(update.widgetIds)) {
+    const widgetIds = new Set(update.widgetIds.map(String));
+    return Array.from(state.widgets.entries())
+      .filter(([, entry]) => widgetIds.has(entry.widgetId))
+      .map(([instanceId]) => instanceId);
   }
 
   if (update.widgetId) {
@@ -269,7 +464,9 @@ function targetWidgetIds(update) {
 
 function applyWidgetUpdate(update) {
   const targets = targetWidgetIds(update);
-  const action = update.action || update.payload?.action || 'trigger';
+  const action = update.action || update.payload?.action || update.state || update.payload?.state || 'trigger';
+  const bindingValues = update.bindingValues || update.payload?.bindingValues || update.payload?.bindings || {};
+  const durationMs = update.durationMs || update.payload?.durationMs;
 
   for (const instanceId of targets) {
     const entry = state.widgets.get(instanceId);
@@ -277,7 +474,7 @@ function applyWidgetUpdate(update) {
       continue;
     }
 
-    for (const [key, value] of Object.entries(update.bindingValues || {})) {
+    for (const [key, value] of Object.entries(bindingValues)) {
       const bindingKey = key.includes('.') ? key : `${entry.widgetId}.${key}`;
       postBinding(instanceId, bindingKey, value);
       postBinding(instanceId, key, value);
@@ -288,12 +485,35 @@ function applyWidgetUpdate(update) {
       }
     }
 
-    if (action === 'hide') setWidgetState(instanceId, 'hidden');
-    if (action === 'show' || action === 'reset') setWidgetState(instanceId, 'visible');
-    if (action === 'highlight') setWidgetState(instanceId, 'highlighted');
+    if (['hide', 'hidden', 'show', 'visible', 'reset', 'highlight', 'highlighted'].includes(action)) {
+      setWidgetState(instanceId, action, { durationMs });
+    }
 
     const frame = state.frames.get(instanceId);
     frame?.contentWindow?.postMessage({ type: 'trigger', instanceId, payload: update }, '*');
+  }
+}
+
+function applyExportProgress(progress) {
+  state.lastExportProgress = progress;
+  setExportIndicator(progress);
+  applyTelemetryBindings({
+    export: {
+      id: progress.exportId || progress.id,
+      status: progress.status || progress.state,
+      progress: progress.progress ?? progress.percent ?? progress.percentage ?? 0,
+      artifactUrl: progress.artifactUrl || progress.downloadUrl
+    }
+  });
+}
+
+function validateWidgetCompatibility(metadata, widget) {
+  if (metadata.id !== widget.widgetId) {
+    throw new Error(`Widget metadata mismatch for ${widget.widgetId}`);
+  }
+
+  if (!Array.isArray(metadata.bindings) || !Array.isArray(metadata.triggers)) {
+    throw new Error(`Widget ${widget.widgetId} has incompatible metadata`);
   }
 }
 
@@ -306,9 +526,13 @@ async function renderLayout() {
   await loadConditionOverrides();
   const payload = await fetchJson(`/api/studies/${state.studyId}/layouts/${state.layoutId}`);
   state.layout = payload.data;
+  for (const timer of state.widgetStateTimers.values()) {
+    clearTimeout(timer);
+  }
   state.widgets.clear();
   state.frames.clear();
   state.wrappers.clear();
+  state.widgetStateTimers.clear();
   stage.replaceChildren();
   layoutNode.textContent = state.layout.name || state.layoutId;
 
@@ -350,6 +574,7 @@ async function renderLayout() {
       ]);
       const metadata = await metadataResponse.json();
       const html = await htmlResponse.text();
+      validateWidgetCompatibility(metadata, widget);
       state.widgets.set(widget.id, { ...widget, metadata });
 
       const frame = document.createElement('iframe');
@@ -367,11 +592,13 @@ async function renderLayout() {
       wrapper.appendChild(makeShell(`Widget failed: ${widget.widgetId}`));
     }
   }
+
+  applyConditionOverridesToWidgets();
 }
 
 async function switchToSessionLayout(sessionEvent) {
   state.currentSession = sessionEvent;
-  sessionNode.textContent = sessionEvent.status ? `Session ${sessionEvent.status}` : 'Session update';
+  setSessionIndicator(sessionEvent);
   const nextLayoutId = sessionEvent.runtimeMetadata?.layoutId || sessionEvent.layoutId;
   if (sessionEvent.studyId) state.studyId = sessionEvent.studyId;
   if (sessionEvent.conditionId) state.conditionId = sessionEvent.conditionId;
@@ -380,9 +607,7 @@ async function switchToSessionLayout(sessionEvent) {
     await renderLayout();
   } else if (sessionEvent.conditionId) {
     await loadConditionOverrides(sessionEvent.conditionId);
-    for (const [instanceId, entry] of state.widgets.entries()) {
-      setWidgetState(instanceId, widgetInitialState(entry));
-    }
+    applyConditionOverridesToWidgets();
   }
 }
 
@@ -402,37 +627,54 @@ function connectSocket() {
 
   socket.addEventListener('open', () => {
     state.reconnectAttempt = 0;
+    state.reconnecting = false;
     setConnectionStatus('Connected', 'ready');
     socket.send(JSON.stringify({
       action: 'subscribe',
-      channels: ['session.events', 'session.telemetry', 'widget.updates', 'system.health', 'sensor.status']
+      channels: ['session.events', 'session.telemetry', 'widget.updates', 'system.health', 'sensor.status', 'export.progress']
     }));
   });
 
   socket.addEventListener('message', async (event) => {
-    const message = JSON.parse(event.data);
+    let message;
+    try {
+      message = JSON.parse(event.data);
+    } catch (error) {
+      console.warn('Ignoring invalid overlay websocket message', error);
+      return;
+    }
+
+    const data = message.data || {};
+
     if (message.channel === 'session.events') {
-      await switchToSessionLayout(message.data);
+      await switchToSessionLayout(data);
       return;
     }
 
     if (message.channel === 'session.telemetry') {
-      applyTelemetryBindings(message.data.payload || message.data);
+      applyTelemetryBindings(data.payload || data);
       return;
     }
 
     if (message.channel === 'widget.updates') {
-      if (message.data.payload && !message.data.instanceId && !message.data.widgetId) {
-        applyTelemetryBindings(message.data.payload);
+      if (data.payload && targetWidgetIds(data).length === 0) {
+        applyTelemetryBindings(data.payload);
       } else {
-        applyWidgetUpdate(message.data);
+        applyWidgetUpdate(data);
       }
+      return;
+    }
+
+    if (message.channel === 'export.progress') {
+      applyExportProgress(data.payload || data);
     }
   });
 
   socket.addEventListener('close', () => {
-    setConnectionStatus('Reconnecting', 'error');
+    if (state.reconnecting) return;
+    state.reconnecting = true;
     const delay = Math.min(1000 * 2 ** state.reconnectAttempt, 15000);
+    setConnectionStatus(`Reconnecting in ${Math.ceil(delay / 1000)}s`, 'error');
     state.reconnectAttempt += 1;
     clearTimeout(state.reconnectTimer);
     state.reconnectTimer = setTimeout(connectSocket, delay);
@@ -445,11 +687,17 @@ function connectSocket() {
 
 window.addEventListener('message', (event) => {
   if (event.data?.type === 'widget-ready') {
+    if (state.frames.get(event.data.instanceId)?.contentWindow !== event.source) {
+      return;
+    }
     const wrapper = state.wrappers.get(event.data.instanceId);
     setWidgetState(event.data.instanceId, wrapper?.dataset.state || 'visible');
   }
 
   if (event.data?.type === 'widget-send') {
+    if (state.frames.get(event.data.instanceId)?.contentWindow !== event.source) {
+      return;
+    }
     const sessionId = state.currentSession?.sessionId || state.currentSession?.id;
     if (!state.studyId || !sessionId || !token) {
       console.debug('Widget interaction', event.data);
@@ -473,6 +721,12 @@ window.addEventListener('message', (event) => {
 });
 
 setupChrome();
+window.addEventListener('online', () => {
+  if (token && (!state.socket || state.socket.readyState >= WebSocket.CLOSING)) {
+    connectSocket();
+  }
+});
+window.addEventListener('offline', () => setConnectionStatus('Offline', 'error'));
 renderLayout()
   .then(connectSocket)
   .catch((error) => {
