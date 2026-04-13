@@ -6,9 +6,7 @@ Welcome to the SCARline repository. This file is the primary navigation guide fo
 
 SCARline is a research operations platform for automotive UX/HCI studies. It integrates driving simulators such as CARLA, web interfaces, overlay widgets, hardware sensors, RabbitMQ messaging, and PostgreSQL-backed operational state.
 
-- Start with `product-requirements/PRD.md` before major changes.
-- Use the domain PRDs in `product-requirements/` for implementation detail: `ADMIN_PANEL.md`, `CORE_API.md`, `DATABASE.md`, `DATABASE_ENTITIES.md`, `RABBITMQ.md`, `RABBITMQ_EVENTS_AND_COMMANDS.md`, `SIM_BRIDGE.md`, `OVERLAY_ENGINE.md`, `WIDGETS.md`, `WIDGET_CATALOGUE.md`, `IO_CLIENT.md`, `CARLA_SIMULATOR.md`, `MOCK_SIMULATOR.md`, `PROCESS_MANAGER.md`, and `DOCKER.md`.
-- Preserve the architecture: PostgreSQL is the source of truth, backend coordination flows through RabbitMQ CQRS, frontends talk to CoreAPI through REST/WebSocket only, and widgets remain static HTML/CSS/vanilla JS.
+- **[IMPLEMENTATION_REPORT.md](./product-requirements/IMPLEMENTATION_REPORT.md)** — Comprehensive codebase implementation assessment showing 87% platform completeness, detailed component status, known gaps, and execution roadmap.
 
 ## Repo Map
 
