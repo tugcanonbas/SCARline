@@ -7,6 +7,7 @@ export const processManagerCommandSchema = z.object({
     '/carla/restart',
     '/carla/status',
     '/overlay/reload',
+    '/restart',
     '/status'
   ]),
   method: z.enum(['GET', 'POST']),
@@ -17,6 +18,7 @@ export const processManagerStatusSchema = z.object({
   processManager: z.enum(['running', 'stopped']),
   carlaServer: z.enum(['running', 'stopped', 'error']),
   overlayDesktop: z.enum(['running', 'stopped', 'error']),
+  supervisor: z.enum(['running', 'stopped', 'error']).optional(),
   docker: z.enum(['running', 'stopped', 'error']),
   checkedAt: z.string().datetime()
 });
