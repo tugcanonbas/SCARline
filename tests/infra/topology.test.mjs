@@ -41,6 +41,11 @@ test('scarline launcher advertises required commands and IPC socket', async () =
   assert.match(script, /ipc_server\.py/);
   assert.match(script, /core-api sim-bridge admin-panel overlay-web docs io-client nginx/);
   assert.match(script, /open_admin_ui/);
+  assert.match(script, /wait_for_health core-api sim-bridge admin-panel overlay-web nginx/);
+  assert.match(script, /OVERLAY_CONTROL_PORT/);
+  assert.match(script, /validate_port_available/);
+  assert.match(script, /supervisor_loop/);
+  assert.match(script, /start_supervisor/);
 });
 
 test('windows launcher advertises command parity and no-carla mode', async () => {
@@ -49,6 +54,9 @@ test('windows launcher advertises command parity and no-carla mode', async () =>
   assert.match(script, /\[switch\]\$NoCarla/);
   assert.match(script, /docker compose/);
   assert.match(script, /admin\/dashboard/);
+  assert.match(script, /Start-OverlayDesktop/);
+  assert.match(script, /PM_SOCKET_PATH/);
+  assert.match(script, /tcp:\/\/127\.0\.0\.1:4098/);
 });
 
 test('database schema includes PRD foundation tables and columns', async () => {
@@ -67,6 +75,34 @@ test('nginx exposes PRD-aligned single-domain routing', async () => {
   assert.match(config, /location \/admin\//);
   assert.match(config, /location \/docs\//);
   assert.match(config, /location \/overlay\//);
+  assert.match(config, /location \/rabbitmq\//);
+});
+
+test('process manager ipc can relay overlay reloads to electron control endpoint', async () => {
+  const source = await readFile(path.join(root, 'infra/process-manager/ipc_server.py'), 'utf8');
+  assert.match(source, /OVERLAY_CONTROL_PORT/);
+  assert.match(source, /\/overlay\/reload/);
+  assert.match(source, /urllib\.request/);
+  assert.match(source, /TcpHTTPServer/);
+  assert.match(source, /_start_carla/);
+  assert.match(source, /_docker_status/);
+});
+
+test('desktop overlay exposes health and reload control hooks', async () => {
+  const source = await readFile(path.join(root, 'apps/desktop-overlay/src/main.mjs'), 'utf8');
+  assert.match(source, /OVERLAY_CONTROL_PORT/);
+  assert.match(source, /\/health/);
+  assert.match(source, /\/reload/);
+  assert.match(source, /setIgnoreMouseEvents/);
+  assert.match(source, /screen\.getAllDisplays/);
+  assert.match(source, /render-process-gone/);
+});
+
+test('overlay web exposes widget validation and relative gateway assets', async () => {
+  const source = await readFile(path.join(root, 'apps/overlay-web/src/server.ts'), 'utf8');
+  assert.match(source, /\/validate/);
+  assert.match(source, /validateWidgetMetadata/);
+  assert.match(source, /src="\.\/app\.js"/);
 });
 
 test('scarline preserves CARLA paths and skips CARLA validation in --no-carla mode', async () => {
@@ -87,7 +123,7 @@ test('scarline preserves CARLA paths and skips CARLA validation in --no-carla mo
       'bash',
       [
         '-lc',
-        'source "$1"; CONFIG_FILE="$2"; load_config; [[ "$CARLA_SERVER_PATH" == "/opt/carla/CarlaUE4.sh" ]]; NO_CARLA=true; validate_prerequisites; printf "%s" "$CARLA_SERVER_PATH"',
+        'source "$1"; CONFIG_FILE="$2"; validate_port_available(){ :; }; load_config; [[ "$CARLA_SERVER_PATH" == "/opt/carla/CarlaUE4.sh" ]]; NO_CARLA=true; validate_prerequisites; printf "%s" "$CARLA_SERVER_PATH"',
         '--',
         harnessPath,
         configPath
