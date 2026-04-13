@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { request as httpRequest } from 'node:http';
 import path from 'node:path';
-import type { FastifyInstance, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Pool } from 'pg';
 import { z } from 'zod';
 import {
@@ -17,8 +17,8 @@ import type { CoreApiConfig } from './config.js';
 import type { RabbitManager } from './rabbit.js';
 import type { WebSocketHub } from './websocket-hub.js';
 import type { ComponentRegistry } from './component-status.js';
-import { hashPassword } from './auth.js';
-import { queryMany, queryOne } from './data.js';
+import { hashPassword, verifyAccessToken } from './auth.js';
+import { logActivity, queryMany, queryOne, refreshSessionSummary } from './data.js';
 
 interface Dependencies {
   config: CoreApiConfig;
@@ -44,6 +44,7 @@ type ExportJobRow = {
   result_path: string | null;
   result_size_bytes?: number | null;
   error_message: string | null;
+  requested_by: string | null;
   parameters?: Record<string, unknown>;
   created_at: Date;
   completed_at: Date | null;
@@ -72,6 +73,25 @@ function sqlLike(value: string): string {
 
 function firstQueryValue(value: unknown): string | undefined {
   return Array.isArray(value) ? String(value[0]) : typeof value === 'string' ? value : undefined;
+}
+
+function bearerToken(request: FastifyRequest): string | null {
+  const header = request.headers.authorization;
+  return header?.startsWith('Bearer ') ? header.slice('Bearer '.length) : null;
+}
+
+function actorUserId(request: FastifyRequest, config: CoreApiConfig): string | null {
+  const token = bearerToken(request);
+  if (!token) {
+    return null;
+  }
+
+  try {
+    const claims = verifyAccessToken(token, config);
+    return typeof claims.sub === 'string' ? claims.sub : null;
+  } catch {
+    return null;
+  }
 }
 
 async function callProcessManager(
@@ -486,6 +506,15 @@ async function processExportJob(pool: Pool, wsHub: WebSocketHub, exportDir: stri
        WHERE id = $1 AND status <> 'cancelled'`,
       [jobId, artifact.resultPath, artifact.resultSizeBytes]
     );
+    await logActivity(pool, {
+      actorUserId: claimed.requested_by,
+      entityType: 'export_job',
+      entityId: jobId,
+      action: 'export.completed',
+      payload: {
+        resultSizeBytes: artifact.resultSizeBytes
+      }
+    });
     wsHub.broadcast('export.progress', {
       exportJobId: jobId,
       status: 'completed',
@@ -495,17 +524,34 @@ async function processExportJob(pool: Pool, wsHub: WebSocketHub, exportDir: stri
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'EXPORT_CANCELLED') {
+      const current = await queryOne<ExportJobRow>(pool, `SELECT * FROM export_jobs WHERE id = $1`, [jobId]);
+      await logActivity(pool, {
+        actorUserId: current?.requested_by ?? null,
+        entityType: 'export_job',
+        entityId: jobId,
+        action: 'export.cancelled'
+      });
       wsHub.broadcast('export.progress', { exportJobId: jobId, status: 'cancelled', progress: 0 });
       return;
     }
 
     const message = error instanceof Error ? error.message : 'Export failed';
+    const current = await queryOne<ExportJobRow>(pool, `SELECT * FROM export_jobs WHERE id = $1`, [jobId]);
     await pool.query(
       `UPDATE export_jobs
        SET status = 'failed', error_message = $2, updated_at = NOW(), completed_at = NOW()
        WHERE id = $1 AND status <> 'cancelled'`,
       [jobId, message]
     );
+    await logActivity(pool, {
+      actorUserId: current?.requested_by ?? null,
+      entityType: 'export_job',
+      entityId: jobId,
+      action: 'export.failed',
+      payload: {
+        errorMessage: message
+      }
+    });
     wsHub.broadcast('export.progress', { exportJobId: jobId, status: 'failed', progress: 0, errorMessage: message });
   } finally {
     activeExportJobs.delete(jobId);
@@ -575,6 +621,18 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
       RETURNING *
     `, [payload.name, payload.institution ?? null, payload.role ?? null, payload.email ?? null, payload.phone ?? null, payload.notes ?? null, JSON.stringify(payload.customFields)]);
+    if (row) {
+      await logActivity(pool, {
+        actorUserId: actorUserId(request, config),
+        entityType: 'researcher',
+        entityId: row.id,
+        action: 'researcher.created',
+        payload: {
+          name: payload.name,
+          email: payload.email ?? null
+        }
+      });
+    }
     return ok(row);
   });
 
@@ -609,12 +667,32 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
       WHERE id = $1
       RETURNING *
     `, [params.id, payload.name, payload.institution ?? null, payload.role ?? null, payload.email ?? null, payload.phone ?? null, payload.notes ?? null, JSON.stringify(payload.customFields)]);
+    if (row) {
+      await logActivity(pool, {
+        actorUserId: actorUserId(request, config),
+        entityType: 'researcher',
+        entityId: params.id,
+        action: 'researcher.updated',
+        payload: {
+          name: payload.name,
+          email: payload.email ?? null
+        }
+      });
+    }
     return row ? ok(row) : fail(reply, 404, 'NOT_FOUND', 'Researcher not found');
   });
 
   app.delete('/api/researchers/:id', async (request, reply) => {
     const params = uuidParamSchema.parse(request.params);
     const row = await queryOne(pool, `DELETE FROM researchers WHERE id = $1 RETURNING id`, [params.id]);
+    if (row) {
+      await logActivity(pool, {
+        actorUserId: actorUserId(request, config),
+        entityType: 'researcher',
+        entityId: params.id,
+        action: 'researcher.deleted'
+      });
+    }
     return row ? ok({ deleted: true, id: params.id }) : fail(reply, 404, 'NOT_FOUND', 'Researcher not found');
   });
 
@@ -633,6 +711,14 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
   app.delete('/api/studies/:id', async (request, reply) => {
     const params = uuidParamSchema.parse(request.params);
     const row = await queryOne(pool, `DELETE FROM studies WHERE id = $1 RETURNING id`, [params.id]);
+    if (row) {
+      await logActivity(pool, {
+        actorUserId: actorUserId(request, config),
+        entityType: 'study',
+        entityId: params.id,
+        action: 'study.deleted'
+      });
+    }
     return row ? ok({ deleted: true, id: params.id }) : fail(reply, 404, 'NOT_FOUND', 'Study not found');
   });
 
@@ -640,6 +726,17 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
     const params = uuidParamSchema.parse(request.params);
     const payload = z.object({ name: z.string().min(1).nullable().optional() }).parse(request.body ?? {});
     const row = await duplicateStudy(pool, params.id, payload.name);
+    if (row) {
+      await logActivity(pool, {
+        actorUserId: actorUserId(request, config),
+        entityType: 'study',
+        entityId: row.id,
+        action: 'study.duplicated',
+        payload: {
+          sourceStudyId: params.id
+        }
+      });
+    }
     return row ? ok(row) : fail(reply, 404, 'NOT_FOUND', 'Study not found');
   });
 
@@ -652,6 +749,15 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
   app.delete('/api/studies/:studyId/conditions/:id', async (request, reply) => {
     const params = studyEntityParamSchema.parse(request.params);
     const row = await queryOne(pool, `DELETE FROM conditions WHERE study_id = $1 AND id = $2 RETURNING id`, [params.studyId, params.id]);
+    if (row) {
+      await logActivity(pool, {
+        actorUserId: actorUserId(request, config),
+        entityType: 'condition',
+        entityId: params.id,
+        action: 'condition.deleted',
+        payload: { studyId: params.studyId }
+      });
+    }
     return row ? ok({ deleted: true, id: params.id }) : fail(reply, 404, 'NOT_FOUND', 'Condition not found');
   });
 
@@ -664,6 +770,15 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
   app.delete('/api/studies/:studyId/participants/:id', async (request, reply) => {
     const params = studyEntityParamSchema.parse(request.params);
     const row = await queryOne(pool, `DELETE FROM participants WHERE study_id = $1 AND id = $2 RETURNING id`, [params.studyId, params.id]);
+    if (row) {
+      await logActivity(pool, {
+        actorUserId: actorUserId(request, config),
+        entityType: 'participant',
+        entityId: params.id,
+        action: 'participant.deleted',
+        payload: { studyId: params.studyId }
+      });
+    }
     return row ? ok({ deleted: true, id: params.id }) : fail(reply, 404, 'NOT_FOUND', 'Participant not found');
   });
 
@@ -681,6 +796,20 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
       WHERE study_id = $1 AND id = $2
       RETURNING *
     `, [params.studyId, params.id, payload.participantId ?? null, payload.conditionId ?? null, payload.name ?? null, payload.notes ?? null]);
+    if (row) {
+      await refreshSessionSummary(pool, params.id);
+      await logActivity(pool, {
+        actorUserId: actorUserId(request, config),
+        entityType: 'session',
+        entityId: params.id,
+        action: 'session.updated',
+        payload: {
+          studyId: params.studyId,
+          participantId: payload.participantId ?? null,
+          conditionId: payload.conditionId ?? null
+        }
+      });
+    }
     return row ? ok(row) : fail(reply, 404, 'NOT_FOUND', 'Session not found');
   });
 
@@ -694,6 +823,13 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
       return fail(reply, 409, 'STATE_CONFLICT', 'Running or paused sessions cannot be deleted');
     }
     await pool.query(`DELETE FROM sessions WHERE study_id = $1 AND id = $2`, [params.studyId, params.id]);
+    await logActivity(pool, {
+      actorUserId: actorUserId(request, config),
+      entityType: 'session',
+      entityId: params.id,
+      action: 'session.deleted',
+      payload: { studyId: params.studyId }
+    });
     return ok({ deleted: true, id: params.id });
   });
 
@@ -776,6 +912,15 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
         ]
       );
     }
+    await logActivity(pool, {
+      actorUserId: actorUserId(request, config),
+      entityType: 'study',
+      entityId: params.studyId,
+      action: 'trigger_rules.replaced',
+      payload: {
+        ruleCount: payload.rules.length
+      }
+    });
 
     const rows = await queryMany(pool, `SELECT * FROM study_trigger_rules WHERE study_id = $1 ORDER BY priority ASC, created_at ASC`, [params.studyId]);
     return ok(rows);
@@ -814,6 +959,19 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
       VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb)
       RETURNING *
     `, [payload.name, payload.type, payload.status, JSON.stringify(payload.configuration), JSON.stringify(payload.displayConfiguration), JSON.stringify(payload.metadata)]);
+    if (row) {
+      await logActivity(pool, {
+        actorUserId: actorUserId(request, config),
+        entityType: 'device',
+        entityId: row.id,
+        action: 'device.created',
+        payload: {
+          name: payload.name,
+          type: payload.type,
+          status: payload.status
+        }
+      });
+    }
     return ok(row);
   });
 
@@ -834,12 +992,33 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
       WHERE id = $1
       RETURNING *
     `, [params.id, payload.name, payload.type, payload.status, JSON.stringify(payload.configuration), JSON.stringify(payload.displayConfiguration), JSON.stringify(payload.metadata)]);
+    if (row) {
+      await logActivity(pool, {
+        actorUserId: actorUserId(request, config),
+        entityType: 'device',
+        entityId: params.id,
+        action: 'device.updated',
+        payload: {
+          name: payload.name,
+          type: payload.type,
+          status: payload.status
+        }
+      });
+    }
     return row ? ok(row) : fail(reply, 404, 'NOT_FOUND', 'Device not found');
   });
 
   app.delete('/api/devices/:id', async (request, reply) => {
     const params = uuidParamSchema.parse(request.params);
     const row = await queryOne(pool, `DELETE FROM devices WHERE id = $1 RETURNING id`, [params.id]);
+    if (row) {
+      await logActivity(pool, {
+        actorUserId: actorUserId(request, config),
+        entityType: 'device',
+        entityId: params.id,
+        action: 'device.deleted'
+      });
+    }
     return row ? ok({ deleted: true, id: params.id }) : fail(reply, 404, 'NOT_FOUND', 'Device not found');
   });
 
@@ -871,16 +1050,29 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
       password: z.string().min(8),
       displayName: z.string().min(1),
       email: z.string().email().nullable().optional(),
-      roles: z.array(z.enum(['admin', 'researcher', 'operator', 'viewer'])).min(1).default(['viewer'])
+      roles: z.array(z.enum(['admin', 'researcher', 'operator', 'viewer'])).min(1).default(['viewer']),
+      passwordResetRequired: z.boolean().default(false),
+      disabledReason: z.string().nullable().optional()
     }).parse(request.body ?? {});
     const passwordHash = await hashPassword(payload.password);
     const user = await queryOne(pool, `
-      INSERT INTO users (researcher_id, username, password_hash, display_name, email)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO users (researcher_id, username, password_hash, display_name, email, password_reset_required, disabled_reason)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
-    `, [payload.researcherId ?? null, payload.username, passwordHash, payload.displayName, payload.email ?? null]);
+    `, [payload.researcherId ?? null, payload.username, passwordHash, payload.displayName, payload.email ?? null, payload.passwordResetRequired, payload.disabledReason ?? null]);
     if (user) {
       await replaceUserRoles(pool, user.id, payload.roles);
+      await logActivity(pool, {
+        actorUserId: actorUserId(request, config),
+        entityType: 'user',
+        entityId: user.id,
+        action: 'user.created',
+        payload: {
+          username: payload.username,
+          roles: payload.roles,
+          passwordResetRequired: payload.passwordResetRequired
+        }
+      });
     }
     return ok(user);
   });
@@ -898,6 +1090,8 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
       displayName: z.string().min(1),
       email: z.string().email().nullable().optional(),
       isActive: z.boolean().default(true),
+      disabledReason: z.string().nullable().optional(),
+      passwordResetRequired: z.boolean().optional(),
       password: z.string().min(8).optional(),
       roles: z.array(z.enum(['admin', 'researcher', 'operator', 'viewer'])).min(1).optional()
     }).parse(request.body ?? {});
@@ -909,22 +1103,53 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
           email = $4,
           is_active = $5,
           password_hash = COALESCE($6, password_hash),
+          disabled_reason = CASE WHEN $5 = TRUE THEN NULL ELSE $7 END,
+          password_reset_required = COALESCE($8, password_reset_required),
           updated_at = NOW()
       WHERE id = $1
       RETURNING *
-    `, [params.id, payload.researcherId ?? null, payload.displayName, payload.email ?? null, payload.isActive, passwordHash]);
+    `, [
+      params.id,
+      payload.researcherId ?? null,
+      payload.displayName,
+      payload.email ?? null,
+      payload.isActive,
+      passwordHash,
+      payload.disabledReason ?? null,
+      payload.passwordResetRequired ?? null
+    ]);
     if (!row) {
       return fail(reply, 404, 'NOT_FOUND', 'User not found');
     }
     if (payload.roles) {
       await replaceUserRoles(pool, params.id, payload.roles);
     }
+    await logActivity(pool, {
+      actorUserId: actorUserId(request, config),
+      entityType: 'user',
+      entityId: params.id,
+      action: 'user.updated',
+      payload: {
+        isActive: payload.isActive,
+        roles: payload.roles ?? null,
+        passwordChanged: Boolean(payload.password),
+        passwordResetRequired: payload.passwordResetRequired ?? null
+      }
+    });
     return ok(row);
   });
 
   app.delete('/api/users/:id', async (request, reply) => {
     const params = uuidParamSchema.parse(request.params);
-    const row = await queryOne(pool, `UPDATE users SET is_active = FALSE, updated_at = NOW() WHERE id = $1 RETURNING id`, [params.id]);
+    const row = await queryOne(pool, `UPDATE users SET is_active = FALSE, disabled_reason = 'deactivated by administrator', updated_at = NOW() WHERE id = $1 RETURNING id`, [params.id]);
+    if (row) {
+      await logActivity(pool, {
+        actorUserId: actorUserId(request, config),
+        entityType: 'user',
+        entityId: params.id,
+        action: 'user.deactivated'
+      });
+    }
     return row ? ok({ deactivated: true, id: params.id }) : fail(reply, 404, 'NOT_FOUND', 'User not found');
   });
 
@@ -960,17 +1185,30 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
       scope: z.enum(['study', 'session', 'all']).default('session'),
       parameters: z.record(z.string(), z.unknown()).default({})
     }).parse(request.body ?? {});
+    const requestedBy = actorUserId(request, config);
     const row = await queryOne<ExportJobRow>(pool, `
-      INSERT INTO export_jobs (study_id, session_id, format, scope, status, progress, parameters)
-      VALUES ($1, $2, $3, $4, 'queued', 0, $5::jsonb)
+      INSERT INTO export_jobs (study_id, session_id, format, scope, status, progress, requested_by, parameters)
+      VALUES ($1, $2, $3, $4, 'queued', 0, $5, $6::jsonb)
       RETURNING *
-    `, [payload.studyId ?? null, payload.sessionId ?? null, payload.format, payload.scope, JSON.stringify(payload.parameters)]);
+    `, [payload.studyId ?? null, payload.sessionId ?? null, payload.format, payload.scope, requestedBy, JSON.stringify(payload.parameters)]);
     wsHub.broadcast('export.progress', {
       exportJobId: row?.id,
       status: 'queued',
       progress: 0
     });
     if (row) {
+      await logActivity(pool, {
+        actorUserId: requestedBy,
+        entityType: 'export_job',
+        entityId: row.id,
+        action: 'export.queued',
+        payload: {
+          studyId: payload.studyId ?? null,
+          sessionId: payload.sessionId ?? null,
+          format: payload.format,
+          scope: payload.scope
+        }
+      });
       setImmediate(() => {
         void processExportJob(pool, wsHub, config.EXPORTS_DIR, row.id);
       });
@@ -1035,6 +1273,12 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
          WHERE id = $1`,
         [params.id]
       );
+      await logActivity(pool, {
+        actorUserId: actorUserId(request, config),
+        entityType: 'export_job',
+        entityId: params.id,
+        action: 'export.cancelled'
+      });
       wsHub.broadcast('export.progress', { exportJobId: params.id, status: 'cancelled', progress: 0 });
       return ok({ cancelled: true, id: params.id });
     }
@@ -1047,6 +1291,12 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
         await fs.unlink(resolvedArtifact).catch(() => undefined);
       }
     }
+    await logActivity(pool, {
+      actorUserId: actorUserId(request, config),
+      entityType: 'export_job',
+      entityId: params.id,
+      action: 'export.deleted'
+    });
     return ok({ deleted: true, id: params.id });
   });
 
@@ -1114,19 +1364,19 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
 
   app.get('/api/session-logs/:sessionId/summary', async (request, reply) => {
     const params = z.object({ sessionId: z.string().uuid() }).parse(request.params);
+    await refreshSessionSummary(pool, params.sessionId);
     const row = await queryOne(pool, `
-      SELECT sessions.id AS session_id,
-             sessions.study_id,
+      SELECT session_summaries.session_id,
+             session_summaries.study_id,
              sessions.status,
-             COUNT(session_events.id)::int AS event_count,
-             COUNT(DISTINCT session_events.modality)::int AS modality_count,
-             MIN(session_events.timestamp) AS first_event_at,
-             MAX(session_events.timestamp) AS last_event_at,
+             session_summaries.event_count,
+             session_summaries.modality_count,
+             session_summaries.first_event_at,
+             session_summaries.last_event_at,
              sessions.duration_seconds
       FROM sessions
-      LEFT JOIN session_events ON session_events.session_id = sessions.id
+      JOIN session_summaries ON session_summaries.session_id = sessions.id
       WHERE sessions.id = $1
-      GROUP BY sessions.id
     `, [params.sessionId]);
     return row ? ok(sessionSummarySchema.parse({
       sessionId: row.session_id,

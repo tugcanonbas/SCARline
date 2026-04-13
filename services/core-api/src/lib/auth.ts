@@ -66,7 +66,7 @@ export async function revokeRefreshToken(pool: Pool, refreshToken: string): Prom
   );
 }
 
-export async function rotateRefreshToken(pool: Pool, refreshToken: string): Promise<string | null> {
+export async function rotateRefreshToken(pool: Pool, refreshToken: string): Promise<{ refreshToken: string; userId: string } | null> {
   const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
   const result = await pool.query<{ user_id: string }>(
     `UPDATE refresh_tokens
@@ -74,6 +74,13 @@ export async function rotateRefreshToken(pool: Pool, refreshToken: string): Prom
      WHERE token_hash = $1
        AND revoked_at IS NULL
        AND expires_at > NOW()
+       AND EXISTS (
+         SELECT 1
+         FROM users
+         WHERE users.id = refresh_tokens.user_id
+           AND users.is_active = TRUE
+           AND users.password_reset_required = FALSE
+       )
      RETURNING user_id`,
     [tokenHash]
   );
@@ -82,7 +89,10 @@ export async function rotateRefreshToken(pool: Pool, refreshToken: string): Prom
     return null;
   }
 
-  return issueRefreshToken(pool, result.rows[0].user_id);
+  return {
+    refreshToken: await issueRefreshToken(pool, result.rows[0].user_id),
+    userId: result.rows[0].user_id
+  };
 }
 
 export function verifyAccessToken(token: string, config: CoreApiConfig): jwt.JwtPayload {

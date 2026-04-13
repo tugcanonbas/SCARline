@@ -28,8 +28,10 @@ import type { WebSocketHub } from './websocket-hub.js';
 import type { ComponentRegistry } from './component-status.js';
 import {
   getSystemConfiguration,
+  logActivity,
   queryMany,
   queryOne,
+  refreshSessionSummary,
   upsertSystemConfiguration
 } from './data.js';
 import {
@@ -59,6 +61,20 @@ function getBearerToken(request: FastifyRequest): string | null {
   }
 
   return header.slice('Bearer '.length);
+}
+
+function getActorUserId(request: FastifyRequest, config: CoreApiConfig): string | null {
+  const token = getBearerToken(request);
+  if (!token) {
+    return null;
+  }
+
+  try {
+    const claims = verifyAccessToken(token, config);
+    return typeof claims.sub === 'string' ? claims.sub : null;
+  } catch {
+    return null;
+  }
 }
 
 function apiError(code: string, message: string): {
@@ -270,6 +286,17 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
       carla_server_port: payload.carlaServerPort,
       overlay_transparent_enabled: payload.transparentOverlayEnabled
     });
+    await logActivity(pool, {
+      entityType: 'system_configuration',
+      action: 'onboarding.system_configured',
+      payload: {
+        dataDirectory: payload.dataDirectory,
+        platformPort: payload.platformPort,
+        carlaServerPort: payload.carlaServerPort,
+        transparentOverlayEnabled: payload.transparentOverlayEnabled,
+        hasCarlaServerPath: Boolean(payload.carlaServerPath)
+      }
+    });
 
     return {
       success: true,
@@ -304,6 +331,16 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
       [user?.id]
     );
     await upsertSystemConfiguration(pool, { onboarding_completed: true });
+    await logActivity(pool, {
+      actorUserId: user?.id ?? null,
+      entityType: 'user',
+      entityId: user?.id ?? null,
+      action: 'onboarding.admin_created',
+      payload: {
+        researcherId: researcher?.id,
+        username: user?.username
+      }
+    });
 
     return {
       success: true,
@@ -317,6 +354,10 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
 
   app.post('/api/onboarding/complete', async () => {
     await upsertSystemConfiguration(pool, { onboarding_completed: true });
+    await logActivity(pool, {
+      entityType: 'system_configuration',
+      action: 'onboarding.completed'
+    });
     return {
       success: true,
       data: { onboardingCompleted: true },
@@ -332,6 +373,9 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
       password_hash: string;
       display_name: string;
       email: string | null;
+      is_active: boolean;
+      disabled_reason: string | null;
+      password_reset_required: boolean;
       roles: string[];
     }>(
       pool,
@@ -340,17 +384,24 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
               users.password_hash,
               users.display_name,
               users.email,
+              users.is_active,
+              users.disabled_reason,
+              users.password_reset_required,
               ARRAY_REMOVE(ARRAY_AGG(roles.name), NULL) AS roles
        FROM users
        LEFT JOIN user_roles ON user_roles.user_id = users.id
        LEFT JOIN roles ON roles.id = user_roles.role_id
        WHERE users.username = $1
-         AND users.is_active = TRUE
        GROUP BY users.id`,
       [payload.username]
     );
 
     if (!user || !(await verifyPassword(payload.password, user.password_hash))) {
+      await logActivity(pool, {
+        entityType: 'auth',
+        action: 'auth.login_failed',
+        payload: { username: payload.username }
+      });
       reply.code(401);
       return {
         success: false,
@@ -358,6 +409,50 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
         error: {
           code: 'INVALID_CREDENTIALS',
           message: 'Invalid username or password',
+          details: {}
+        }
+      };
+    }
+
+    if (!user.is_active) {
+      await logActivity(pool, {
+        actorUserId: user.id,
+        entityType: 'user',
+        entityId: user.id,
+        action: 'auth.login_blocked',
+        payload: {
+          reason: user.disabled_reason ?? 'inactive'
+        }
+      });
+      reply.code(403);
+      return {
+        success: false,
+        data: null,
+        error: {
+          code: 'ACCOUNT_DISABLED',
+          message: user.disabled_reason ?? 'Account is disabled',
+          details: {}
+        }
+      };
+    }
+
+    if (user.password_reset_required) {
+      await logActivity(pool, {
+        actorUserId: user.id,
+        entityType: 'user',
+        entityId: user.id,
+        action: 'auth.login_blocked',
+        payload: {
+          reason: 'password_reset_required'
+        }
+      });
+      reply.code(403);
+      return {
+        success: false,
+        data: null,
+        error: {
+          code: 'PASSWORD_RESET_REQUIRED',
+          message: 'Password reset is required before login',
           details: {}
         }
       };
@@ -374,6 +469,17 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
       config
     );
     const refreshToken = await issueRefreshToken(pool, user.id);
+    await pool.query(`UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE id = $1`, [user.id]);
+    await logActivity(pool, {
+      actorUserId: user.id,
+      entityType: 'user',
+      entityId: user.id,
+      action: 'auth.login_succeeded',
+      payload: {
+        username: user.username,
+        roles: user.roles
+      }
+    });
     const data = loginResponseSchema.parse({
       accessToken,
       refreshToken,
@@ -403,11 +509,17 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
         }
       };
     }
+    await logActivity(pool, {
+      actorUserId: rotated.userId,
+      entityType: 'user',
+      entityId: rotated.userId,
+      action: 'auth.refresh'
+    });
 
     return {
       success: true,
       data: {
-        refreshToken: rotated
+        refreshToken: rotated.refreshToken
       },
       error: null
     };
@@ -416,6 +528,10 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
   app.post('/api/auth/logout', async (request) => {
     const payload = refreshSchema.parse(request.body ?? {});
     await revokeRefreshToken(pool, payload.refreshToken);
+    await logActivity(pool, {
+      entityType: 'auth',
+      action: 'auth.logout'
+    });
     return {
       success: true,
       data: { revoked: true },
@@ -549,6 +665,18 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
       carla_server_port: payload.carlaServerPort,
       overlay_transparent_enabled: payload.transparentOverlayEnabled
     });
+    await logActivity(pool, {
+      actorUserId: getActorUserId(request, config),
+      entityType: 'system_configuration',
+      action: 'system_configuration.updated',
+      payload: {
+        dataDirectory: payload.dataDirectory,
+        platformPort: payload.platformPort,
+        carlaServerPort: payload.carlaServerPort,
+        transparentOverlayEnabled: payload.transparentOverlayEnabled,
+        hasCarlaServerPath: Boolean(payload.carlaServerPath)
+      }
+    });
 
     return { success: true, data: payload, error: null };
   });
@@ -667,6 +795,24 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     if (study) {
       await pool.query(`INSERT INTO carla_configurations (study_id) VALUES ($1) ON CONFLICT (study_id) DO NOTHING`, [study.id]);
       await pool.query(`INSERT INTO sensor_configurations (study_id) VALUES ($1) ON CONFLICT (study_id) DO NOTHING`, [study.id]);
+      if (payload.createdBy) {
+        await pool.query(
+          `INSERT INTO study_researchers (study_id, researcher_id, role)
+           VALUES ($1, $2, 'owner')
+           ON CONFLICT (study_id, researcher_id) DO NOTHING`,
+          [study.id, payload.createdBy]
+        );
+      }
+      await logActivity(pool, {
+        actorUserId: getActorUserId(request, config),
+        entityType: 'study',
+        entityId: study.id,
+        action: 'study.created',
+        payload: {
+          name: payload.name,
+          createdBy: payload.createdBy ?? null
+        }
+      });
     }
 
     return {
@@ -703,6 +849,15 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
       WHERE id = $1
       RETURNING *
     `, [params.id, payload.name, payload.description ?? null]);
+    if (updated) {
+      await logActivity(pool, {
+        actorUserId: getActorUserId(request, config),
+        entityType: 'study',
+        entityId: params.id,
+        action: 'study.updated',
+        payload
+      });
+    }
 
     return { success: true, data: updated, error: null };
   });
@@ -711,7 +866,107 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     const params = z.object({ id: z.string().uuid() }).parse(request.params);
     const payload = z.object({ status: z.enum(['draft', 'active', 'completed', 'archived']) }).parse(request.body ?? {});
     const updated = await queryOne(pool, `UPDATE studies SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING *`, [params.id, payload.status]);
+    if (updated) {
+      await logActivity(pool, {
+        actorUserId: getActorUserId(request, config),
+        entityType: 'study',
+        entityId: params.id,
+        action: 'study.status_updated',
+        payload
+      });
+    }
     return { success: true, data: updated, error: null };
+  });
+
+  app.get('/api/studies/:studyId/researchers', async (request) => {
+    const params = z.object({ studyId: z.string().uuid() }).parse(request.params);
+    const rows = await queryMany(pool, `
+      SELECT researchers.*, study_researchers.role AS assignment_role
+      FROM study_researchers
+      JOIN researchers ON researchers.id = study_researchers.researcher_id
+      WHERE study_researchers.study_id = $1
+      ORDER BY researchers.name ASC
+    `, [params.studyId]);
+    return { success: true, data: rows, error: null };
+  });
+
+  app.post('/api/studies/:studyId/researchers', async (request) => {
+    const params = z.object({ studyId: z.string().uuid() }).parse(request.params);
+    const payload = z.object({
+      researcherId: z.string().uuid(),
+      role: z.string().nullable().optional()
+    }).parse(request.body ?? {});
+    const row = await queryOne(pool, `
+      INSERT INTO study_researchers (study_id, researcher_id, role)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (study_id, researcher_id) DO UPDATE SET role = EXCLUDED.role
+      RETURNING *
+    `, [params.studyId, payload.researcherId, payload.role ?? null]);
+    await logActivity(pool, {
+      actorUserId: getActorUserId(request, config),
+      entityType: 'study',
+      entityId: params.studyId,
+      action: 'study.researcher_assigned',
+      payload
+    });
+    return { success: true, data: row, error: null };
+  });
+
+  app.put('/api/studies/:studyId/researchers', async (request) => {
+    const params = z.object({ studyId: z.string().uuid() }).parse(request.params);
+    const payload = z.object({
+      assignments: z.array(z.object({
+        researcherId: z.string().uuid(),
+        role: z.string().nullable().optional()
+      })).default([])
+    }).parse(request.body ?? {});
+
+    await pool.query(`DELETE FROM study_researchers WHERE study_id = $1`, [params.studyId]);
+    for (const assignment of payload.assignments) {
+      await pool.query(
+        `INSERT INTO study_researchers (study_id, researcher_id, role)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (study_id, researcher_id) DO UPDATE SET role = EXCLUDED.role`,
+        [params.studyId, assignment.researcherId, assignment.role ?? null]
+      );
+    }
+    await logActivity(pool, {
+      actorUserId: getActorUserId(request, config),
+      entityType: 'study',
+      entityId: params.studyId,
+      action: 'study.researchers_replaced',
+      payload: {
+        assignmentCount: payload.assignments.length
+      }
+    });
+    return { success: true, data: { updated: true, assignmentCount: payload.assignments.length }, error: null };
+  });
+
+  app.delete('/api/studies/:studyId/researchers/:researcherId', async (request, reply) => {
+    const params = z.object({ studyId: z.string().uuid(), researcherId: z.string().uuid() }).parse(request.params);
+    const row = await queryOne(pool, `
+      DELETE FROM study_researchers
+      WHERE study_id = $1 AND researcher_id = $2
+      RETURNING researcher_id
+    `, [params.studyId, params.researcherId]);
+    if (!row) {
+      reply.code(404);
+      return {
+        success: false,
+        data: null,
+        error: { code: 'NOT_FOUND', message: 'Researcher assignment not found', details: {} }
+      };
+    }
+    await logActivity(pool, {
+      actorUserId: getActorUserId(request, config),
+      entityType: 'study',
+      entityId: params.studyId,
+      action: 'study.researcher_unassigned',
+      payload: {
+        researcherId: params.researcherId
+      }
+    });
+    return { success: true, data: { deleted: true, researcherId: params.researcherId }, error: null };
   });
 
   app.get('/api/studies/:studyId/participants', async (request) => {
@@ -744,6 +999,19 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
       VALUES ($1, $2, $3::jsonb, $4, $5)
       RETURNING *
     `, [params.studyId, payload.participantCode, JSON.stringify(payload.demographicData), payload.assignedConditionId ?? null, payload.notes ?? null]);
+    if (row) {
+      await logActivity(pool, {
+        actorUserId: getActorUserId(request, config),
+        entityType: 'participant',
+        entityId: row.id,
+        action: 'participant.created',
+        payload: {
+          studyId: params.studyId,
+          participantCode: payload.participantCode,
+          assignedConditionId: payload.assignedConditionId ?? null
+        }
+      });
+    }
     return { success: true, data: row, error: null };
   });
 
@@ -765,6 +1033,19 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
       WHERE study_id = $1 AND id = $2
       RETURNING *
     `, [params.studyId, params.id, payload.participantCode, JSON.stringify(payload.demographicData), payload.assignedConditionId ?? null, payload.notes ?? null]);
+    if (row) {
+      await logActivity(pool, {
+        actorUserId: getActorUserId(request, config),
+        entityType: 'participant',
+        entityId: params.id,
+        action: 'participant.updated',
+        payload: {
+          studyId: params.studyId,
+          participantCode: payload.participantCode,
+          assignedConditionId: payload.assignedConditionId ?? null
+        }
+      });
+    }
     return { success: true, data: row, error: null };
   });
 
@@ -777,6 +1058,18 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
       WHERE study_id = $1 AND id = $2
       RETURNING *
     `, [params.studyId, params.id, payload.conditionId]);
+    if (row) {
+      await logActivity(pool, {
+        actorUserId: getActorUserId(request, config),
+        entityType: 'participant',
+        entityId: params.id,
+        action: 'participant.condition_assigned',
+        payload: {
+          studyId: params.studyId,
+          conditionId: payload.conditionId
+        }
+      });
+    }
     return { success: true, data: row, error: null };
   });
 
@@ -812,6 +1105,18 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
       VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb)
       RETURNING *
     `, [params.studyId, payload.name, payload.description ?? null, payload.order, JSON.stringify(payload.carlaOverrides), JSON.stringify(payload.widgetOverrides)]);
+    if (row) {
+      await logActivity(pool, {
+        actorUserId: getActorUserId(request, config),
+        entityType: 'condition',
+        entityId: row.id,
+        action: 'condition.created',
+        payload: {
+          studyId: params.studyId,
+          name: payload.name
+        }
+      });
+    }
     return { success: true, data: row, error: null };
   });
 
@@ -835,6 +1140,18 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
       WHERE study_id = $1 AND id = $2
       RETURNING *
     `, [params.studyId, params.id, payload.name, payload.description ?? null, payload.order, JSON.stringify(payload.carlaOverrides), JSON.stringify(payload.widgetOverrides)]);
+    if (row) {
+      await logActivity(pool, {
+        actorUserId: getActorUserId(request, config),
+        entityType: 'condition',
+        entityId: params.id,
+        action: 'condition.updated',
+        payload: {
+          studyId: params.studyId,
+          name: payload.name
+        }
+      });
+    }
     return { success: true, data: row, error: null };
   });
 
@@ -847,6 +1164,13 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     for (const [index, id] of payload.conditionIds.entries()) {
       await pool.query(`UPDATE conditions SET "order" = $3, updated_at = NOW() WHERE study_id = $1 AND id = $2`, [params.studyId, id, index]);
     }
+    await logActivity(pool, {
+      actorUserId: getActorUserId(request, config),
+      entityType: 'study',
+      entityId: params.studyId,
+      action: 'conditions.reordered',
+      payload
+    });
 
     return { success: true, data: { reordered: true }, error: null };
   });
@@ -886,6 +1210,20 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
       VALUES ($1, $2, $3, $4)
       RETURNING *
     `, [params.studyId, payload.participantId ?? null, payload.conditionId ?? null, payload.name ?? null]);
+    if (row) {
+      await refreshSessionSummary(pool, row.id);
+      await logActivity(pool, {
+        actorUserId: getActorUserId(request, config),
+        entityType: 'session',
+        entityId: row.id,
+        action: 'session.created',
+        payload: {
+          studyId: params.studyId,
+          participantId: payload.participantId ?? null,
+          conditionId: payload.conditionId ?? null
+        }
+      });
+    }
     return { success: true, data: row, error: null };
   });
 
@@ -897,6 +1235,13 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
 
   app.post('/api/studies/:studyId/sessions/:id/start', async (request, reply) => {
     const params = z.object({ studyId: z.string().uuid(), id: z.string().uuid() }).parse(request.params);
+    await logActivity(pool, {
+      actorUserId: getActorUserId(request, config),
+      entityType: 'session',
+      entityId: params.id,
+      action: 'session.start_requested',
+      payload: { studyId: params.studyId }
+    });
     return runCommand(reply, () => rabbit.publishAndWait(makeCommandRoutingKey('session', 'start'), {
       sessionId: params.id,
       studyId: params.studyId
@@ -905,6 +1250,13 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
 
   app.post('/api/studies/:studyId/sessions/:id/pause', async (request, reply) => {
     const params = z.object({ studyId: z.string().uuid(), id: z.string().uuid() }).parse(request.params);
+    await logActivity(pool, {
+      actorUserId: getActorUserId(request, config),
+      entityType: 'session',
+      entityId: params.id,
+      action: 'session.pause_requested',
+      payload: { studyId: params.studyId }
+    });
     return runCommand(reply, () => rabbit.publishAndWait(makeCommandRoutingKey('session', 'pause'), {
       sessionId: params.id
     }, { studyId: params.studyId, runId: params.id }));
@@ -912,6 +1264,13 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
 
   app.post('/api/studies/:studyId/sessions/:id/resume', async (request, reply) => {
     const params = z.object({ studyId: z.string().uuid(), id: z.string().uuid() }).parse(request.params);
+    await logActivity(pool, {
+      actorUserId: getActorUserId(request, config),
+      entityType: 'session',
+      entityId: params.id,
+      action: 'session.resume_requested',
+      payload: { studyId: params.studyId }
+    });
     return runCommand(reply, () => rabbit.publishAndWait(makeCommandRoutingKey('session', 'resume'), {
       sessionId: params.id
     }, { studyId: params.studyId, runId: params.id }));
@@ -919,6 +1278,13 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
 
   app.post('/api/studies/:studyId/sessions/:id/complete', async (request, reply) => {
     const params = z.object({ studyId: z.string().uuid(), id: z.string().uuid() }).parse(request.params);
+    await logActivity(pool, {
+      actorUserId: getActorUserId(request, config),
+      entityType: 'session',
+      entityId: params.id,
+      action: 'session.complete_requested',
+      payload: { studyId: params.studyId }
+    });
     return runCommand(reply, () => rabbit.publishAndWait(makeCommandRoutingKey('session', 'complete'), {
       sessionId: params.id
     }, { studyId: params.studyId, runId: params.id }));
@@ -927,6 +1293,13 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
   app.post('/api/studies/:studyId/sessions/:id/cancel', async (request, reply) => {
     const params = z.object({ studyId: z.string().uuid(), id: z.string().uuid() }).parse(request.params);
     const payload = z.object({ reason: z.string().optional() }).parse(request.body ?? {});
+    await logActivity(pool, {
+      actorUserId: getActorUserId(request, config),
+      entityType: 'session',
+      entityId: params.id,
+      action: 'session.cancel_requested',
+      payload: { studyId: params.studyId, reason: payload.reason ?? null }
+    });
     return runCommand(reply, () => rabbit.publishAndWait(makeCommandRoutingKey('session', 'cancel'), {
       sessionId: params.id,
       reason: payload.reason
@@ -996,6 +1369,21 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
       JSON.stringify(payload.recordingConfig),
       JSON.stringify(payload.sensors)
     ]);
+    if (row) {
+      await logActivity(pool, {
+        actorUserId: getActorUserId(request, config),
+        entityType: 'carla_configuration',
+        entityId: row.id,
+        action: 'carla_configuration.updated',
+        payload: {
+          studyId: params.studyId,
+          map: payload.map,
+          weatherPreset: payload.weatherPreset ?? null,
+          simulationMode: payload.simulationMode,
+          sensorCount: payload.sensors.length
+        }
+      });
+    }
 
     return { success: true, data: row, error: null };
   });
@@ -1045,6 +1433,18 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
       ON CONFLICT (study_id) DO UPDATE SET sensors = EXCLUDED.sensors, updated_at = NOW()
       RETURNING *
     `, [params.studyId, JSON.stringify(sensors)]);
+    if (row) {
+      await logActivity(pool, {
+        actorUserId: getActorUserId(request, config),
+        entityType: 'sensor_configuration',
+        entityId: row.id,
+        action: 'sensor_configuration.updated',
+        payload: {
+          studyId: params.studyId,
+          sensorCount: sensors.length
+        }
+      });
+    }
     return { success: true, data: row, error: null };
   });
 
@@ -1113,6 +1513,17 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
         ]
       );
     }
+    await logActivity(pool, {
+      actorUserId: getActorUserId(request, config),
+      entityType: 'view_layout',
+      entityId: layoutId,
+      action: 'layout.created',
+      payload: {
+        studyId: params.studyId,
+        type: payload.type,
+        widgetCount: payload.layoutConfig.widgets.length
+      }
+    });
 
     return { success: true, data: row, error: null };
   });
@@ -1162,7 +1573,10 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
           updated_at = NOW()
       WHERE study_id = $1 AND id = $2
       RETURNING *
-    `, [params.studyId, params.id, payload.name, payload.type, payload.targetDisplay, JSON.stringify({ zones: payload.zones })]);
+    `, [params.studyId, params.id, payload.name, payload.type, payload.targetDisplay, JSON.stringify({
+      zones: payload.zones,
+      widgets: payload.widgets
+    })]);
 
     await pool.query(`DELETE FROM widget_instances WHERE layout_id = $1`, [params.id]);
     for (const widget of payload.widgets) {
@@ -1181,8 +1595,44 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
         ]
       );
     }
+    if (row) {
+      await logActivity(pool, {
+        actorUserId: getActorUserId(request, config),
+        entityType: 'view_layout',
+        entityId: params.id,
+        action: 'layout.updated',
+        payload: {
+          studyId: params.studyId,
+          type: payload.type,
+          widgetCount: payload.widgets.length
+        }
+      });
+    }
 
     return { success: true, data: row, error: null };
+  });
+
+  app.delete('/api/studies/:studyId/layouts/:id', async (request, reply) => {
+    const params = z.object({ studyId: z.string().uuid(), id: z.string().uuid() }).parse(request.params);
+    const row = await queryOne(pool, `DELETE FROM view_layouts WHERE study_id = $1 AND id = $2 RETURNING id`, [params.studyId, params.id]);
+    if (!row) {
+      reply.code(404);
+      return {
+        success: false,
+        data: null,
+        error: { code: 'NOT_FOUND', message: 'Layout not found', details: {} }
+      };
+    }
+    await logActivity(pool, {
+      actorUserId: getActorUserId(request, config),
+      entityType: 'view_layout',
+      entityId: params.id,
+      action: 'layout.deleted',
+      payload: {
+        studyId: params.studyId
+      }
+    });
+    return { success: true, data: { deleted: true, id: params.id }, error: null };
   });
 
   app.get('/api/widgets/catalogue', async () => {
@@ -1205,6 +1655,18 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     const data = await rabbit.publishAndWait(makeCommandRoutingKey('widget', 'trigger'), payload, {
       studyId: params.studyId,
       runId: params.sessionId
+    });
+    await logActivity(pool, {
+      actorUserId: getActorUserId(request, config),
+      entityType: 'session',
+      entityId: params.sessionId,
+      action: 'widget.trigger_requested',
+      payload: {
+        studyId: params.studyId,
+        instanceId: payload.instanceId,
+        widgetId: payload.widgetId,
+        triggerType: payload.triggerType
+      }
     });
 
     return { success: true, data, error: null };

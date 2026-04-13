@@ -193,20 +193,7 @@ export async function handleEvent(message: RabbitMessage, context: EventContext)
     }
   }
 
-  if (message.routingKey.includes('.session.')) {
-    wsHub.broadcast('session.events', message.payload);
-  } else if (message.routingKey.includes('.vehicle.') || message.routingKey.includes('.sensor.') || message.routingKey.includes('.health.')) {
-    wsHub.broadcast('session.telemetry', {
-      routingKey: message.routingKey,
-      ...message.payload
-    });
-    wsHub.broadcast('widget.updates', {
-      routingKey: message.routingKey,
-      payload: message.payload
-    });
-  } else if (message.routingKey.includes('.widget.')) {
-    wsHub.broadcast('widget.updates', message.payload);
-  } else if (message.routingKey === 'events.system.global.system.component.status') {
+  if (message.routingKey === 'events.system.global.system.component.status') {
     components.upsert({
       componentId: String(message.payload.componentId) as ComponentId,
       componentName: String(message.payload.componentName),
@@ -251,6 +238,37 @@ export async function handleEvent(message: RabbitMessage, context: EventContext)
       );
     }
     wsHub.broadcast('sensor.status', message.payload);
+  } else if (message.routingKey === 'events.system.global.system.export.progress' || (modality === 'system' && eventType === 'export.progress')) {
+    wsHub.broadcast('export.progress', message.payload);
+  } else if (modality === 'sensor' && eventType === 'io.driver_status') {
+    wsHub.broadcast('sensor.status', message.payload);
+    wsHub.broadcast('session.telemetry', {
+      routingKey: message.routingKey,
+      ...message.payload
+    });
+    wsHub.broadcast('widget.updates', {
+      routingKey: message.routingKey,
+      payload: message.payload
+    });
+  } else if (message.routingKey.includes('.session.')) {
+    wsHub.broadcast('session.events', message.payload);
+  } else if (
+    message.routingKey.includes('.vehicle.')
+    || message.routingKey.includes('.sensor.')
+    || message.routingKey.includes('.world.')
+    || message.routingKey.includes('.health.')
+    || message.routingKey.includes('.io.')
+  ) {
+    wsHub.broadcast('session.telemetry', {
+      routingKey: message.routingKey,
+      ...message.payload
+    });
+    wsHub.broadcast('widget.updates', {
+      routingKey: message.routingKey,
+      payload: message.payload
+    });
+  } else if (message.routingKey.includes('.widget.')) {
+    wsHub.broadcast('widget.updates', message.payload);
   }
 
   if (message.routingKey.endsWith('.driving.io.steering')) {
