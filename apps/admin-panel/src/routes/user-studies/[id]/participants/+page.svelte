@@ -34,7 +34,7 @@
   </div>
   <div class="metric-card">
     <p class="metric-card__label">Notes</p>
-    <p class="metric-card__value">{data.participants.filter((participant) => participant.notes).length}</p>
+    <p class="metric-card__value">{data.participants.filter((participant: Record<string, unknown>) => participant.notes).length}</p>
     <p class="metric-card__hint">Records with operator notes</p>
   </div>
   <div class="metric-card">

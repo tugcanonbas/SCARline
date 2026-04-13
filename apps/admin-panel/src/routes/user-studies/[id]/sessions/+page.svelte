@@ -23,8 +23,8 @@
     return new Date(value).toLocaleString();
   }
 
-  const runningCount = $derived(data.sessions.filter((session) => session.status === 'running').length);
-  const completedCount = $derived(data.sessions.filter((session) => session.status === 'completed').length);
+  const runningCount = $derived(data.sessions.filter((session: Record<string, unknown>) => session.status === 'running').length);
+  const completedCount = $derived(data.sessions.filter((session: Record<string, unknown>) => session.status === 'completed').length);
 </script>
 
 <PageHeader eyebrow="Study" title="Sessions" description="Create sessions and drive lifecycle transitions through the CoreAPI command path." />

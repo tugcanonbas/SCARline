@@ -12,6 +12,7 @@
     id: string;
     name?: string | null;
     status: string;
+    startedAt?: string | null;
   };
 
   const live = createRealtimeStore();
@@ -29,9 +30,79 @@
   );
   let selectedSession = $state('');
   const latestTelemetry = $derived(($telemetry.__latest ?? {}) as Record<string, unknown>);
-  const selectedSessionStatus = $derived(
-    (data.sessions as SessionOption[]).find((session) => session.id === selectedSession)?.status ?? 'created'
+  const selectedSessionObj = $derived(
+    (data.sessions as SessionOption[]).find((session) => session.id === selectedSession) ?? null
   );
+  const selectedSessionStatus = $derived(selectedSessionObj?.status ?? 'created');
+
+  // ─── Session elapsed timer ──────────────────────────────────────────────────
+  let elapsedSeconds = $state(0);
+  let timerInterval: ReturnType<typeof setInterval> | null = null;
+
+  $effect(() => {
+    if (timerInterval) clearInterval(timerInterval);
+    if (selectedSessionStatus === 'running') {
+      const startedAt = selectedSessionObj?.startedAt ? new Date(selectedSessionObj.startedAt).getTime() : Date.now();
+      timerInterval = setInterval(() => {
+        elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
+      }, 1000);
+    } else {
+      elapsedSeconds = 0;
+    }
+    return () => { if (timerInterval) clearInterval(timerInterval); };
+  });
+
+  function formatElapsed(secs: number): string {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    return h > 0
+      ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+      : `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+
+  // ─── Telemetry history for mini charts (last 60 data points) ────────────────
+  const MAX_HISTORY = 60;
+  let speedHistory = $state<number[]>([]);
+  let throttleHistory = $state<number[]>([]);
+  let brakeHistory = $state<number[]>([]);
+
+  $effect(() => {
+    const v = vehicle(latestTelemetry);
+    const speed = Number(v.speed ?? 0);
+    const throttle = Number(v.throttle ?? 0);
+    const brake = Number(v.brake ?? 0);
+    if (speed > 0 || throttle > 0 || brake > 0) {
+      speedHistory = [...speedHistory.slice(-MAX_HISTORY + 1), speed];
+      throttleHistory = [...throttleHistory.slice(-MAX_HISTORY + 1), throttle];
+      brakeHistory = [...brakeHistory.slice(-MAX_HISTORY + 1), brake];
+    }
+  });
+
+  function miniChart(data: number[], color: string, maxVal?: number): string {
+    if (data.length < 2) return '';
+    const W = 120; const H = 32;
+    const max = Math.max(maxVal ?? Math.max(...data, 1), 1);
+    const pts = data.map((v, i) => {
+      const x = (i / (data.length - 1)) * W;
+      const y = H - (v / max) * H;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" style="display:block">`
+      + `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  }
+
+  // ─── Operator notes ──────────────────────────────────────────────────────────
+  type NoteEntry = { timestamp: string; text: string };
+  let noteText = $state('');
+  let notes = $state<NoteEntry[]>([]);
+
+  function addNote() {
+    const text = noteText.trim();
+    if (!text) return;
+    notes = [{ timestamp: new Date().toLocaleTimeString(), text }, ...notes];
+    noteText = '';
+  }
 
   $effect(() => {
     if (!selectedSession && runningSessionId) {
@@ -52,7 +123,8 @@
   });
 
   function vehicle(payload: Record<string, unknown>) {
-    return (payload.payload?.vehicle ?? payload.vehicle ?? payload.payload ?? payload) as Record<string, unknown>;
+    const p = payload.payload as Record<string, unknown> | undefined;
+    return ((p?.vehicle ?? payload.vehicle ?? p ?? payload)) as Record<string, unknown>;
   }
 
   function eventTitle(event: Record<string, unknown>) {
@@ -89,22 +161,24 @@
   <div class="metric-card">
     <p class="metric-card__label">Socket</p>
     <div class="mt-2"><StatusBadge status={$socketState} /></div>
-    <p class="metric-card__hint">Subscribed to session, telemetry, widget, and sensor channels</p>
+    <p class="metric-card__hint">Session, telemetry, widget, sensor channels</p>
   </div>
   <div class="metric-card">
-    <p class="metric-card__label">Selected Session</p>
-    <p class="metric-card__value">{selectedSession ? 'Live' : 'None'}</p>
-    <p class="metric-card__hint">{selectedSession || 'Select a session below'}</p>
+    <p class="metric-card__label">Session Timer</p>
+    <p class="metric-card__value" style="font-variant-numeric: tabular-nums">
+      {selectedSessionStatus === 'running' ? formatElapsed(elapsedSeconds) : (selectedSessionStatus === 'paused' ? 'Paused' : '—')}
+    </p>
+    <p class="metric-card__hint">{selectedSession ? selectedSessionStatus : 'No session selected'}</p>
   </div>
   <div class="metric-card">
-    <p class="metric-card__label">Telemetry</p>
-    <p class="metric-card__value">{Object.keys($telemetry).length ? 'On' : 'Idle'}</p>
-    <p class="metric-card__hint">Latest vehicle payload state</p>
+    <p class="metric-card__label">Speed</p>
+    <p class="metric-card__value">{vehicle(latestTelemetry).speed ?? '—'} <span style="font-size:0.6em;opacity:0.6">km/h</span></p>
+    <p class="metric-card__hint">Limit: {vehicle(latestTelemetry).speedLimit ?? '—'} km/h</p>
   </div>
   <div class="metric-card">
-    <p class="metric-card__label">Widgets</p>
-    <p class="metric-card__value">{data.widgets.length}</p>
-    <p class="metric-card__hint">Manual trigger catalogue</p>
+    <p class="metric-card__label">Triggers</p>
+    <p class="metric-card__value">{data.triggerableWidgets.length}</p>
+    <p class="metric-card__hint">Widgets in active layout</p>
   </div>
 </div>
 
@@ -155,17 +229,57 @@
     <p class="mt-4 text-sm text-slate-400">Session lifecycle controls are wired to CoreAPI command routes for operator execution.</p>
   </SurfaceCard>
 
-  <SurfaceCard title="Live Telemetry" subtitle="Current vehicle values received from CoreAPI WebSocket fanout.">
-    <KeyValueGrid
-      items={[
-        { label: 'Speed', value: vehicle(latestTelemetry).speed ?? 'No telemetry' },
-        { label: 'Speed Limit', value: vehicle(latestTelemetry).speedLimit ?? 'Unknown' },
-        { label: 'Throttle', value: vehicle(latestTelemetry).throttle ?? 0 },
-        { label: 'Brake', value: vehicle(latestTelemetry).brake ?? 0 },
-        { label: 'Steer', value: vehicle(latestTelemetry).steer ?? 0 },
-        { label: 'Routing Key', value: latestTelemetry.routingKey ?? 'Waiting for stream' }
-      ]}
-    />
+  <SurfaceCard title="Live Telemetry" subtitle="Vehicle state received via CoreAPI WebSocket fanout — mini charts show last 60 data points.">
+    <div class="telemetry-chart-grid">
+      <div class="telemetry-tile">
+        <div class="telemetry-tile__header">
+          <span class="telemetry-tile__label">Speed</span>
+          <span class="telemetry-tile__value">{vehicle(latestTelemetry).speed ?? '—'} <small>km/h</small></span>
+        </div>
+        {#if speedHistory.length > 1}
+          <div class="telemetry-tile__chart">{@html miniChart(speedHistory, '#818cf8', undefined)}</div>
+        {:else}
+          <div class="telemetry-tile__chart telemetry-tile__chart--empty">Awaiting stream</div>
+        {/if}
+      </div>
+      <div class="telemetry-tile">
+        <div class="telemetry-tile__header">
+          <span class="telemetry-tile__label">Throttle</span>
+          <span class="telemetry-tile__value">{Math.round(Number(vehicle(latestTelemetry).throttle ?? 0) * 100)}%</span>
+        </div>
+        {#if throttleHistory.length > 1}
+          <div class="telemetry-tile__chart">{@html miniChart(throttleHistory, '#34d399', 1)}</div>
+        {:else}
+          <div class="telemetry-tile__chart telemetry-tile__chart--empty">Awaiting stream</div>
+        {/if}
+      </div>
+      <div class="telemetry-tile">
+        <div class="telemetry-tile__header">
+          <span class="telemetry-tile__label">Brake</span>
+          <span class="telemetry-tile__value">{Math.round(Number(vehicle(latestTelemetry).brake ?? 0) * 100)}%</span>
+        </div>
+        {#if brakeHistory.length > 1}
+          <div class="telemetry-tile__chart">{@html miniChart(brakeHistory, '#fb923c', 1)}</div>
+        {:else}
+          <div class="telemetry-tile__chart telemetry-tile__chart--empty">Awaiting stream</div>
+        {/if}
+      </div>
+      <div class="telemetry-tile">
+        <div class="telemetry-tile__header">
+          <span class="telemetry-tile__label">Steer</span>
+          <span class="telemetry-tile__value">{vehicle(latestTelemetry).steer ?? '—'}</span>
+        </div>
+        <div class="telemetry-tile__chart telemetry-tile__chart--empty" style="font-size:0.6875rem;color:#475569">Heading: {vehicle(latestTelemetry).heading ?? '—'}</div>
+      </div>
+    </div>
+    <div class="mt-3 border-t border-[--color-line] pt-3">
+      <KeyValueGrid
+        items={[
+          { label: 'Speed Limit', value: vehicle(latestTelemetry).speedLimit ?? '—' },
+          { label: 'Routing Key', value: String(latestTelemetry.routingKey ?? 'Waiting for stream') }
+        ]}
+      />
+    </div>
   </SurfaceCard>
 </div>
 
@@ -235,10 +349,80 @@
     </div>
   </SurfaceCard>
 
-  <SurfaceCard title="Operator Notes" subtitle="Visual note-taking affordance; persistence remains in the existing session/log flows.">
-    <label class="grid gap-2 text-sm">
-      <span>Run note</span>
-      <textarea disabled class="min-h-32 rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" placeholder="Notes are captured by the implemented session/log flows."></textarea>
-    </label>
+  <SurfaceCard title="Operator Notes" subtitle="Timestamped session notes stored locally. Clear on page reload.">
+    <div class="grid gap-3">
+      <div class="flex gap-2">
+        <textarea
+          bind:value={noteText}
+          class="min-h-20 flex-1 rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm"
+          placeholder="Enter observation and press Add Note…"
+          onkeydown={(e) => e.key === 'Enter' && e.ctrlKey && addNote()}
+        ></textarea>
+      </div>
+      <button
+        class="rounded-2xl border border-[--color-line] px-4 py-2 text-sm font-medium"
+        disabled={!noteText.trim()}
+        onclick={addNote}
+        type="button"
+      >Add Note (Ctrl+Enter)</button>
+      {#if notes.length > 0}
+        <div class="space-y-2">
+          {#each notes as note}
+            <div class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm">
+              <p class="font-medium text-white">{note.text}</p>
+              <p class="mt-1 text-xs text-slate-500">{note.timestamp}</p>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </div>
   </SurfaceCard>
 </div>
+
+<style>
+  .telemetry-chart-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.625rem;
+  }
+  .telemetry-tile {
+    border: 1px solid var(--color-line);
+    border-radius: 0.875rem;
+    background: rgba(0,0,0,0.15);
+    padding: 0.625rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+  .telemetry-tile__header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .telemetry-tile__label {
+    font-size: 0.5625rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #64748b;
+  }
+  .telemetry-tile__value {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: #e2e8f0;
+    font-variant-numeric: tabular-nums;
+  }
+  .telemetry-tile__value small { font-size: 0.5em; font-weight: 400; opacity: 0.6; }
+  .telemetry-tile__chart {
+    overflow: hidden;
+    border-radius: 0.25rem;
+    height: 32px;
+    display: flex;
+    align-items: center;
+  }
+  .telemetry-tile__chart--empty {
+    font-size: 0.625rem;
+    color: #334155;
+    justify-content: center;
+  }
+</style>

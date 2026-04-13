@@ -7,12 +7,12 @@ export const load = async ({ fetch, locals, params }) => {
   const sessions = await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/sessions`, locals.accessToken);
   const layouts = await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/layouts`, locals.accessToken);
   const widgets = await apiRequest(fetch, locals.apiBase, '/widgets/catalogue', locals.accessToken);
-  const participantLayout = layouts.find((layout) => layout.type === 'participant') ?? layouts[0] ?? null;
+  const participantLayout = layouts.find((layout: Record<string, unknown>) => layout.type === 'participant') ?? layouts[0] ?? null;
   const layoutDetail = participantLayout
     ? await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/layouts/${participantLayout.id}`, locals.accessToken)
     : null;
-  const widgetNameById = new Map((widgets ?? []).map((widget) => [widget.id, widget.name]));
-  const triggerableWidgets = (layoutDetail?.widgets ?? []).map((instance) => ({
+  const widgetNameById = new Map((widgets ?? []).map((widget: Record<string, unknown>) => [widget.id, widget.name]));
+  const triggerableWidgets = (layoutDetail?.widgets ?? []).map((instance: Record<string, unknown>) => ({
     instanceId: instance.id,
     widgetId: instance.widgetId,
     name: widgetNameById.get(instance.widgetId) ?? instance.widgetId
@@ -63,7 +63,7 @@ async function configureTransparentOverlay(
   sessionId: string
 ) {
   const layouts = await apiRequest(fetch, locals.apiBase, `/studies/${studyId}/layouts`, locals.accessToken);
-  const participantLayout = layouts.find((layout) => layout.type === 'participant') ?? layouts[0] ?? null;
+  const participantLayout = layouts.find((layout: Record<string, unknown>) => layout.type === 'participant') ?? layouts[0] ?? null;
   if (!participantLayout?.id) {
     return;
   }

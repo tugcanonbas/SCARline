@@ -7,7 +7,7 @@
   let { data } = $props();
   const configuredSensors = $derived(data.config?.sensors ?? []);
   const driverCount = $derived(data.drivers.length);
-  const highRateSensors = $derived(configuredSensors.filter((sensor) => Number(sensor.sample_rate ?? sensor.sampleRate ?? 0) >= 20).length);
+  const highRateSensors = $derived(configuredSensors.filter((sensor: Record<string, unknown>) => Number(sensor.sample_rate ?? sensor.sampleRate ?? 0) >= 20).length);
 </script>
 
 <PageHeader eyebrow="Study" title="Sensor Configuration" description="Milestone-1 sensor scope covers Logitech G29 steering and best-effort USB camera capture." />

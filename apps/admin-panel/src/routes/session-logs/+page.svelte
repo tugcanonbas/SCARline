@@ -4,8 +4,8 @@
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
 
   let { data } = $props();
-  const modalityCount = $derived(new Set(data.logs.map((entry) => entry.modality ?? 'unknown')).size);
-  const sourceCount = $derived(new Set(data.logs.map((entry) => entry.source ?? 'unknown')).size);
+  const modalityCount = $derived(new Set(data.logs.map((entry: Record<string, unknown>) => entry.modality ?? 'unknown')).size);
+  const sourceCount = $derived(new Set(data.logs.map((entry: Record<string, unknown>) => entry.source ?? 'unknown')).size);
 </script>
 
 <PageHeader
