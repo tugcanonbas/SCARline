@@ -1,0 +1,62 @@
+scenarios:
+  city_drive:
+    map: MockTown01
+    speedLimit: 50
+    baseThrottle: 0.45
+    speedOscillation: 8.0
+    traffic:
+      npcCount: 12
+    events:
+      laneInvasionEveryTicks: 0
+      collisionEveryTicks: 0
+      cameraEveryTicks: 20
+    seed: 101
+  highway:
+    map: MockHighway01
+    speedLimit: 100
+    baseThrottle: 0.72
+    speedOscillation: 12.0
+    traffic:
+      npcCount: 26
+    events:
+      laneInvasionEveryTicks: 160
+      collisionEveryTicks: 0
+      cameraEveryTicks: 20
+    seed: 202
+  parking:
+    map: MockParking01
+    speedLimit: 15
+    baseThrottle: 0.18
+    speedOscillation: 2.0
+    traffic:
+      npcCount: 2
+    events:
+      laneInvasionEveryTicks: 0
+      collisionEveryTicks: 0
+      cameraEveryTicks: 20
+    seed: 303
+  stop_go:
+    map: MockTownStopGo
+    speedLimit: 35
+    baseThrottle: 0.38
+    speedOscillation: 18.0
+    traffic:
+      npcCount: 18
+      stopGo: true
+    events:
+      laneInvasionEveryTicks: 90
+      collisionEveryTicks: 0
+      cameraEveryTicks: 20
+    seed: 404
+  collision_course:
+    map: MockTown01
+    speedLimit: 45
+    baseThrottle: 0.5
+    speedOscillation: 6.0
+    traffic:
+      npcCount: 16
+    events:
+      laneInvasionEveryTicks: 70
+      collisionEveryTicks: 180
+      cameraEveryTicks: 20
+    seed: 505

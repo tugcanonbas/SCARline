@@ -13,6 +13,9 @@ const adapters = new AdapterRegistry();
 const app = Fastify({
   logger: true
 });
+const ADAPTER_COMMAND_TIMEOUT_MS = Number(process.env.SIM_BRIDGE_ADAPTER_COMMAND_TIMEOUT_MS ?? 15_000);
+const ADAPTER_STALE_MS = Number(process.env.SIM_BRIDGE_ADAPTER_STALE_MS ?? 30_000);
+const ADAPTER_SWEEP_MS = Math.min(10_000, Math.max(1_000, Math.floor(ADAPTER_STALE_MS / 2)));
 
 await app.register(websocket);
 await rabbit.connect();
@@ -25,6 +28,7 @@ interface PendingAdapterCommand {
   adapterAssignedId: string;
   adapterId: string;
   simulatorType: string;
+  timeout: NodeJS.Timeout;
 }
 
 const pendingAdapterCommands = new Map<string, PendingAdapterCommand>();
@@ -149,7 +153,59 @@ async function publishCommandFailure(
   });
 }
 
+async function failPendingAdapterCommand(
+  forwardedId: string,
+  pending: PendingAdapterCommand,
+  code: string,
+  failureMessage: string
+) {
+  clearTimeout(pending.timeout);
+  pendingAdapterCommands.delete(forwardedId);
+
+  if (pending.runId && (pending.action === 'bind-session' || pending.action === 'unbind-session')) {
+    adapters.clearSession(pending.runId);
+  }
+
+  await publishSimulatorCommandEvent(
+    pending,
+    {
+      accepted: false,
+      code,
+      message: failureMessage
+    },
+    false
+  );
+}
+
+async function failPendingCommandsForAdapter(adapterAssignedId: string, code: string, failureMessage: string) {
+  const pendingForAdapter = Array.from(pendingAdapterCommands.entries())
+    .filter(([, pending]) => pending.adapterAssignedId === adapterAssignedId);
+
+  for (const [forwardedId, pending] of pendingForAdapter) {
+    await failPendingAdapterCommand(forwardedId, pending, code, failureMessage);
+  }
+}
+
 await publishComponentStatus('sim-bridge', 'Sim Bridge', 'running', 'Simulator bridge is accepting adapter registrations');
+
+const heartbeatSweep = setInterval(() => {
+  const staleAdapters = adapters.evictStale(ADAPTER_STALE_MS);
+  for (const adapter of staleAdapters) {
+    app.log.warn({ adapterAssignedId: adapter.assignedId, simulatorType: adapter.simulatorType }, 'evicted stale simulator adapter');
+    void failPendingCommandsForAdapter(
+      adapter.assignedId,
+      'ADAPTER_DISCONNECTED',
+      'Simulator adapter heartbeat expired before command acknowledgement'
+    ).catch((error) => app.log.error({ err: error }, 'failed to reject pending adapter commands'));
+    void publishComponentStatus(
+      componentIdForAdapter(adapter.simulatorType),
+      `${adapter.simulatorType} Adapter`,
+      'disconnected',
+      'Adapter heartbeat expired'
+    ).catch((error) => app.log.error({ err: error }, 'failed to publish stale adapter component status'));
+  }
+}, ADAPTER_SWEEP_MS);
+heartbeatSweep.unref();
 
 const adapterEnvelopeSchema = z.object({
   version: z.string().default('1.0'),
@@ -243,6 +299,7 @@ app.get('/adapter', { websocket: true }, (socket) => {
           return;
         }
 
+        clearTimeout(pending.timeout);
         pendingAdapterCommands.delete(pendingKey);
         const succeeded = message.payload.accepted !== false && message.payload.success !== false;
 
@@ -275,12 +332,17 @@ app.get('/adapter', { websocket: true }, (socket) => {
       const adapter = adapters.list().find((entry) => entry.assignedId === assignedId);
       adapters.remove(assignedId);
       if (adapter) {
+        void failPendingCommandsForAdapter(
+          adapter.assignedId,
+          'ADAPTER_DISCONNECTED',
+          'Simulator adapter disconnected before command acknowledgement'
+        ).catch((error) => app.log.error({ err: error }, 'failed to reject pending adapter commands'));
         void publishComponentStatus(
           componentIdForAdapter(adapter.simulatorType),
           `${adapter.simulatorType} Adapter`,
           'disconnected',
           'Adapter disconnected from sim-bridge'
-        );
+        ).catch((error) => app.log.error({ err: error }, 'failed to publish adapter disconnect status'));
       }
     }
   });
@@ -289,8 +351,11 @@ app.get('/adapter', { websocket: true }, (socket) => {
 await rabbit.consume(RABBITMQ_QUEUES.simBridgeCommands, async (message) => {
   const action = message.routingKey.replace('commands.simulator.', '');
   const runId = message.metadata.runId;
+  const preferredSimulatorType = typeof message.payload.simulatorType === 'string'
+    ? message.payload.simulatorType
+    : null;
   const adapter = action === 'bind-session'
-    ? adapters.resolveAvailable()
+    ? adapters.resolveAvailable(preferredSimulatorType)
     : runId
       ? adapters.resolveForSession(runId)
       : null;
@@ -306,15 +371,32 @@ await rabbit.consume(RABBITMQ_QUEUES.simBridgeCommands, async (message) => {
   }
 
   const forwardedId = randomUUID();
-  pendingAdapterCommands.set(forwardedId, {
+  const timeout = setTimeout(() => {
+    const pending = pendingAdapterCommands.get(forwardedId);
+    if (!pending) {
+      return;
+    }
+
+    void failPendingAdapterCommand(
+      forwardedId,
+      pending,
+      'TIMEOUT',
+      `Simulator adapter did not acknowledge ${action} within ${ADAPTER_COMMAND_TIMEOUT_MS}ms`
+    ).catch((error) => app.log.error({ err: error }, 'failed to publish adapter command timeout'));
+  }, ADAPTER_COMMAND_TIMEOUT_MS);
+  timeout.unref();
+
+  const pending: PendingAdapterCommand = {
     action,
     studyId: message.metadata.studyId,
     runId,
     originalCorrelationId: message.metadata.correlationId,
     adapterAssignedId: adapter.assignedId,
     adapterId: adapter.adapterId,
-    simulatorType: adapter.simulatorType
-  });
+    simulatorType: adapter.simulatorType,
+    timeout
+  };
+  pendingAdapterCommands.set(forwardedId, pending);
 
   try {
     adapter.socket.send(JSON.stringify({
@@ -332,6 +414,7 @@ await rabbit.consume(RABBITMQ_QUEUES.simBridgeCommands, async (message) => {
       }
     }));
   } catch (error) {
+    clearTimeout(pending.timeout);
     pendingAdapterCommands.delete(forwardedId);
     if (action === 'bind-session' && runId) {
       adapters.clearSession(runId);

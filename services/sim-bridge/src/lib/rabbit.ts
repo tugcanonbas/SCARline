@@ -1,57 +1,251 @@
-import amqp, { type Channel } from 'amqplib';
-import { rabbitMessageSchema, RABBITMQ_EXCHANGES } from '@scarline/contracts';
+import amqp, { type ChannelModel, type ConfirmChannel, type ConsumeMessage } from 'amqplib';
+import { rabbitMessageSchema, RABBITMQ_EXCHANGES, RABBITMQ_QUEUES } from '@scarline/contracts';
 import type { RabbitMessage } from '@scarline/contracts';
 
+const RECONNECT_DELAY_MS = 2_000;
+const PREFETCH_COUNT = 50;
+const MAX_BUFFERED_PUBLISHES = 500;
+const MAX_PROCESSED_MESSAGE_IDS = 2_000;
+const QUEUE_ARGUMENTS = {
+  'x-message-ttl': 300_000,
+  'x-dead-letter-exchange': RABBITMQ_EXCHANGES.dlx
+};
+
+type ConsumerRegistration = {
+  queue: string;
+  handler: (message: RabbitMessage) => Promise<void>;
+};
+
+type BufferedPublish = {
+  message: RabbitMessage;
+  resolve: () => void;
+  reject: (error: Error) => void;
+};
+
 export class RabbitManager {
-  private connection: Awaited<ReturnType<typeof amqp.connect>> | null = null;
-  private channel: Channel | null = null;
+  private connection: ChannelModel | null = null;
+  private channel: ConfirmChannel | null = null;
+  private connecting: Promise<void> | null = null;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private readonly consumers = new Map<string, ConsumerRegistration>();
+  private readonly bufferedPublishes: BufferedPublish[] = [];
+  private readonly processedMessageIds = new Set<string>();
+  private readonly processedMessageIdOrder: string[] = [];
 
   constructor(private readonly url: string) {}
 
   async connect(): Promise<void> {
-    this.connection = await amqp.connect(this.url);
-    this.channel = await this.connection.createChannel();
-    await this.channel.assertExchange(RABBITMQ_EXCHANGES.events, 'topic', { durable: true });
-    await this.channel.assertExchange(RABBITMQ_EXCHANGES.commands, 'topic', { durable: true });
+    if (this.connecting) {
+      return this.connecting;
+    }
+
+    this.connecting = this.openConnection().finally(() => {
+      this.connecting = null;
+    });
+
+    return this.connecting;
+  }
+
+  private async openConnection(): Promise<void> {
+    const connection = await amqp.connect(this.url);
+    const channel = await connection.createConfirmChannel();
+
+    this.connection = connection;
+    this.channel = channel;
+
+    connection.on('error', (error) => {
+      console.error('RabbitMQ connection error', error);
+    });
+    connection.on('close', () => {
+      if (this.connection === connection) {
+        this.connection = null;
+        this.channel = null;
+      }
+      this.scheduleReconnect();
+    });
+    channel.on('error', (error) => {
+      console.error('RabbitMQ channel error', error);
+    });
+    channel.on('close', () => {
+      if (this.channel === channel) {
+        this.channel = null;
+      }
+      this.scheduleReconnect();
+    });
+
+    await this.assertTopology(channel);
+    await channel.prefetch(PREFETCH_COUNT);
+    await this.restoreConsumers();
+    await this.drainBufferedPublishes();
+  }
+
+  private scheduleReconnect(): void {
+    if (this.reconnectTimer) {
+      return;
+    }
+
+    this.reconnectTimer = setTimeout(async () => {
+      this.reconnectTimer = null;
+      try {
+        await this.connect();
+      } catch {
+        this.scheduleReconnect();
+      }
+    }, RECONNECT_DELAY_MS);
+  }
+
+  private async assertTopology(channel: ConfirmChannel): Promise<void> {
+    await channel.assertExchange(RABBITMQ_EXCHANGES.events, 'topic', { durable: true });
+    await channel.assertExchange(RABBITMQ_EXCHANGES.commands, 'topic', { durable: true });
+    await channel.assertExchange(RABBITMQ_EXCHANGES.dlx, 'fanout', { durable: true });
+    await channel.assertQueue(RABBITMQ_QUEUES.simBridgeCommands, {
+      durable: true,
+      arguments: QUEUE_ARGUMENTS
+    });
+    await channel.assertQueue(RABBITMQ_QUEUES.dlq, { durable: true });
+    await channel.bindQueue(RABBITMQ_QUEUES.simBridgeCommands, RABBITMQ_EXCHANGES.commands, 'commands.simulator.*');
+    await channel.bindQueue(RABBITMQ_QUEUES.dlq, RABBITMQ_EXCHANGES.dlx, '');
   }
 
   async publish(message: RabbitMessage): Promise<void> {
-    if (!this.channel) {
-      throw new Error('Rabbit channel unavailable');
+    const parsed = rabbitMessageSchema.parse(message);
+    const channel = this.channel;
+
+    if (!channel) {
+      return this.bufferPublish(parsed);
     }
 
-    rabbitMessageSchema.parse(message);
-    this.channel.publish(
-      message.type === 'event' ? RABBITMQ_EXCHANGES.events : RABBITMQ_EXCHANGES.commands,
-      message.routingKey,
-      Buffer.from(JSON.stringify(message)),
-      {
-        contentType: 'application/json',
-        deliveryMode: 2,
-        messageId: message.id,
-        correlationId: message.metadata.correlationId ?? undefined
+    try {
+      await this.publishNow(channel, parsed);
+    } catch (error) {
+      if (!this.channel) {
+        return this.bufferPublish(parsed);
       }
-    );
+      throw error;
+    }
   }
 
-  async consume(queue: string, handler: (message: RabbitMessage) => Promise<void>): Promise<void> {
-    if (!this.channel) {
-      throw new Error('Rabbit channel unavailable');
+  private async publishNow(channel: ConfirmChannel, message: RabbitMessage): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      channel.publish(
+        message.type === 'event' ? RABBITMQ_EXCHANGES.events : RABBITMQ_EXCHANGES.commands,
+        message.routingKey,
+        Buffer.from(JSON.stringify(message)),
+        {
+          contentType: 'application/json',
+          deliveryMode: 2,
+          messageId: message.id,
+          correlationId: message.metadata.correlationId ?? undefined
+        },
+        (error: unknown) => {
+          if (error) {
+            reject(error instanceof Error ? error : new Error(String(error)));
+            return;
+          }
+          resolve();
+        }
+      );
+    });
+  }
+
+  private bufferPublish(message: RabbitMessage): Promise<void> {
+    if (this.bufferedPublishes.length >= MAX_BUFFERED_PUBLISHES) {
+      return Promise.reject(new Error(`RabbitMQ publish buffer exceeded ${MAX_BUFFERED_PUBLISHES} messages`));
     }
 
-    await this.channel.consume(queue, async (raw) => {
-      if (!raw) {
+    return new Promise((resolve, reject) => {
+      this.bufferedPublishes.push({
+        message,
+        resolve,
+        reject
+      });
+      this.scheduleReconnect();
+    });
+  }
+
+  private async drainBufferedPublishes(): Promise<void> {
+    while (this.channel && this.bufferedPublishes.length > 0) {
+      const next = this.bufferedPublishes.shift();
+      if (!next) {
         return;
       }
 
       try {
-        const message = rabbitMessageSchema.parse(JSON.parse(raw.content.toString('utf8')));
-        await handler(message);
-        this.channel?.ack(raw);
+        await this.publishNow(this.channel, next.message);
+        next.resolve();
       } catch (error) {
-        this.channel?.nack(raw, false, false);
-        throw error;
+        next.reject(error instanceof Error ? error : new Error('Buffered RabbitMQ publish failed'));
+        this.scheduleReconnect();
+        return;
       }
+    }
+  }
+
+  async consume(queue: string, handler: (message: RabbitMessage) => Promise<void>): Promise<void> {
+    this.consumers.set(queue, {
+      queue,
+      handler
     });
+
+    if (this.channel) {
+      await this.consumeNow(this.channel, queue, handler);
+    }
+  }
+
+  private async restoreConsumers(): Promise<void> {
+    if (!this.channel) {
+      return;
+    }
+
+    for (const consumer of this.consumers.values()) {
+      await this.consumeNow(this.channel, consumer.queue, consumer.handler);
+    }
+  }
+
+  private async consumeNow(
+    channel: ConfirmChannel,
+    queue: string,
+    handler: (message: RabbitMessage) => Promise<void>
+  ): Promise<void> {
+    await channel.consume(queue, async (raw) => {
+      if (!raw) {
+        return;
+      }
+
+      await this.handleMessage(channel, raw, handler);
+    });
+  }
+
+  private async handleMessage(
+    channel: ConfirmChannel,
+    raw: ConsumeMessage,
+    handler: (message: RabbitMessage) => Promise<void>
+  ): Promise<void> {
+    try {
+      const message = rabbitMessageSchema.parse(JSON.parse(raw.content.toString('utf8')));
+      if (this.processedMessageIds.has(message.id)) {
+        channel.ack(raw);
+        return;
+      }
+
+      await handler(message);
+      this.markProcessed(message.id);
+      channel.ack(raw);
+    } catch (error) {
+      console.error('RabbitMQ consumer failed; dead-lettering message', error);
+      channel.nack(raw, false, false);
+    }
+  }
+
+  private markProcessed(messageId: string): void {
+    this.processedMessageIds.add(messageId);
+    this.processedMessageIdOrder.push(messageId);
+
+    while (this.processedMessageIdOrder.length > MAX_PROCESSED_MESSAGE_IDS) {
+      const oldest = this.processedMessageIdOrder.shift();
+      if (oldest) {
+        this.processedMessageIds.delete(oldest);
+      }
+    }
   }
 }

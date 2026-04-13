@@ -5,17 +5,60 @@ import contextlib
 import json
 import math
 import os
+import random
 import time
 import uuid
+from pathlib import Path
 from dataclasses import dataclass, field
 
 import websockets
+import yaml
 
 
 SIM_BRIDGE_URL = os.environ.get("SIM_BRIDGE_URL", "ws://sim-bridge:9000/adapter")
 DEFAULT_SCENARIO = os.environ.get("MOCK_SCENARIO", "city_drive")
+SCENARIO_CATALOGUE_PATH = Path(os.environ.get("MOCK_SCENARIO_CATALOGUE", "scenarios.yaml"))
 TELEMETRY_RATE = max(int(os.environ.get("MOCK_TELEMETRY_RATE", "20")), 1)
 RECONNECT_DELAY_SECONDS = max(float(os.environ.get("MOCK_RECONNECT_DELAY", "2")), 0.5)
+
+DEFAULT_SCENARIOS: dict[str, dict] = {
+    "city_drive": {
+        "map": "MockTown01",
+        "speedLimit": 50,
+        "baseThrottle": 0.45,
+        "speedOscillation": 8.0,
+        "traffic": {"npcCount": 12},
+        "events": {"laneInvasionEveryTicks": 0, "collisionEveryTicks": 0, "cameraEveryTicks": 20},
+        "seed": 101,
+    },
+    "highway": {
+        "map": "MockHighway01",
+        "speedLimit": 100,
+        "baseThrottle": 0.72,
+        "speedOscillation": 12.0,
+        "traffic": {"npcCount": 26},
+        "events": {"laneInvasionEveryTicks": 160, "collisionEveryTicks": 0, "cameraEveryTicks": 20},
+        "seed": 202,
+    },
+    "parking": {
+        "map": "MockParking01",
+        "speedLimit": 15,
+        "baseThrottle": 0.18,
+        "speedOscillation": 2.0,
+        "traffic": {"npcCount": 2},
+        "events": {"laneInvasionEveryTicks": 0, "collisionEveryTicks": 0, "cameraEveryTicks": 20},
+        "seed": 303,
+    },
+    "stop_go": {
+        "map": "MockTownStopGo",
+        "speedLimit": 35,
+        "baseThrottle": 0.38,
+        "speedOscillation": 18.0,
+        "traffic": {"npcCount": 18, "stopGo": True},
+        "events": {"laneInvasionEveryTicks": 90, "collisionEveryTicks": 0, "cameraEveryTicks": 20},
+        "seed": 404,
+    },
+}
 
 
 def iso_timestamp() -> str:
@@ -24,6 +67,8 @@ def iso_timestamp() -> str:
 
 @dataclass
 class MockSessionState:
+    scenario_catalogue: dict[str, dict] = field(default_factory=dict)
+    scenario_config: dict = field(default_factory=dict)
     scenario: str = DEFAULT_SCENARIO
     study_id: str | None = None
     session_id: str | None = None
@@ -34,6 +79,50 @@ class MockSessionState:
     controls: dict = field(default_factory=lambda: {"throttle": 0.45, "brake": 0.0, "steer": 0.0})
     paused: bool = False
     tick: int = 0
+    rng: random.Random = field(default_factory=random.Random)
+
+
+def load_scenario_catalogue(path: Path) -> dict[str, dict]:
+    if not path.exists():
+        return DEFAULT_SCENARIOS
+
+    with path.open("r", encoding="utf-8") as handle:
+        parsed = yaml.safe_load(handle) or {}
+
+    scenarios = parsed.get("scenarios", parsed)
+    if not isinstance(scenarios, dict):
+        raise ValueError("Mock scenario catalogue must be a mapping or contain a scenarios mapping")
+
+    catalogue = DEFAULT_SCENARIOS.copy()
+    for name, config in scenarios.items():
+        if isinstance(name, str) and isinstance(config, dict):
+            catalogue[name] = {**catalogue.get(name, {}), **config}
+
+    return catalogue
+
+
+def select_scenario(state: MockSessionState, requested: str | None) -> dict:
+    scenario_name = requested or DEFAULT_SCENARIO
+    if scenario_name not in state.scenario_catalogue:
+        scenario_name = DEFAULT_SCENARIO if DEFAULT_SCENARIO in state.scenario_catalogue else "city_drive"
+
+    scenario = state.scenario_catalogue.get(scenario_name, DEFAULT_SCENARIOS["city_drive"])
+    state.scenario = scenario_name
+    state.scenario_config = scenario
+    seed = int(os.environ.get("MOCK_SCENARIO_SEED", scenario.get("seed", 42)))
+    session_offset = sum(ord(char) for char in str(state.session_id or ""))
+    state.rng.seed(seed + session_offset)
+    return scenario
+
+
+def scenario_events(state: MockSessionState) -> dict:
+    events = state.scenario_config.get("events", {})
+    return events if isinstance(events, dict) else {}
+
+
+def should_emit_every(state: MockSessionState, key: str) -> bool:
+    every = int(scenario_events(state).get(key, 0) or 0)
+    return every > 0 and state.tick > 0 and state.tick % every == 0
 
 
 async def send_message(socket, message_type: str, payload: dict, *, correlation_id: str | None = None) -> None:
@@ -85,11 +174,14 @@ async def heartbeat_loop(socket, state: MockSessionState) -> None:
 
 def current_speed(state: MockSessionState) -> float:
     if state.controls["brake"] > 0:
-        return round(max(0.0, 25.0 - (state.controls["brake"] * 80.0)), 2)
+        speed_limit = float(state.scenario_config.get("speedLimit", 50))
+        return round(max(0.0, min(speed_limit, 25.0) - (state.controls["brake"] * 80.0)), 2)
 
-    throttle_speed = state.controls["throttle"] * 120.0
-    oscillation = math.sin(state.tick / 10) * 8.0
-    return round(max(0.0, throttle_speed + oscillation), 2)
+    speed_limit = float(state.scenario_config.get("speedLimit", 50))
+    speed_oscillation = float(state.scenario_config.get("speedOscillation", 8.0))
+    throttle_speed = state.controls["throttle"] * max(speed_limit * 1.2, 1.0)
+    oscillation = math.sin(state.tick / 10) * speed_oscillation
+    return round(max(0.0, min(speed_limit * 1.15, throttle_speed + oscillation)), 2)
 
 
 async def telemetry_loop(socket, state: MockSessionState) -> None:
@@ -102,6 +194,7 @@ async def telemetry_loop(socket, state: MockSessionState) -> None:
 
         speed = current_speed(state)
         yaw = state.tick % 360
+        speed_limit = float(state.scenario_config.get("speedLimit", 50))
 
         await send_event(
             socket,
@@ -109,9 +202,13 @@ async def telemetry_loop(socket, state: MockSessionState) -> None:
             {
                 "vehicle": {
                     "speed": speed,
-                    "speedLimit": 50,
+                    "speedLimit": speed_limit,
                     "acceleration": round(state.controls["throttle"] * 2.4, 2),
-                    "position": {"x": round(state.tick * 0.5, 2), "y": 0, "z": 0.5},
+                    "position": {
+                        "x": round(state.tick * max(speed, 1.0) / (TELEMETRY_RATE * 3.6), 2),
+                        "y": round(math.sin(state.tick / 18) * state.controls["steer"], 3),
+                        "z": 0.5,
+                    },
                     "rotation": {"pitch": 0, "yaw": yaw, "roll": 0},
                     "velocity": {"x": round(speed / 3.6, 3), "y": 0, "z": 0},
                     "gear": 3,
@@ -123,6 +220,50 @@ async def telemetry_loop(socket, state: MockSessionState) -> None:
             state.study_id,
             state.session_id,
         )
+
+        if should_emit_every(state, "laneInvasionEveryTicks"):
+            await send_event(
+                socket,
+                f"events.{state.study_id}.{state.session_id}.driving.vehicle.lane-invasion",
+                {
+                    "frame": state.tick,
+                    "laneMarking": state.rng.choice(["solid", "broken", "curb"]),
+                    "severity": state.rng.choice(["low", "medium"]),
+                    "scenario": state.scenario,
+                },
+                state.study_id,
+                state.session_id,
+            )
+
+        if should_emit_every(state, "collisionEveryTicks"):
+            await send_event(
+                socket,
+                f"events.{state.study_id}.{state.session_id}.driving.vehicle.collision",
+                {
+                    "frame": state.tick,
+                    "otherActor": state.rng.choice(["vehicle.mock.audi", "static.traffic_cone", "walker.pedestrian.mock"]),
+                    "impulse": round(state.rng.uniform(0.8, 4.5), 2),
+                    "scenario": state.scenario,
+                },
+                state.study_id,
+                state.session_id,
+            )
+
+        if should_emit_every(state, "cameraEveryTicks") and state.sensors:
+            await send_event(
+                socket,
+                f"events.{state.study_id}.{state.session_id}.driving.sensor.camera-frame",
+                {
+                    "frame": state.tick,
+                    "sensorId": "mock-camera-front",
+                    "uri": f"mock://{state.session_id}/camera/front/{state.tick:06d}.jpg",
+                    "width": 1280,
+                    "height": 720,
+                    "scenario": state.scenario,
+                },
+                state.study_id,
+                state.session_id,
+            )
 
         if state.tick % TELEMETRY_RATE == 0:
             await send_event(
@@ -136,6 +277,7 @@ async def telemetry_loop(socket, state: MockSessionState) -> None:
                     "actorCount": int(state.traffic.get("npcCount", 10)),
                     "map": state.map_name,
                     "scenario": state.scenario,
+                    "seeded": True,
                 },
                 state.study_id,
                 state.session_id,
@@ -195,11 +337,12 @@ async def run_connection(state: MockSessionState) -> None:
                     state.study_id = payload.get("studyId")
                     state.session_id = payload.get("sessionId")
                     config = payload.get("config", {})
-                    state.map_name = config.get("map", "MockTown01")
+                    scenario = select_scenario(state, config.get("scenario") or payload.get("scenario"))
+                    state.map_name = config.get("map", scenario.get("map", "MockTown01"))
                     state.weather = config.get("weather", {"preset": "ClearNoon", "custom": {}})
-                    state.traffic = config.get("traffic", {})
+                    state.traffic = {**scenario.get("traffic", {}), **config.get("traffic", {})}
                     state.sensors = config.get("sensors", [])
-                    state.controls = {"throttle": 0.45, "brake": 0.0, "steer": 0.0}
+                    state.controls = {"throttle": float(scenario.get("baseThrottle", 0.45)), "brake": 0.0, "steer": 0.0}
                     state.paused = False
                     state.tick = 0
                     telemetry_task = asyncio.create_task(telemetry_loop(socket, state))
@@ -211,6 +354,8 @@ async def run_connection(state: MockSessionState) -> None:
                             "accepted": True,
                             "sessionId": state.session_id,
                             "activeSessionId": state.session_id,
+                            "scenario": state.scenario,
+                            "map": state.map_name,
                         },
                     )
                     continue
@@ -279,7 +424,7 @@ async def run_connection(state: MockSessionState) -> None:
                         {
                             "vehicle": {
                                 "speed": current_speed(state),
-                                "speedLimit": 50,
+                                "speedLimit": float(state.scenario_config.get("speedLimit", 50)),
                                 "throttle": state.controls["throttle"],
                                 "brake": state.controls["brake"],
                                 "steer": state.controls["steer"],
@@ -309,8 +454,9 @@ async def run_connection(state: MockSessionState) -> None:
 
 
 async def main() -> None:
+    scenario_catalogue = load_scenario_catalogue(SCENARIO_CATALOGUE_PATH)
     while True:
-        state = MockSessionState()
+        state = MockSessionState(scenario_catalogue=scenario_catalogue)
         try:
             await run_connection(state)
             print("mock-simulator disconnected; reconnecting", flush=True)

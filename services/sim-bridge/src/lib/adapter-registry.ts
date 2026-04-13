@@ -63,20 +63,50 @@ export class AdapterRegistry {
     return null;
   }
 
-  resolveAvailable(): AdapterState | null {
+  resolveAvailable(preferredSimulatorType?: string | null): AdapterState | null {
+    if (preferredSimulatorType) {
+      for (const adapter of this.adapters.values()) {
+        if (
+          adapter.simulatorType === preferredSimulatorType
+          && adapter.status === 'ready'
+          && adapter.activeSessionId === null
+        ) {
+          return adapter;
+        }
+      }
+    }
+
     for (const adapter of this.adapters.values()) {
-      if (adapter.simulatorType === 'carla' && adapter.activeSessionId === null) {
+      if (adapter.simulatorType === 'carla' && adapter.status === 'ready' && adapter.activeSessionId === null) {
         return adapter;
       }
     }
 
     for (const adapter of this.adapters.values()) {
-      if (adapter.activeSessionId === null) {
+      if (adapter.status === 'ready' && adapter.activeSessionId === null) {
         return adapter;
       }
     }
 
     return null;
+  }
+
+  evictStale(maxAgeMs: number): Omit<AdapterState, 'socket'>[] {
+    const now = Date.now();
+    const removed: Omit<AdapterState, 'socket'>[] = [];
+
+    for (const adapter of this.adapters.values()) {
+      const lastHeartbeatAt = Date.parse(adapter.lastHeartbeatAt);
+      if (!Number.isNaN(lastHeartbeatAt) && now - lastHeartbeatAt <= maxAgeMs) {
+        continue;
+      }
+
+      const { socket: _socket, ...snapshot } = adapter;
+      removed.push(snapshot);
+      this.adapters.delete(adapter.assignedId);
+    }
+
+    return removed;
   }
 
   list(): Omit<AdapterState, 'socket'>[] {
