@@ -99,6 +99,10 @@
     return window.open('about:blank', `scarline_widget_${widget.id}`, popupFeatures(widget));
   }
 
+  function launchPriority(left: PlacedWidget, right: PlacedWidget) {
+    return left.order - right.order || left.y - right.y || left.x - right.x;
+  }
+
   async function openElectronWidget(layoutId: string, widget: PlacedWidget) {
     const response = await fetch(`${apiBase}/system/overlay/windows/open`, {
       method: 'POST',
@@ -387,34 +391,72 @@
   }
 
   async function launchBrowserView() {
-    const targets = placed.map((widget) => ({ ...widget }));
+    const targets = [...placed].sort(launchPriority);
     if (targets.length === 0) {
-      saveResult = { ok: false, message: 'Add at least one widget before launching browser windows' };
+      saveResult = { ok: false, message: 'Add at least one widget before launching' };
       return;
     }
-    const popups = targets.map((widget) => ({
+
+    // Distinguish between browser popups and electron windows
+    const popupTargets = targets.filter(w => w.windowMode === 'browser_popup');
+    const electronTargets = targets.filter(w => w.windowMode === 'transparent_electron');
+
+    // 1. Open browser shells immediately (synchronously) to capture user gesture
+    const launcherPopup = window.open('about:blank', 'scarline_launcher', 'popup=yes,width=400,height=300');
+    const widgetPopups = popupTargets.map((widget) => ({
       widget,
       popup: openBrowserWidgetShell(widget)
     }));
+
     try {
       const layoutId = await persistLayout();
-      let opened = 0;
-      for (const entry of popups) {
+      const launchAt = Date.now() + 800; // Give a slight buffer for sync
+      let popupsOpened = 0;
+
+      // 2. Redirect browser popups
+      for (const entry of widgetPopups) {
         if (!entry.popup) continue;
-        entry.popup.location.href = getWidgetOverlayUrl(layoutId, entry.widget.id, 'browser_popup');
-        opened += 1;
+        const targetUrl = new URL(getWidgetOverlayUrl(layoutId, entry.widget.id, 'browser_popup'));
+        targetUrl.searchParams.set('launchAt', String(launchAt));
+        entry.popup.location.replace(targetUrl.toString());
+        popupsOpened += 1;
       }
-      if (opened === 0) {
-        window.open(getOverlayUrl(layoutId), '_blank');
-        saveResult = { ok: false, message: 'Browser blocked widget popups. Allow popups for this site and launch again.' };
-        return;
+
+      // 3. Update launcher
+      if (launcherPopup) {
+        const launcherUrl = new URL(getOverlayUrl(layoutId));
+        launcherUrl.searchParams.set('launchAt', String(launchAt));
+        launcherPopup.location.replace(launcherUrl.toString());
       }
-      saveResult = { ok: true, message: `Opened ${opened} browser widget window${opened === 1 ? '' : 's'}` };
+
+      // 4. Trigger Electron windows via API
+      let electronOpened = 0;
+      for (const widget of electronTargets) {
+        try {
+          await openElectronWidget(layoutId, widget);
+          electronOpened += 1;
+        } catch (e) {
+          console.error('Failed to launch electron widget', widget.id, e);
+        }
+      }
+
+      const totalStarted = popupsOpened + electronOpened;
+      const blocked = popupTargets.length - popupsOpened;
+
+      if (totalStarted === 0 && targets.length > 0) {
+        saveResult = { ok: false, message: 'Browser blocked popups and Electron host unreachable.' };
+      } else {
+        saveResult = { 
+          ok: true, 
+          message: `Launched ${totalStarted} widget(s). ${blocked > 0 ? `(${blocked} browser popups blocked, use launcher)` : ''}`
+        };
+      }
     } catch (error) {
-      for (const entry of popups) {
+      launcherPopup?.close();
+      for (const entry of widgetPopups) {
         entry.popup?.close();
       }
-      saveResult = { ok: false, message: error instanceof Error ? error.message : 'Failed to launch browser view' };
+      saveResult = { ok: false, message: error instanceof Error ? error.message : 'Failed to launch layout' };
     }
   }
 
