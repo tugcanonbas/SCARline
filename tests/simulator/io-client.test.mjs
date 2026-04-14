@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = '/Users/tugcanonbas/Developer/THI_SHK/the-scarline';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 test('io client discovers plugins and publishes degraded sensor health', async () => {
   const source = await readFile(path.join(root, 'python/io-client/scarline_io/__main__.py'), 'utf8');

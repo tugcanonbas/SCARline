@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = '/Users/tugcanonbas/Developer/THI_SHK/the-scarline';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 test('core api exposes websocket route and milestone endpoints', async () => {
   const source = [
@@ -149,4 +150,25 @@ test('core command handler waits for simulator lifecycle acknowledgements', asyn
   assert.match(source, /'pause-session'/);
   assert.match(source, /'resume-session'/);
   assert.match(source, /'unbind-session'/);
+});
+
+test('core api hardens realtime scoping, component status, triggers, and outbox', async () => {
+  const api = await readFile(path.join(root, 'services/core-api/src/lib/api.ts'), 'utf8');
+  const events = await readFile(path.join(root, 'services/core-api/src/lib/events.ts'), 'utf8');
+  const commands = await readFile(path.join(root, 'services/core-api/src/lib/commands.ts'), 'utf8');
+  const schema = await readFile(path.join(root, 'infra/database/schema.sql'), 'utf8');
+  const prd = await readFile(path.join(root, 'services/core-api/src/lib/prd-routes.ts'), 'utf8');
+
+  assert.match(api, /x-scarline-internal-token/);
+  assert.match(api, /SCARLINE_INTERNAL_API_TOKEN/);
+  assert.match(api, /Session must be running to trigger widgets/);
+  assert.match(api, /widget_instances/);
+  assert.match(api, /simulationStatus\?\.status === 'running'/);
+  assert.match(events, /wsHub\.broadcast\('widget\.updates', \{\s*studyId:/);
+  assert.match(events, /ON CONFLICT \(message_id\) DO NOTHING/);
+  assert.match(commands, /event_outbox/);
+  assert.match(commands, /publishPendingOutbox/);
+  assert.match(schema, /message_id UUID UNIQUE/);
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS event_outbox/);
+  assert.match(prd, /EXPORT_SCOPE_MISMATCH/);
 });

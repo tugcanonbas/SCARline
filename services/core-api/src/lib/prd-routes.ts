@@ -1255,6 +1255,25 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
       return fail(reply, 400, 'INVALID_EXPORT_SCOPE', payloadResult.error.issues[0]?.message ?? 'Invalid export request');
     }
     const payload = payloadResult.data;
+    if (payload.sessionId) {
+      const session = await queryOne<{ study_id: string }>(
+        pool,
+        `SELECT study_id FROM sessions WHERE id = $1`,
+        [payload.sessionId]
+      );
+      if (!session) {
+        return fail(reply, 404, 'NOT_FOUND', 'Session not found');
+      }
+      if (payload.studyId && session.study_id !== payload.studyId) {
+        return fail(reply, 409, 'EXPORT_SCOPE_MISMATCH', 'Session does not belong to the selected study');
+      }
+    }
+    if (payload.studyId) {
+      const study = await queryOne<{ id: string }>(pool, `SELECT id FROM studies WHERE id = $1`, [payload.studyId]);
+      if (!study) {
+        return fail(reply, 404, 'NOT_FOUND', 'Study not found');
+      }
+    }
     const requestedBy = actorUserId(request, config);
     const row = await queryOne<ExportJobRow>(pool, `
       INSERT INTO export_jobs (study_id, session_id, format, scope, status, progress, requested_by, parameters)

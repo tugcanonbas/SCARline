@@ -108,6 +108,7 @@ load_config() {
   export POSTGRES_PASSWORD="${SCARLINE_database_password:-scarline}"
   export RABBITMQ_USER="${SCARLINE_rabbitmq_user:-scarline}"
   export RABBITMQ_PASSWORD="${SCARLINE_rabbitmq_password:-scarline}"
+  export SCARLINE_INTERNAL_API_TOKEN="${SCARLINE_internal_api_token:-scarline-development-internal-token}"
   export CARLA_SERVER_PORT="${SCARLINE_carla_server_port:-2000}"
   export CARLA_SERVER_PATH="${SCARLINE_carla_server_path:-}"
   export OVERLAY_TRANSPARENT_ENABLED="${SCARLINE_overlay_transparent_enabled:-true}"
@@ -142,7 +143,11 @@ compose() {
   files=($(compose_files))
   IFS="${previous_ifs}"
 
-  docker compose "${files[@]}" "$@"
+  if [[ "${DEV_MODE:-false}" == "true" ]]; then
+    COMPOSE_PROFILES="${COMPOSE_PROFILES:+${COMPOSE_PROFILES},}dev" docker compose "${files[@]}" "$@"
+  else
+    docker compose "${files[@]}" "$@"
+  fi
 }
 
 require_cmd() {
@@ -693,7 +698,7 @@ wait_for_successful_exit() {
 notify_core_api() {
   local path="$1"
   if command -v curl >/dev/null 2>&1; then
-    curl -fsS -X POST "http://127.0.0.1:${SCARLINE_PORT}/api/system/${path}" >/dev/null 2>&1 || true
+    curl -fsS -X POST -H "x-scarline-internal-token: ${SCARLINE_INTERNAL_API_TOKEN}" "http://127.0.0.1:${SCARLINE_PORT}/api/system/${path}" >/dev/null 2>&1 || true
   fi
 }
 

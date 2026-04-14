@@ -8,7 +8,9 @@
 
 <PageHeader eyebrow="Team" title="Researchers" description="Manage researcher profiles and their assigned studies.">
   {#snippet actions()}
-    <a class="rounded-2xl bg-[--color-accent-strong] px-4 py-3 text-sm font-semibold text-white" href={appPath('/researchers/new')}>New Researcher</a>
+    {#if data.canManage}
+      <a class="rounded-2xl bg-[--color-accent-strong] px-4 py-3 text-sm font-semibold text-white" href={appPath('/researchers/new')}>New Researcher</a>
+    {/if}
   {/snippet}
 </PageHeader>
 

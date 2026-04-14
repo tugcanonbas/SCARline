@@ -45,19 +45,21 @@
 </div>
 
 <div class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-  <SurfaceCard title="Add Participant" subtitle="Create the participant record used by session setup.">
-    <form class="grid gap-4" method="POST">
-      <label class="grid gap-2 text-sm">
-        <span>Participant Code</span>
-        <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="participantCode" placeholder="P-001" required />
-      </label>
-      <label class="grid gap-2 text-sm">
-        <span>Notes</span>
-        <textarea class="min-h-32 rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="notes"></textarea>
-      </label>
-      <button class="rounded-2xl bg-[--color-accent-strong] px-5 py-3 text-sm font-semibold text-white" type="submit">Add Participant</button>
-    </form>
-  </SurfaceCard>
+  {#if data.canManage}
+    <SurfaceCard title="Add Participant" subtitle="Create the participant record used by session setup.">
+      <form class="grid gap-4" method="POST">
+        <label class="grid gap-2 text-sm">
+          <span>Participant Code</span>
+          <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="participantCode" placeholder="P-001" required />
+        </label>
+        <label class="grid gap-2 text-sm">
+          <span>Notes</span>
+          <textarea class="min-h-32 rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="notes"></textarea>
+        </label>
+        <button class="rounded-2xl bg-[--color-accent-strong] px-5 py-3 text-sm font-semibold text-white" type="submit">Add Participant</button>
+      </form>
+    </SurfaceCard>
+  {/if}
 
   <SurfaceCard title="Current Participants" subtitle="Use these records when creating or reviewing sessions.">
     <div class="space-y-3">

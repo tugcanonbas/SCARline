@@ -37,6 +37,7 @@ interface SensorConfigurationRow {
 }
 
 async function publishEvent(
+  pool: Pool,
   rabbit: RabbitManager,
   routingKey: string,
   payload: Record<string, unknown>,
@@ -56,7 +57,56 @@ async function publishEvent(
     }
   };
 
+  await pool.query(
+    `INSERT INTO event_outbox (id, exchange, routing_key, message, status)
+     VALUES ($1, $2, $3, $4::jsonb, 'pending')
+     ON CONFLICT (id) DO NOTHING`,
+    [message.id, RABBITMQ_EXCHANGES.events, routingKey, JSON.stringify(message)]
+  );
   await rabbit.publish(RABBITMQ_EXCHANGES.events, routingKey, message);
+  await pool.query(
+    `UPDATE event_outbox
+     SET status = 'published', attempts = attempts + 1, published_at = NOW(), last_error = NULL
+     WHERE id = $1`,
+    [message.id]
+  );
+}
+
+export async function publishPendingOutbox(pool: Pool, rabbit: RabbitManager, limit = 50): Promise<number> {
+  const rows = await pool.query<{
+    id: string;
+    exchange: string;
+    routing_key: string;
+    message: RabbitMessage;
+  }>(
+    `SELECT id, exchange, routing_key, message
+     FROM event_outbox
+     WHERE status = 'pending'
+     ORDER BY created_at ASC
+     LIMIT $1`,
+    [limit]
+  );
+
+  for (const row of rows.rows) {
+    try {
+      await rabbit.publish(row.exchange, row.routing_key, row.message);
+      await pool.query(
+        `UPDATE event_outbox
+         SET status = 'published', attempts = attempts + 1, published_at = NOW(), last_error = NULL
+         WHERE id = $1`,
+        [row.id]
+      );
+    } catch (error) {
+      await pool.query(
+        `UPDATE event_outbox
+         SET attempts = attempts + 1, last_error = $2
+         WHERE id = $1`,
+        [row.id, error instanceof Error ? error.message : 'publish failed']
+      );
+    }
+  }
+
+  return rows.rowCount ?? 0;
 }
 
 async function publishCommand(
@@ -269,6 +319,7 @@ export async function handleCoreCommand(message: RabbitMessage, context: Command
           );
 
           await publishEvent(
+            pool,
             rabbit,
             makeEventRoutingKey(session.study_id, session.id, 'study', 'session.started'),
             {
@@ -421,6 +472,7 @@ export async function handleCoreCommand(message: RabbitMessage, context: Command
         });
 
         await publishEvent(
+          pool,
           rabbit,
           makeEventRoutingKey(current.study_id, sessionId, 'study', eventType),
           {
@@ -442,6 +494,7 @@ export async function handleCoreCommand(message: RabbitMessage, context: Command
         const studyId = String(message.metadata.studyId);
         const runId = String(message.metadata.runId);
         await publishEvent(
+          pool,
           rabbit,
           makeEventRoutingKey(studyId, runId, 'study', 'widget.triggered'),
           message.payload,

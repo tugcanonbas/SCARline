@@ -8,7 +8,9 @@
 
 <PageHeader eyebrow="Research Design" title="User Studies" description="Milestone-1 study list with direct navigation into configuration and active controls.">
   {#snippet actions()}
-    <a class="rounded-2xl bg-[--color-accent-strong] px-4 py-3 text-sm font-semibold text-white" href={appPath('/user-studies/new')}>New Study</a>
+    {#if data.canManage}
+      <a class="rounded-2xl bg-[--color-accent-strong] px-4 py-3 text-sm font-semibold text-white" href={appPath('/user-studies/new')}>New Study</a>
+    {/if}
   {/snippet}
 </PageHeader>
 

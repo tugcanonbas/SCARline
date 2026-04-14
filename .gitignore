@@ -210,7 +210,7 @@ build/
 ### SCARline runtime ###
 .scarline.yaml
 .scarline-runtime/
-exports/
+/exports/
 
 # pytype static type analyzer
 .pytype/

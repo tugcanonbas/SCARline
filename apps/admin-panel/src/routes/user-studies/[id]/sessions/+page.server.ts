@@ -1,58 +1,37 @@
-import { apiRequest } from '$lib/server/api';
+import { apiAction, apiRequest } from '$lib/server/api';
 import { requireRole } from '$lib/server/rbac';
-import { fail } from '@sveltejs/kit';
 
 export const load = async ({ fetch, locals, params }) => {
-  await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator', 'viewer']);
+  const user = await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator', 'viewer']);
   return {
     sessions: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/sessions`, locals.accessToken),
     participants: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/participants`, locals.accessToken),
     conditions: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/conditions`, locals.accessToken),
-    studyId: params.id
+    studyId: params.id,
+    canOperate: user.roles?.some((role: string) => role === 'admin' || role === 'researcher' || role === 'operator') ?? false
   };
 };
 
 async function postSessionAction(fetch: typeof globalThis.fetch, locals: App.Locals, studyId: string, sessionId: string, action: string) {
-  const response = await fetch(`${locals.apiBase}/studies/${studyId}/sessions/${sessionId}/${action}`, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${locals.accessToken}`
-    }
-  });
-
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null);
-    return fail(response.status, {
-      message: payload?.error?.message ?? `Failed to ${action} session`
-    });
-  }
-
-  return undefined;
+  const result = await apiAction(fetch, locals.apiBase, `/studies/${studyId}/sessions/${sessionId}/${action}`, locals.accessToken, {
+    method: 'POST'
+  }, `Failed to ${action} session`);
+  return result.ok ? undefined : result.failure;
 }
 
 export const actions = {
   create: async ({ fetch, locals, params, request }) => {
     await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator']);
     const formData = await request.formData();
-    const response = await fetch(`${locals.apiBase}/studies/${params.id}/sessions`, {
+    const result = await apiAction(fetch, locals.apiBase, `/studies/${params.id}/sessions`, locals.accessToken, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${locals.accessToken}`
-      },
       body: JSON.stringify({
         name: formData.get('name') || null,
         participantId: formData.get('participantId') || null,
         conditionId: formData.get('conditionId') || null
       })
-    });
-
-    if (!response.ok) {
-      const payload = await response.json().catch(() => null);
-      return fail(response.status, {
-        message: payload?.error?.message ?? 'Failed to create session'
-      });
-    }
+    }, 'Failed to create session');
+    return result.ok ? undefined : result.failure;
   },
   start: async ({ fetch, locals, params, request }) => {
     await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator']);
@@ -73,22 +52,12 @@ export const actions = {
   cancel: async ({ fetch, locals, params, request }) => {
     await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator']);
     const formData = await request.formData();
-    const response = await fetch(`${locals.apiBase}/studies/${params.id}/sessions/${String(formData.get('sessionId'))}/cancel`, {
+    const result = await apiAction(fetch, locals.apiBase, `/studies/${params.id}/sessions/${String(formData.get('sessionId'))}/cancel`, locals.accessToken, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${locals.accessToken}`
-      },
       body: JSON.stringify({
         reason: formData.get('reason') || null
       })
-    });
-
-    if (!response.ok) {
-      const payload = await response.json().catch(() => null);
-      return fail(response.status, {
-        message: payload?.error?.message ?? 'Failed to cancel session'
-      });
-    }
+    }, 'Failed to cancel session');
+    return result.ok ? undefined : result.failure;
   }
 };

@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = '/Users/tugcanonbas/Developer/THI_SHK/the-scarline';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 test('shared rabbitmq contract keeps dual exchanges and simulator apply-control', async () => {
   const source = await readFile(path.join(root, 'packages/contracts/src/rabbitmq.ts'), 'utf8');

@@ -54,39 +54,41 @@
 </div>
 
 <div class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-  <SurfaceCard title="Create Session" subtitle="Bind a participant and optional condition before starting the session.">
-    {#if form?.message}
-      <p class="mb-4 rounded-2xl border border-red-500/30 bg-red-950/40 px-4 py-3 text-sm text-red-100">
-        {form.message}
-      </p>
-    {/if}
+  {#if data.canOperate}
+    <SurfaceCard title="Create Session" subtitle="Bind a participant and optional condition before starting the session.">
+      {#if form?.message}
+        <p class="mb-4 rounded-2xl border border-red-500/30 bg-red-950/40 px-4 py-3 text-sm text-red-100">
+          {form.message}
+        </p>
+      {/if}
 
-    <form class="grid gap-4" method="POST" action="?/create">
-      <label class="grid gap-2 text-sm">
-        <span>Name</span>
-        <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="name" placeholder="Session 1" />
-      </label>
-      <label class="grid gap-2 text-sm">
-        <span>Participant</span>
-        <select class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="participantId">
-          <option value="">Unassigned</option>
-          {#each data.participants as participant}
-            <option value={participant.id}>{participant.participantCode}</option>
-          {/each}
-        </select>
-      </label>
-      <label class="grid gap-2 text-sm">
-        <span>Condition</span>
-        <select class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="conditionId">
-          <option value="">None</option>
-          {#each data.conditions as condition}
-            <option value={condition.id}>{condition.name}</option>
-          {/each}
-        </select>
-      </label>
-      <button class="rounded-2xl bg-[--color-accent-strong] px-5 py-3 text-sm font-semibold text-white" type="submit">Create Session</button>
-    </form>
-  </SurfaceCard>
+      <form class="grid gap-4" method="POST" action="?/create">
+        <label class="grid gap-2 text-sm">
+          <span>Name</span>
+          <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="name" placeholder="Session 1" />
+        </label>
+        <label class="grid gap-2 text-sm">
+          <span>Participant</span>
+          <select class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="participantId">
+            <option value="">Unassigned</option>
+            {#each data.participants as participant}
+              <option value={participant.id}>{participant.participantCode}</option>
+            {/each}
+          </select>
+        </label>
+        <label class="grid gap-2 text-sm">
+          <span>Condition</span>
+          <select class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="conditionId">
+            <option value="">None</option>
+            {#each data.conditions as condition}
+              <option value={condition.id}>{condition.name}</option>
+            {/each}
+          </select>
+        </label>
+        <button class="rounded-2xl bg-[--color-accent-strong] px-5 py-3 text-sm font-semibold text-white" type="submit">Create Session</button>
+      </form>
+    </SurfaceCard>
+  {/if}
 
   <SurfaceCard title="Session Queue" subtitle="State transitions use existing SvelteKit form actions and CoreAPI commands.">
     <div class="space-y-3">
@@ -117,6 +119,7 @@
             </div>
           </div>
 
+          {#if data.canOperate}
           <div class="flex flex-wrap gap-2">
             {#each ['start', 'pause', 'resume', 'complete'] as actionName}
               <form method="POST" action={`?/${actionName}`}>
@@ -138,6 +141,7 @@
               >cancel</button>
             </form>
           </div>
+          {/if}
        </div>
       {:else}
         <p class="rounded-2xl border border-dashed border-[--color-line] px-4 py-6 text-sm text-slate-400">No sessions have been created yet.</p>
