@@ -7,7 +7,8 @@ export const load = async ({ fetch, locals, params }) => {
   return {
     layouts: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/layouts`, locals.accessToken),
     widgets: await apiRequest(fetch, locals.apiBase, '/widgets/catalogue', locals.accessToken),
-    studyId: params.id
+    studyId: params.id,
+    accessToken: locals.accessToken
   };
 };
 
@@ -47,7 +48,13 @@ export const actions = {
       };
     }
 
-    const body = { name, type: 'participant', targetDisplay: '0', layoutConfig };
+    const body = { 
+      ...layoutConfig,
+      name, 
+      type: 'participant', 
+      targetDisplay: '0',
+      studyId: params.id
+    };
 
     const layoutsResponse = await fetch(`${locals.apiBase}/studies/${params.id}/layouts`, {
       headers: { authorization: `Bearer ${locals.accessToken}` }
@@ -62,7 +69,7 @@ export const actions = {
           'content-type': 'application/json',
           authorization: `Bearer ${locals.accessToken}`
         },
-        body: JSON.stringify({ id: existing.id, studyId: params.id, ...body })
+        body: JSON.stringify({ ...body, id: existing.id })
       });
     } else {
       await fetch(`${locals.apiBase}/studies/${params.id}/layouts`, {

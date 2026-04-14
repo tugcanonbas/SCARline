@@ -43,8 +43,22 @@
   let canvasEl = $state<HTMLDivElement | null>(null);
   let searchQuery = $state('');
   let activeCategory = $state('all');
+  let isTransparent = $state(
+    Boolean(((data.layouts[0] as Record<string, unknown>)?.layoutConfig as any)?.isTransparent ?? true)
+  );
   let saving = $state(false);
   let saveResult = $state<{ ok: boolean; message: string } | null>(null);
+
+  function getOverlayUrl(transparent = true) {
+    const layout = data.layouts[0] as Record<string, unknown>;
+    const url = new URL(`${window.location.origin}/overlay/`);
+    url.searchParams.set('studyId', data.studyId as string);
+    url.searchParams.set('layoutId', layout?.id as string);
+    url.searchParams.set('chrome', transparent ? 'transparent' : 'web');
+    if (!transparent) url.searchParams.set('toolbar', '0');
+    if (data.accessToken) url.searchParams.set('token', data.accessToken as string);
+    return url.toString();
+  }
 
   // ─── Catalogue filtering ────────────────────────────────────────────────────
   const categories = $derived([
@@ -73,10 +87,10 @@
       widgetId: String(w.widgetId ?? ''),
       zoneId: 'primary',
       order: Number(w.order ?? i),
-      x: Number(w.x ?? 40 + i * 160),
-      y: Number(w.y ?? 40),
-      w: getPreferredWidth(String(w.widgetId ?? '')),
-      h: getPreferredHeight(String(w.widgetId ?? '')),
+      x: Math.round(Number(w.x ?? 40 + i * 200) * SCALE_X),
+      y: Math.round(Number(w.y ?? 40) * SCALE_Y),
+      w: Math.round(Number(w.width ?? 180) * SCALE_X),
+      h: Math.round(Number(w.height ?? 180) * SCALE_Y),
       bindingsConfig: (w.bindingsConfig as Record<string, unknown>) ?? {},
       triggerRules: (w.triggerRules as unknown[]) ?? [],
       styleOverrides: (w.styleOverrides as Record<string, unknown>) ?? {}
@@ -170,6 +184,7 @@
     saveResult = null;
     // Build layout payload
     const layoutConfig = {
+      isTransparent,
       zones: [{ id: 'primary', x: 0, y: 0, width: 1920, height: 1080, display: 0 }],
       widgets: placed.map((p, i) => ({
         id: p.id,
@@ -178,6 +193,8 @@
         order: i,
         x: Math.round(p.x / SCALE_X),
         y: Math.round(p.y / SCALE_Y),
+        width: Math.round(p.w / SCALE_X),
+        height: Math.round(p.h / SCALE_Y),
         bindingsConfig: p.bindingsConfig,
         triggerRules: p.triggerRules,
         styleOverrides: p.styleOverrides
@@ -283,6 +300,19 @@
         placeholder="Layout name"
         type="text"
       />
+      <div class="flex items-center gap-4 px-3 py-1 bg-surface-25 border border-line rounded-lg">
+        <label class="flex items-center gap-2 cursor-pointer select-none">
+          <input type="checkbox" bind:checked={isTransparent} class="w-4 h-4 rounded border-line bg-transparent" />
+          <span class="text-xs font-medium text-slate-400">Transparent</span>
+        </label>
+      </div>
+      <button
+        class="px-3 py-1.5 border border-line rounded-lg text-xs font-semibold bg-panel-soft hover:bg-panel-hover transition-colors whitespace-nowrap"
+        onclick={() => window.open(getOverlayUrl(false), '_blank')}
+        type="button"
+      >
+        Launch Browser View
+      </button>
       <button
         class="btn-primary"
         disabled={saving}
