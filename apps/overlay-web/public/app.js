@@ -10,6 +10,7 @@ const apiOrigin = window.__SCARLINE_API_ORIGIN || '';
 const wsBase = window.__SCARLINE_WS_URL || window.location.origin.replace(/^http/, 'ws');
 const token = query.get('token') || '';
 const chromeMode = query.get('chrome') || 'web';
+const launchAtMs = Number(query.get('launchAt') || '0');
 
 const state = {
   layoutId: pathLayoutId || query.get('layoutId') || '',
@@ -93,6 +94,19 @@ function setExportIndicator(progress = state.lastExportProgress) {
   const percent = Number(progress.progress ?? progress.percent ?? progress.percentage ?? 0);
   exportNode.textContent = `Export ${status} ${Math.max(0, Math.min(100, Math.round(percent)))}%`;
   exportNode.dataset.tone = status === 'failed' ? 'error' : status === 'completed' ? 'ready' : 'warn';
+}
+
+function waitForLaunchGate() {
+  if (!Number.isFinite(launchAtMs) || launchAtMs <= 0) {
+    return Promise.resolve();
+  }
+  const delay = launchAtMs - Date.now();
+  if (delay <= 0) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    setTimeout(resolve, delay);
+  });
 }
 
 function setupChrome() {
@@ -779,7 +793,11 @@ function renderLauncherFallback(popups) {
 }
 
 function openBrowserPopups() {
-  const popupWidgets = state.layout?.widgets || [];
+  const popupWidgets = [...(state.layout?.widgets || [])].sort((left, right) => {
+    return Number(left.order || 0) - Number(right.order || 0)
+      || Number(left.y || 0) - Number(right.y || 0)
+      || Number(left.x || 0) - Number(right.x || 0);
+  });
   if (popupWidgets.length === 0) {
     stage.replaceChildren(makeShell('No widgets in layout', 'Add widgets in Participant View to open browser windows.'));
     return;
@@ -1052,7 +1070,8 @@ window.addEventListener('beforeunload', () => {
     state.popupSyncTimer = null;
   }
 });
-renderLayout()
+waitForLaunchGate()
+  .then(renderLayout)
   .then(connectSocket)
   .catch((error) => {
     console.error(error);
