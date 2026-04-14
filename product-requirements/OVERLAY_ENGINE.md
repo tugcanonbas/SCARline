@@ -196,41 +196,31 @@ SCARline.ready();
 
 ---
 
-## 6. Zone and Layout Positioning
+### Absolute Positioning Model
 
-### Zone Model
+Starting in v1.1, the Overlay Engine moved from a zone-relative layout to a **high-precision absolute positioning model**. This allows researchers to place widgets anywhere on a virtual 1920×1080 canvas.
 
-A layout consists of **zones** — rectangular regions on the screen where widgets are placed:
+- **Storage**: Coordinates (`x`, `y`) and dimensions (`width`, `height`) are stored per widget instance in the `widget_instances` table.
+- **Scaling**: The Admin Panel uses a scaled preview, but all coordinates are persisted in "logical pixels" relative to a 1080p resolution. The Overlay Engine maps these back to the physical screen size.
+- **Transparency**: A layout-level `isTransparent` flag determines if the container window should have a solid background (standard web mode) or a transparent background (Electron overlay mode).
+
+### Updated Layout Config
 
 ```json
 {
+  "isTransparent": true,
   "zones": [
+    { "id": "primary", "x": 0, "y": 0, "width": 1920, "height": 1080, "display": 0 }
+  ],
+  "widgets": [
     {
-      "id": "top-bar",
-      "x": 0,
-      "y": 0,
-      "width": 1920,
-      "height": 100,
-      "display": 0,
-      "widgets": ["time", "speedometer"]
-    },
-    {
-      "id": "center-console",
-      "x": 700,
-      "y": 400,
-      "width": 520,
-      "height": 600,
-      "display": 0,
-      "widgets": ["navigation-prompt", "music", "contactlist"]
-    },
-    {
-      "id": "instrument-cluster",
-      "x": 400,
-      "y": 800,
-      "width": 1120,
-      "height": 280,
-      "display": 0,
-      "widgets": ["speedometer"]
+      "id": "uuid-1",
+      "widgetId": "speedometer",
+      "zoneId": "primary",
+      "x": 40,
+      "y": 40,
+      "width": 200,
+      "height": 200
     }
   ]
 }
@@ -238,11 +228,10 @@ A layout consists of **zones** — rectangular regions on the screen where widge
 
 ### Widget Sizing
 
-Widgets are sized based on their `widget.json` metadata and the zone constraints:
+Widgets are sized based on their intended design dimensions rather than just a zone container:
 
-- **Minimum size**: Widget's declared `minWidth` × `minHeight`
-- **Preferred size**: Widget's declared `preferredWidth` × `preferredHeight`
-- **Actual size**: Negotiated to fit within the zone, respecting minimum constraints
+- **Persisted Width/Height**: The exact dimensions set by the researcher in the Admin Panel editor.
+- **Responsive Handling**: Widgets within the `<iframe>` should ideally use `w-full h-full` to adapt to the container provided by the Overlay Engine.
 
 ---
 

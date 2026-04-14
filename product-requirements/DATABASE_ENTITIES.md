@@ -219,6 +219,10 @@ Individual widget instances placed within a view layout.
 | `widget_id` | `VARCHAR(100)` | `NOT NULL` | Widget catalogue ID (e.g., `speedometer`) |
 | `zone_id` | `VARCHAR(100)` | | Target zone within the layout |
 | `order` | `INTEGER` | `DEFAULT 0` | Order within the zone |
+| `x` | `INTEGER` | `DEFAULT 0` | X-coordinate in 1080p pixels |
+| `y` | `INTEGER` | `DEFAULT 0` | Y-coordinate in 1080p pixels |
+| `width` | `INTEGER` | `DEFAULT 180` | Width in 1080p pixels |
+| `height` | `INTEGER` | `DEFAULT 180` | Height in 1080p pixels |
 | `bindings_config` | `JSONB` | `DEFAULT '{}'` | Custom binding configuration |
 | `trigger_rules` | `JSONB` | `DEFAULT '[]'` | Trigger rules for this instance |
 | `style_overrides` | `JSONB` | `DEFAULT '{}'` | Style overrides (size, position) |
