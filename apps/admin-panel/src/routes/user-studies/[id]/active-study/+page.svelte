@@ -282,40 +282,42 @@
       </div>
       <p>Layouts configured: <strong class="text-white">{data.layouts.length}</strong></p>
     </div>
-    <div class="mt-4 control-rail">
-      <form method="POST" action="?/start">
-        <input type="hidden" name="sessionId" value={selectedSession} />
-        <button disabled={!canTransition('start')} type="submit">Start</button>
-      </form>
-      <form method="POST" action="?/pause">
-        <input type="hidden" name="sessionId" value={selectedSession} />
-        <button disabled={!canTransition('pause')} type="submit">Pause</button>
-      </form>
-      <form method="POST" action="?/resume">
-        <input type="hidden" name="sessionId" value={selectedSession} />
-        <button disabled={!canTransition('resume')} type="submit">Resume</button>
-      </form>
-      <form method="POST" action="?/complete">
-        <input type="hidden" name="sessionId" value={selectedSession} />
-        <button disabled={!canTransition('complete')} type="submit">Complete</button>
-      </form>
-      <form method="POST" action="?/cancel">
-        <input type="hidden" name="sessionId" value={selectedSession} />
-        <input type="hidden" name="reason" value="Operator cancelled session" />
-        <button disabled={!canTransition('cancel')} type="submit">Cancel</button>
-      </form>
-    </div>
-    <button
-      class="mt-4 rounded-xl border border-[--color-line] px-4 py-2 text-sm text-slate-200 hover:bg-[--color-panel-hover] disabled:cursor-not-allowed disabled:opacity-50"
-      type="button"
-      disabled={!browserLauncherUrl()}
-      onclick={() => {
-        const url = browserLauncherUrl();
-        if (url) window.open(url, '_blank');
-      }}
-    >
-      Launch Browser Popup Widgets
-    </button>
+    {#if data.canOperate}
+      <div class="mt-4 control-rail">
+        <form method="POST" action="?/start">
+          <input type="hidden" name="sessionId" value={selectedSession} />
+          <button disabled={!canTransition('start')} type="submit">Start</button>
+        </form>
+        <form method="POST" action="?/pause">
+          <input type="hidden" name="sessionId" value={selectedSession} />
+          <button disabled={!canTransition('pause')} type="submit">Pause</button>
+        </form>
+        <form method="POST" action="?/resume">
+          <input type="hidden" name="sessionId" value={selectedSession} />
+          <button disabled={!canTransition('resume')} type="submit">Resume</button>
+        </form>
+        <form method="POST" action="?/complete">
+          <input type="hidden" name="sessionId" value={selectedSession} />
+          <button disabled={!canTransition('complete')} type="submit">Complete</button>
+        </form>
+        <form method="POST" action="?/cancel">
+          <input type="hidden" name="sessionId" value={selectedSession} />
+          <input type="hidden" name="reason" value="Operator cancelled session" />
+          <button disabled={!canTransition('cancel')} type="submit">Cancel</button>
+        </form>
+      </div>
+      <button
+        class="mt-4 rounded-xl border border-[--color-line] px-4 py-2 text-sm text-slate-200 hover:bg-[--color-panel-hover] disabled:cursor-not-allowed disabled:opacity-50"
+        type="button"
+        disabled={!browserLauncherUrl()}
+        onclick={() => {
+          const url = browserLauncherUrl();
+          if (url) window.open(url, '_blank');
+        }}
+      >
+        Launch Browser Popup Widgets
+      </button>
+    {/if}
     <p class="mt-4 text-sm text-slate-400">Session lifecycle controls are wired to CoreAPI command routes for operator execution.</p>
   </SurfaceCard>
 
@@ -391,6 +393,7 @@
   </SurfaceCard>
   <SurfaceCard title="Widget Updates" subtitle="Live widget actions and manual trigger targets.">
     <div class="mb-4 flex flex-wrap gap-2">
+      {#if data.canOperate}
       {#each data.triggerableWidgets as widget}
         <form method="POST" action="?/trigger">
           <input type="hidden" name="sessionId" value={selectedSession} />
@@ -406,6 +409,7 @@
           </button>
         </form>
       {/each}
+      {/if}
     </div>
     <div class="space-y-3">
       {#each $widgetUpdates as update}
@@ -455,7 +459,9 @@
             <button type="button" class="rounded-lg border border-[--color-line] px-2 py-1 text-xs text-slate-300" onclick={() => nudgeWindow(entry, 0, 10)}>↓10</button>
             <button type="button" class="rounded-lg border border-[--color-line] px-2 py-1 text-xs text-slate-300" onclick={() => resizeWindow(entry, 20, 20)}>+20 size</button>
             <button type="button" class="rounded-lg border border-[--color-line] px-2 py-1 text-xs text-slate-300" onclick={() => resizeWindow(entry, -20, -20)}>-20 size</button>
-            <button type="button" class="rounded-lg border border-indigo-500/50 bg-indigo-500/15 px-3 py-1 text-xs font-semibold text-indigo-200" onclick={() => applyWindowUpdate(entry.instanceId)}>Apply</button>
+            {#if data.canOperate}
+              <button type="button" class="rounded-lg border border-indigo-500/50 bg-indigo-500/15 px-3 py-1 text-xs font-semibold text-indigo-200" onclick={() => applyWindowUpdate(entry.instanceId)}>Apply</button>
+            {/if}
           </div>
         </div>
       {:else}

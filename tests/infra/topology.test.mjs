@@ -5,8 +5,9 @@ import { execFile } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
 
-const root = '/Users/tugcanonbas/Developer/THI_SHK/the-scarline';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const execFileAsync = promisify(execFile);
 
 test('rabbitmq definitions expose milestone queues and exchanges', async () => {
@@ -238,4 +239,16 @@ test('launcher correctly configures IPC socket paths for cross-platform fallback
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+});
+
+test('launcher and compose configure internal status auth, dev seed, and healthy gateway dependencies', async () => {
+  const launcher = await readFile(path.join(root, 'scarline'), 'utf8');
+  const compose = await readFile(path.join(root, 'docker-compose.yml'), 'utf8');
+
+  assert.match(launcher, /SCARLINE_INTERNAL_API_TOKEN/);
+  assert.match(launcher, /x-scarline-internal-token/);
+  assert.match(launcher, /COMPOSE_PROFILES=.*dev/);
+  assert.match(compose, /SCARLINE_INTERNAL_API_TOKEN/);
+  assert.match(compose, /condition: service_healthy/);
+  assert.match(compose, /127\.0\.0\.1:4040/);
 });

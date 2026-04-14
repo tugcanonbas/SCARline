@@ -116,6 +116,7 @@
 
 <div class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr] mt-4">
   <!-- ── Add Condition ──────────────────────────────────────────────────── -->
+  {#if data.canManage}
   <SurfaceCard title="Add Condition" subtitle="Define a new study condition variant with CARLA, widget, and trigger rule configuration.">
     <form class="grid gap-4" method="POST" action="?/create" use:enhance>
       <label class="grid gap-2 text-sm">
@@ -220,6 +221,7 @@
       >Save Condition</button>
     </form>
   </SurfaceCard>
+  {/if}
 
   <!-- ── Condition Set ──────────────────────────────────────────────────── -->
   <SurfaceCard title="Condition Set" subtitle="Operational summary and inline editor for each condition variant.">
@@ -234,6 +236,7 @@
             </div>
             <div class="condition-card__actions">
               <span class="condition-order-badge">Order {c.order ?? 0}</span>
+              {#if data.canManage}
               {#if editingId !== String(c.id)}
                 <button
                   class="condition-action-btn"
@@ -255,10 +258,11 @@
                   onclick={(e) => !confirm('Delete this condition?') && e.preventDefault()}
                 >Delete</button>
               </form>
+              {/if}
             </div>
           </div>
 
-          {#if editingId === String(c.id)}
+          {#if data.canManage && editingId === String(c.id)}
             <!-- Inline edit form -->
             <form class="condition-edit-form" method="POST" action="?/update" use:enhance={() => {
               return async ({ update }) => { await update(); cancelEdit(); }

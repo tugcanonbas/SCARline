@@ -174,9 +174,11 @@ export async function handleEvent(message: RabbitMessage, context: EventContext)
 
   if (studyId !== 'system' && runId !== 'global') {
     await pool.query(
-      `INSERT INTO session_events (session_id, study_id, timestamp, event_type, modality, source, routing_key, payload)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
+      `INSERT INTO session_events (message_id, session_id, study_id, timestamp, event_type, modality, source, routing_key, payload)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+       ON CONFLICT (message_id) DO NOTHING`,
       [
+        message.id,
         runId,
         studyId,
         message.timestamp,
@@ -239,11 +241,17 @@ export async function handleEvent(message: RabbitMessage, context: EventContext)
     }
     wsHub.broadcast('sensor.status', message.payload);
   } else if (message.routingKey === 'events.system.global.system.export.progress' || (modality === 'system' && eventType === 'export.progress')) {
-    wsHub.broadcast('export.progress', message.payload);
+    wsHub.broadcast('export.progress', {
+      studyId: studyId === 'system' ? null : studyId,
+      sessionId: runId === 'global' ? null : runId,
+      ...message.payload
+    });
   } else if (modality === 'sensor' && eventType === 'io.driver_status') {
     wsHub.broadcast('sensor.status', message.payload);
     wsHub.broadcast('widget.updates', {
       routingKey: message.routingKey,
+      studyId: studyId === 'system' ? null : studyId,
+      sessionId: runId === 'global' ? null : runId,
       payload: message.payload
     });
   } else if (message.routingKey.includes('.session.')) {
@@ -269,10 +277,18 @@ export async function handleEvent(message: RabbitMessage, context: EventContext)
     });
     wsHub.broadcast('widget.updates', {
       routingKey: message.routingKey,
+      studyId: studyId === 'system' ? null : studyId,
+      sessionId: runId === 'global' ? null : runId,
+      modality,
+      eventType,
       payload: message.payload
     });
   } else if (message.routingKey.includes('.widget.')) {
-    wsHub.broadcast('widget.updates', message.payload);
+    wsHub.broadcast('widget.updates', {
+      studyId: studyId === 'system' ? null : studyId,
+      sessionId: runId === 'global' ? null : runId,
+      ...message.payload
+    });
   }
 
   if (message.routingKey.endsWith('.driving.io.steering')) {

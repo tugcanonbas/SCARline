@@ -4,7 +4,7 @@ import websocket from '@fastify/websocket';
 import rateLimit from '@fastify/rate-limit';
 import { ComponentRegistry } from './lib/component-status.js';
 import { loadConfig } from './lib/config.js';
-import { handleCoreCommand } from './lib/commands.js';
+import { handleCoreCommand, publishPendingOutbox } from './lib/commands.js';
 import { createPool } from './lib/db.js';
 import { handleEvent } from './lib/events.js';
 import { globalErrorHandler } from './lib/errors.js';
@@ -22,10 +22,10 @@ const app = Fastify({
   logger: true
 });
 
-await app.register(websocket);
+await app.register(websocket as never);
 
 // Global Rate Limiting: 100 requests per minute per IP
-await app.register(rateLimit, {
+await app.register(rateLimit as never, {
   max: 100,
   timeWindow: '1 minute'
 });
@@ -34,6 +34,12 @@ await app.register(rateLimit, {
 app.setErrorHandler(globalErrorHandler);
 
 await rabbit.connect();
+await publishPendingOutbox(pool, rabbit);
+setInterval(() => {
+  void publishPendingOutbox(pool, rabbit).catch((error) => {
+    app.log.warn({ err: error }, 'failed to publish pending outbox events');
+  });
+}, 30_000).unref();
 
 components.upsert({
   componentId: 'core-api',

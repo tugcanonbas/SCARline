@@ -620,7 +620,13 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     return { success: true, data, error: null };
   });
 
-  app.post('/api/system/component-status', async (request) => {
+  app.post('/api/system/component-status', async (request, reply) => {
+    const token = request.headers['x-scarline-internal-token'];
+    if (token !== config.SCARLINE_INTERNAL_API_TOKEN) {
+      reply.code(401);
+      return apiError('AUTH_REQUIRED', 'Internal component status token is required');
+    }
+
     const payload = componentStatusSchema.parse(request.body ?? {});
     components.upsert(payload);
     wsHub.broadcast('system.health', payload as Record<string, unknown>);
@@ -685,7 +691,7 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     const bridgeStatus = components.get('sim-bridge');
     const simulationStatus = components.get('mock-simulator') || components.get('carla-client');
 
-    const connected = bridgeStatus?.status === 'running' && !!simulationStatus;
+    const connected = bridgeStatus?.status === 'running' && simulationStatus?.status === 'running';
 
     return {
       success: true,
@@ -1706,7 +1712,7 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     return { success: true, data, error: null };
   });
 
-  app.post('/api/studies/:studyId/sessions/:sessionId/triggers', async (request) => {
+  app.post('/api/studies/:studyId/sessions/:sessionId/triggers', async (request, reply) => {
     const params = z.object({ studyId: z.string().uuid(), sessionId: z.string().uuid() }).parse(request.params);
     const payload = z.object({
       instanceId: z.string().uuid(),
@@ -1717,6 +1723,47 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
       bindingValues: z.record(z.string(), z.unknown()).default({}),
       payload: z.record(z.string(), z.unknown()).default({})
     }).parse(request.body ?? {});
+
+    const session = await queryOne<{ id: string; status: string }>(
+      pool,
+      `SELECT id, status FROM sessions WHERE id = $1 AND study_id = $2`,
+      [params.sessionId, params.studyId]
+    );
+    if (!session) {
+      reply.code(404);
+      return {
+        success: false,
+        data: null,
+        error: { code: 'NOT_FOUND', message: 'Session not found', details: {} }
+      };
+    }
+    if (session.status !== 'running') {
+      reply.code(409);
+      return {
+        success: false,
+        data: null,
+        error: { code: 'STATE_CONFLICT', message: 'Session must be running to trigger widgets', details: {} }
+      };
+    }
+
+    const widget = await queryOne<{ id: string }>(
+      pool,
+      `SELECT widget_instances.id
+       FROM widget_instances
+       INNER JOIN view_layouts ON view_layouts.id = widget_instances.layout_id
+       WHERE view_layouts.study_id = $1
+         AND widget_instances.id = $2
+         AND widget_instances.widget_id = $3`,
+      [params.studyId, payload.instanceId, payload.widgetId]
+    );
+    if (!widget) {
+      reply.code(404);
+      return {
+        success: false,
+        data: null,
+        error: { code: 'NOT_FOUND', message: 'Widget instance not found for study', details: {} }
+      };
+    }
 
     const data = await rabbit.publishAndWait(makeCommandRoutingKey('widget', 'trigger'), payload, {
       studyId: params.studyId,
@@ -1764,8 +1811,8 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     components
   });
   // WebSocket handler — extracted for explicit typing due to known @fastify/websocket@10 + Fastify 4 TypeProvider mismatch
-  const wsHandler = (rawSocket: unknown, request: FastifyRequest) => {
-    const socket = rawSocket as WsWebSocket;
+  const wsHandler = (connection: unknown, request: FastifyRequest) => {
+    const socket = (connection as { socket: WsWebSocket }).socket;
     const query = z.object({ token: z.string().min(1) }).safeParse(request.query);
     if (!query.success) {
       socket.send(JSON.stringify({ type: 'error', channel: 'system.health', data: { message: 'Missing token' } }));
@@ -1790,5 +1837,5 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     }
   };
 
-  app.get('/ws', { websocket: true }, wsHandler);
+  app.get('/ws', { websocket: true } as never, wsHandler as never);
 }

@@ -1,9 +1,9 @@
-import { apiRequest } from '$lib/server/api';
+import { apiAction, apiRequest } from '$lib/server/api';
 import { requireRole } from '$lib/server/rbac';
 import { fail } from '@sveltejs/kit';
 
 export const load = async ({ fetch, locals, params }) => {
-  await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator', 'viewer']);
+  const user = await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator', 'viewer']);
   const sessions = await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/sessions`, locals.accessToken);
   const layouts = await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/layouts`, locals.accessToken);
   const widgets = await apiRequest(fetch, locals.apiBase, '/widgets/catalogue', locals.accessToken);
@@ -25,7 +25,8 @@ export const load = async ({ fetch, locals, params }) => {
     triggerableWidgets,
     layoutDetail,
     token: locals.accessToken,
-    studyId: params.id
+    studyId: params.id,
+    canOperate: user.roles?.some((role: string) => role === 'admin' || role === 'researcher' || role === 'operator') ?? false
   };
 };
 
@@ -86,7 +87,15 @@ export const actions = {
     const sessionId = String((await request.formData()).get('sessionId') ?? '');
     const result = await postSessionAction(fetch, locals, params.id, sessionId, 'start');
     if (result) return result;
-    await configureTransparentOverlay(fetch, locals, params.id, sessionId);
+    try {
+      await configureTransparentOverlay(fetch, locals, params.id, sessionId);
+    } catch (error) {
+      return {
+        message: error instanceof Error
+          ? `Session started, but overlay configuration failed: ${error.message}`
+          : 'Session started, but overlay configuration failed'
+      };
+    }
     return undefined;
   },
   pause: async ({ fetch, locals, params, request }) => {
@@ -99,7 +108,15 @@ export const actions = {
     const sessionId = String((await request.formData()).get('sessionId') ?? '');
     const result = await postSessionAction(fetch, locals, params.id, sessionId, 'resume');
     if (result) return result;
-    await configureTransparentOverlay(fetch, locals, params.id, sessionId);
+    try {
+      await configureTransparentOverlay(fetch, locals, params.id, sessionId);
+    } catch (error) {
+      return {
+        message: error instanceof Error
+          ? `Session resumed, but overlay configuration failed: ${error.message}`
+          : 'Session resumed, but overlay configuration failed'
+      };
+    }
     return undefined;
   },
   complete: async ({ fetch, locals, params, request }) => {
@@ -121,12 +138,8 @@ export const actions = {
     const instanceId = String(formData.get('instanceId') ?? '');
     const widgetId = String(formData.get('widgetId') ?? '');
     const action = String(formData.get('action') ?? 'manual-trigger');
-    const response = await fetch(`${locals.apiBase}/studies/${params.id}/sessions/${sessionId}/triggers`, {
+    const result = await apiAction(fetch, locals.apiBase, `/studies/${params.id}/sessions/${sessionId}/triggers`, locals.accessToken, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${locals.accessToken}`
-      },
       body: JSON.stringify({
         instanceId,
         widgetId,
@@ -137,15 +150,8 @@ export const actions = {
           action
         }
       })
-    });
-
-    if (!response.ok) {
-      const payload = await response.json().catch(() => null);
-      return fail(response.status, {
-        message: payload?.error?.message ?? 'Failed to trigger widget'
-      });
-    }
-    return undefined;
+    }, 'Failed to trigger widget');
+    return result.ok ? undefined : result.failure;
   },
   windowUpdate: async ({ fetch, locals, params, request }) => {
     await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator']);
@@ -166,14 +172,14 @@ export const actions = {
       return fail(400, { message: 'Layout and at least one window update are required' });
     }
 
-    await apiRequest(fetch, locals.apiBase, '/system/overlay/windows/update', locals.accessToken, {
+    const result = await apiAction(fetch, locals.apiBase, '/system/overlay/windows/update', locals.accessToken, {
       method: 'POST',
       body: JSON.stringify({
         studyId: params.id,
         layoutId,
         windows
       })
-    });
-    return undefined;
+    }, 'Failed to update overlay window');
+    return result.ok ? undefined : result.failure;
   }
 };

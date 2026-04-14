@@ -1,4 +1,4 @@
-import { apiRequest } from '$lib/server/api';
+import { apiAction, apiRequest } from '$lib/server/api';
 import { requireRole } from '$lib/server/rbac';
 import { randomUUID } from 'node:crypto';
 
@@ -64,31 +64,22 @@ export const actions = {
       studyId: params.id
     };
 
-    const layoutsResponse = await fetch(`${locals.apiBase}/studies/${params.id}/layouts`, {
-      headers: { authorization: `Bearer ${locals.accessToken}` }
-    });
-    const layoutsPayload = await layoutsResponse.json();
-    const existing = (layoutsPayload.data ?? []).find((entry: Record<string, unknown>) => entry.type === 'participant')
-      ?? layoutsPayload.data?.[0];
+    const layouts = await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/layouts`, locals.accessToken);
+    const existing = (layouts ?? []).find((entry: Record<string, unknown>) => entry.type === 'participant')
+      ?? layouts?.[0];
 
     if (existing) {
-      await fetch(`${locals.apiBase}/studies/${params.id}/layouts/${existing.id}`, {
+      const result = await apiAction(fetch, locals.apiBase, `/studies/${params.id}/layouts/${existing.id}`, locals.accessToken, {
         method: 'PUT',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${locals.accessToken}`
-        },
         body: JSON.stringify({ ...body, id: existing.id })
-      });
+      }, 'Failed to update participant layout');
+      return result.ok ? undefined : result.failure;
     } else {
-      await fetch(`${locals.apiBase}/studies/${params.id}/layouts`, {
+      const result = await apiAction(fetch, locals.apiBase, `/studies/${params.id}/layouts`, locals.accessToken, {
         method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${locals.accessToken}`
-        },
         body: JSON.stringify(body)
-      });
+      }, 'Failed to create participant layout');
+      return result.ok ? undefined : result.failure;
     }
   }
 };

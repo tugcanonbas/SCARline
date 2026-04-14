@@ -157,6 +157,7 @@ CREATE TABLE IF NOT EXISTS widget_instances (
 
 CREATE TABLE IF NOT EXISTS session_events (
   id BIGSERIAL PRIMARY KEY,
+  message_id UUID UNIQUE,
   session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
   study_id UUID NOT NULL REFERENCES studies(id) ON DELETE CASCADE,
   "timestamp" TIMESTAMPTZ NOT NULL,
@@ -168,10 +169,26 @@ CREATE TABLE IF NOT EXISTS session_events (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE session_events ADD COLUMN IF NOT EXISTS message_id UUID UNIQUE;
+
 CREATE INDEX IF NOT EXISTS idx_session_events_session_ts ON session_events(session_id, "timestamp");
 CREATE INDEX IF NOT EXISTS idx_session_events_type ON session_events(event_type);
 CREATE INDEX IF NOT EXISTS idx_session_events_study_modality ON session_events(study_id, modality);
 CREATE INDEX IF NOT EXISTS idx_session_events_payload ON session_events USING GIN(payload);
+
+CREATE TABLE IF NOT EXISTS event_outbox (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  exchange VARCHAR(200) NOT NULL,
+  routing_key VARCHAR(300) NOT NULL,
+  message JSONB NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  published_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_event_outbox_pending ON event_outbox(status, created_at);
 
 CREATE TABLE IF NOT EXISTS carla_configurations (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

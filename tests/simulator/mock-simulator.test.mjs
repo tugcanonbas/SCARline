@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = '/Users/tugcanonbas/Developer/THI_SHK/the-scarline';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 test('mock simulator supports deterministic YAML scenario catalogue and runtime events', async () => {
   const source = await readFile(path.join(root, 'python/mock-simulator/scarline_mock/__main__.py'), 'utf8');

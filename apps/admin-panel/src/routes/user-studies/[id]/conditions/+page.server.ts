@@ -1,11 +1,12 @@
-import { apiRequest } from '$lib/server/api';
+import { apiAction, apiRequest } from '$lib/server/api';
 import { requireRole } from '$lib/server/rbac';
 
 export const load = async ({ fetch, locals, params }) => {
-  await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator', 'viewer']);
+  const user = await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator', 'viewer']);
   return {
     conditions: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/conditions`, locals.accessToken),
-    studyId: params.id
+    studyId: params.id,
+    canManage: user.roles?.some((role: string) => role === 'admin' || role === 'researcher') ?? false
   };
 };
 
@@ -22,12 +23,8 @@ export const actions = {
     await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
     const formData = await request.formData();
     const rules = parseRules(formData);
-    await fetch(`${locals.apiBase}/studies/${params.id}/conditions`, {
+    const result = await apiAction(fetch, locals.apiBase, `/studies/${params.id}/conditions`, locals.accessToken, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${locals.accessToken}`
-      },
       body: JSON.stringify({
         name: formData.get('name'),
         description: formData.get('description') || null,
@@ -40,7 +37,8 @@ export const actions = {
           triggerRules: rules
         }
       })
-    });
+    }, 'Failed to create condition');
+    return result.ok ? undefined : result.failure;
   },
 
   // Update existing condition (inline edit)
@@ -49,12 +47,8 @@ export const actions = {
     const formData = await request.formData();
     const conditionId = String(formData.get('conditionId') ?? '');
     const rules = parseRules(formData);
-    await fetch(`${locals.apiBase}/studies/${params.id}/conditions/${conditionId}`, {
+    const result = await apiAction(fetch, locals.apiBase, `/studies/${params.id}/conditions/${conditionId}`, locals.accessToken, {
       method: 'PUT',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${locals.accessToken}`
-      },
       body: JSON.stringify({
         name: formData.get('name'),
         description: formData.get('description') || null,
@@ -67,7 +61,8 @@ export const actions = {
           triggerRules: rules
         }
       })
-    });
+    }, 'Failed to update condition');
+    return result.ok ? undefined : result.failure;
   },
 
   // Delete condition
@@ -75,10 +70,10 @@ export const actions = {
     await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
     const formData = await request.formData();
     const conditionId = String(formData.get('conditionId') ?? '');
-    await fetch(`${locals.apiBase}/studies/${params.id}/conditions/${conditionId}`, {
-      method: 'DELETE',
-      headers: { authorization: `Bearer ${locals.accessToken}` }
-    });
+    const result = await apiAction(fetch, locals.apiBase, `/studies/${params.id}/conditions/${conditionId}`, locals.accessToken, {
+      method: 'DELETE'
+    }, 'Failed to delete condition');
+    return result.ok ? undefined : result.failure;
   },
 
   // Legacy default — redirects to create
@@ -86,12 +81,8 @@ export const actions = {
     await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
     const formData = await request.formData();
     const rules = parseRules(formData);
-    await fetch(`${locals.apiBase}/studies/${params.id}/conditions`, {
+    const result = await apiAction(fetch, locals.apiBase, `/studies/${params.id}/conditions`, locals.accessToken, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${locals.accessToken}`
-      },
       body: JSON.stringify({
         name: formData.get('name'),
         description: formData.get('description') || null,
@@ -104,6 +95,7 @@ export const actions = {
           triggerRules: rules
         }
       })
-    });
+    }, 'Failed to create condition');
+    return result.ok ? undefined : result.failure;
   }
 };

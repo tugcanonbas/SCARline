@@ -7,6 +7,7 @@ const PUBLIC_PATHS = new Set([
 
 interface BootstrapPayload {
   onboardingCompleted: boolean;
+  available: boolean;
 }
 
 interface RouteGuardInput {
@@ -22,15 +23,16 @@ export async function getBootstrapState(
   try {
     const response = await fetch(`${apiBase}/system/bootstrap`);
     if (!response.ok) {
-      return { onboardingCompleted: false };
+      return { onboardingCompleted: false, available: false };
     }
 
     const payload = await response.json().catch(() => null);
     return {
-      onboardingCompleted: Boolean(payload?.data?.onboardingCompleted)
+      onboardingCompleted: Boolean(payload?.data?.onboardingCompleted),
+      available: true
     };
   } catch {
-    return { onboardingCompleted: false };
+    return { onboardingCompleted: false, available: false };
   }
 }
 
@@ -39,6 +41,10 @@ export function resolveRouteGuardRedirect({
   onboardingCompleted,
   isAuthenticated
 }: RouteGuardInput): string | null {
+  if (!onboardingCompleted && isAuthenticated) {
+    return null;
+  }
+
   if (!onboardingCompleted) {
     if (pathname === '/login') {
       return '/onboarding/system';

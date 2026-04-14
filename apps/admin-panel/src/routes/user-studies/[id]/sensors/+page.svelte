@@ -46,9 +46,11 @@
         </div>
       {/each}
     </div>
-    <form class="mt-4" method="POST">
-      <button class="rounded-2xl bg-[--color-accent-strong] px-5 py-3 text-sm font-semibold text-white" type="submit">Apply Milestone-1 Sensor Set</button>
-    </form>
+    {#if data.canManage}
+      <form class="mt-4" method="POST">
+        <button class="rounded-2xl bg-[--color-accent-strong] px-5 py-3 text-sm font-semibold text-white" type="submit">Apply Milestone-1 Sensor Set</button>
+      </form>
+    {/if}
   </SurfaceCard>
 
   <SurfaceCard title="Current Sensor Config" subtitle="Operator-facing readiness view for the sensors persisted on this study.">

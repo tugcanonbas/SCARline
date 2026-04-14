@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = '/Users/tugcanonbas/Developer/THI_SHK/the-scarline';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const routesRoot = path.join(root, 'apps/admin-panel/src/routes');
 
 async function readRoute(routePath) {
@@ -131,4 +132,26 @@ test('admin navigation and nginx route PRD admin paths through the Svelte shell'
   assert.doesNotMatch(nginx, /location = \/documentation\s*\{\s*return 308 \/docs\//);
   assert.match(nginx, /session-logs\|exports/);
   assert.match(nginx, /location \/docs\//);
+});
+
+test('admin auth handles real logout and bootstrap outages explicitly', async () => {
+  const login = await readRoute('login/+page.server.ts');
+  const bootstrap = await readFile(path.join(root, 'apps/admin-panel/src/lib/server/bootstrap.ts'), 'utf8');
+  const layout = await readRoute('+layout.server.ts');
+
+  assert.match(login, /\/auth\/logout/);
+  assert.match(login, /scarline_refresh_token/);
+  assert.match(login, /locals\.accessToken = null/);
+  assert.match(login, /secure: process\.env\.NODE_ENV === 'production'/);
+  assert.match(bootstrap, /available: false/);
+  assert.match(layout, /throw error\(503/);
+});
+
+test('admin realtime store reconnects and resubscribes after socket drops', async () => {
+  const source = await readFile(path.join(root, 'apps/admin-panel/src/lib/stores/realtime.ts'), 'utf8');
+  assert.match(source, /reconnecting/);
+  assert.match(source, /reconnectAttempts/);
+  assert.match(source, /setTimeout/);
+  assert.match(source, /currentChannels/);
+  assert.match(source, /currentFilters/);
 });

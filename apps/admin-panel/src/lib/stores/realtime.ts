@@ -1,6 +1,6 @@
 import { writable, type Writable } from 'svelte/store';
 
-type SocketState = 'idle' | 'connecting' | 'open' | 'closed';
+type SocketState = 'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed';
 type TelemetryPayload = Record<string, unknown>;
 type EventPayload = Record<string, unknown>;
 type WidgetPayload = Record<string, unknown>;
@@ -14,6 +14,12 @@ export function createRealtimeStore() {
   const socketState = writable<SocketState>('idle');
 
   let socket: WebSocket | null = null;
+  let currentToken: string | null = null;
+  let currentChannels: string[] = [];
+  let currentFilters: { studyId?: string; sessionId?: string } = {};
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let reconnectAttempts = 0;
+  let intentionalClose = false;
 
   function connect(
     token: string | null,
@@ -23,15 +29,26 @@ export function createRealtimeStore() {
       sessionId?: string;
     } = {}
   ) {
+    currentToken = token;
+    currentChannels = channels;
+    currentFilters = filters;
+    intentionalClose = false;
+
     if (!token || socket) {
       return;
     }
 
-    socketState.set('connecting');
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+
+    socketState.set(reconnectAttempts > 0 ? 'reconnecting' : 'connecting');
     const base = (globalThis.location?.origin ?? '').replace(/^http/, 'ws');
     socket = new WebSocket(`${base}/ws?token=${encodeURIComponent(token)}`);
 
     socket.onopen = () => {
+      reconnectAttempts = 0;
       socketState.set('open');
       socket?.send(JSON.stringify({ action: 'subscribe', channels, filters }));
     };
@@ -56,12 +73,31 @@ export function createRealtimeStore() {
     };
 
     socket.onclose = () => {
-      socketState.set('closed');
       socket = null;
+      if (intentionalClose || !currentToken) {
+        socketState.set('closed');
+        return;
+      }
+
+      reconnectAttempts += 1;
+      socketState.set('reconnecting');
+      const delay = Math.min(1_000 * 2 ** (reconnectAttempts - 1), 15_000);
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connect(currentToken, currentChannels, currentFilters);
+      }, delay);
     };
   }
 
   function disconnect() {
+    intentionalClose = true;
+    currentToken = null;
+    currentChannels = [];
+    currentFilters = {};
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
     socket?.close();
     socket = null;
     socketState.set('closed');

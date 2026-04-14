@@ -3,13 +3,13 @@ services:
     image: nginx:1.27-alpine
     depends_on:
       admin-panel:
-        condition: service_started
+        condition: service_healthy
       core-api:
         condition: service_healthy
       overlay-web:
-        condition: service_started
+        condition: service_healthy
       docs:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "${SCARLINE_PORT:-8088}:80"
     volumes:
@@ -97,6 +97,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-scarline}:${POSTGRES_PASSWORD:-scarline}@postgres:5432/${POSTGRES_DB:-scarline}
       AMQP_URL: amqp://${RABBITMQ_USER:-scarline}:${RABBITMQ_PASSWORD:-scarline}@rabbitmq:5672
       PM_SOCKET_PATH: ${PM_SOCKET_PATH:-/host-tmp/scarline.sock}
+      SCARLINE_INTERNAL_API_TOKEN: ${SCARLINE_INTERNAL_API_TOKEN:-scarline-development-internal-token}
       SCARLINE_PORT: ${SCARLINE_PORT:-8088}
       WIDGETS_DIR: /workspace/widgets
       EXPORTS_DIR: /data/scarline/exports
@@ -173,6 +174,11 @@ services:
   docs:
     image: caddy:2
     command: caddy file-server --listen :4040 --root /srv
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:4040/ || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
     volumes:
       - ./product-requirements:/srv:ro
     networks:

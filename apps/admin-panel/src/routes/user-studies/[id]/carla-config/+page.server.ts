@@ -1,14 +1,15 @@
-import { apiRequest } from '$lib/server/api';
+import { apiAction, apiRequest } from '$lib/server/api';
 import { requireRole } from '$lib/server/rbac';
 
 export const load = async ({ fetch, locals, params }) => {
-  await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator', 'viewer']);
+  const user = await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator', 'viewer']);
   return {
     config: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/carla-config`, locals.accessToken),
     maps: await apiRequest(fetch, locals.apiBase, '/carla/presets/maps', locals.accessToken),
     weather: await apiRequest(fetch, locals.apiBase, '/carla/presets/weather', locals.accessToken),
     vehicles: await apiRequest(fetch, locals.apiBase, '/carla/presets/vehicles', locals.accessToken),
-    studyId: params.id
+    studyId: params.id,
+    canManage: user.roles?.some((role: string) => role === 'admin' || role === 'researcher') ?? false
   };
 };
 
@@ -16,12 +17,8 @@ export const actions = {
   default: async ({ fetch, locals, params, request }) => {
     await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
     const formData = await request.formData();
-    await fetch(`${locals.apiBase}/studies/${params.id}/carla-config`, {
+    const result = await apiAction(fetch, locals.apiBase, `/studies/${params.id}/carla-config`, locals.accessToken, {
       method: 'PUT',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${locals.accessToken}`
-      },
       body: JSON.stringify({
         map: formData.get('map'),
         weatherPreset: formData.get('weatherPreset') || null,
@@ -40,6 +37,7 @@ export const actions = {
           }
         ]
       })
-    });
+    }, 'Failed to save CARLA configuration');
+    return result.ok ? undefined : result.failure;
   }
 };
