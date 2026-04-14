@@ -42,7 +42,7 @@ test('scarline launcher advertises required commands and IPC socket', async () =
   assert.match(script, /ipc_server\.py/);
   assert.match(script, /core-api sim-bridge admin-panel overlay-web docs io-client nginx/);
   assert.match(script, /open_admin_ui/);
-  assert.match(script, /wait_for_health core-api sim-bridge admin-panel overlay-web io-client nginx/);
+  assert.match(script, /wait_for_health core-api sim-bridge admin-panel overlay-web docs io-client nginx/);
   assert.match(script, /OVERLAY_CONTROL_PORT/);
   assert.match(script, /validate_port_available/);
   assert.match(script, /supervisor_loop/);

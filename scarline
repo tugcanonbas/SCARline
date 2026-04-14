@@ -770,7 +770,7 @@ start_stack() {
   wait_for_health postgres rabbitmq
   wait_for_successful_exit schema-bootstrap
   compose up --build -d core-api sim-bridge admin-panel overlay-web docs io-client nginx
-  wait_for_health core-api sim-bridge admin-panel overlay-web io-client nginx
+  wait_for_health core-api sim-bridge admin-panel overlay-web docs io-client nginx
   if [[ "${NO_CARLA:-false}" == "true" ]]; then
     compose up --build -d mock-simulator
     wait_for_health mock-simulator
