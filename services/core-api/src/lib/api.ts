@@ -4,7 +4,8 @@ import path from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 // Side-effect import to activate @fastify/websocket module augmentation (adds websocket: boolean to RouteShorthandOptions)
 import '@fastify/websocket';
-import type { WebSocket as WsWebSocket } from '@fastify/websocket';
+// Using any for WebSocket type to maintain compatibility with Fastify 4 @fastify/websocket versioning
+type WsWebSocket = any;
 import {
   componentStatusSchema,
   conditionSchema,
@@ -1526,48 +1527,32 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
 
   app.post('/api/studies/:studyId/layouts', async (request) => {
     const params = z.object({ studyId: z.string().uuid() }).parse(request.params);
-    const payload = z.object({
-      name: z.string().min(1),
-      type: z.enum(['participant', 'researcher_monitor']).default('participant'),
-      targetDisplay: z.string().default('0'),
-      layoutConfig: z.object({
-        zones: z.array(z.object({
-          id: z.string(),
-          x: z.number(),
-          y: z.number(),
-          width: z.number(),
-          height: z.number(),
-          display: z.number().default(0)
-        })).min(1),
-        widgets: z.array(z.object({
-          id: z.string().uuid(),
-          widgetId: z.string(),
-          zoneId: z.string(),
-          order: z.number().default(0),
-          bindingsConfig: z.record(z.string(), z.unknown()).default({}),
-          triggerRules: z.array(z.record(z.string(), z.unknown())).default([]),
-          styleOverrides: z.record(z.string(), z.unknown()).default({})
-        })).default([])
-      })
-    }).parse(request.body ?? {});
+    const payload = layoutConfigSchema.parse({
+      ...(request.body as Record<string, unknown>),
+      studyId: params.studyId
+    });
 
     const layoutId = randomUUID();
     const row = await queryOne(pool, `
       INSERT INTO view_layouts (id, study_id, name, type, target_display, layout_config)
       VALUES ($1, $2, $3, $4, $5, $6::jsonb)
       RETURNING *
-    `, [layoutId, params.studyId, payload.name, payload.type, payload.targetDisplay, JSON.stringify(payload.layoutConfig)]);
+    `, [layoutId, params.studyId, payload.name, payload.type, payload.targetDisplay, JSON.stringify(payload)]);
 
-    for (const widget of payload.layoutConfig.widgets) {
+    for (const widget of payload.widgets) {
       await pool.query(
-        `INSERT INTO widget_instances (id, layout_id, widget_id, zone_id, "order", bindings_config, trigger_rules, style_overrides)
-         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb)`,
+        `INSERT INTO widget_instances (id, layout_id, widget_id, zone_id, "order", x, y, width, height, bindings_config, trigger_rules, style_overrides)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12::jsonb)`,
         [
           widget.id,
           layoutId,
           widget.widgetId,
           widget.zoneId,
           widget.order,
+          widget.x ?? 0,
+          widget.y ?? 0,
+          widget.width ?? 180,
+          widget.height ?? 180,
           JSON.stringify(widget.bindingsConfig),
           JSON.stringify(widget.triggerRules),
           JSON.stringify(widget.styleOverrides)
@@ -1582,7 +1567,7 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
       payload: {
         studyId: params.studyId,
         type: payload.type,
-        widgetCount: payload.layoutConfig.widgets.length
+        widgetCount: payload.widgets.length
       }
     });
 
@@ -1603,12 +1588,17 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
       name: row?.name,
       type: row?.type,
       targetDisplay: row?.target_display ?? '0',
+      isTransparent: row?.layout_config?.isTransparent ?? true,
       zones: row?.layout_config?.zones ?? [],
       widgets: widgets.map((widget) => ({
         id: widget.id,
         widgetId: widget.widget_id,
         zoneId: widget.zone_id,
         order: widget.order,
+        x: widget.x,
+        y: widget.y,
+        width: widget.width,
+        height: widget.height,
         bindingsConfig: widget.bindings_config,
         triggerRules: widget.trigger_rules,
         styleOverrides: widget.style_overrides
@@ -1634,22 +1624,23 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
           updated_at = NOW()
       WHERE study_id = $1 AND id = $2
       RETURNING *
-    `, [params.studyId, params.id, payload.name, payload.type, payload.targetDisplay, JSON.stringify({
-      zones: payload.zones,
-      widgets: payload.widgets
-    })]);
+    `, [params.studyId, params.id, payload.name, payload.type, payload.targetDisplay, JSON.stringify(payload)]);
 
     await pool.query(`DELETE FROM widget_instances WHERE layout_id = $1`, [params.id]);
     for (const widget of payload.widgets) {
       await pool.query(
-        `INSERT INTO widget_instances (id, layout_id, widget_id, zone_id, "order", bindings_config, trigger_rules, style_overrides)
-         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb)`,
+        `INSERT INTO widget_instances (id, layout_id, widget_id, zone_id, "order", x, y, width, height, bindings_config, trigger_rules, style_overrides)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12::jsonb)`,
         [
           widget.id,
           params.id,
           widget.widgetId,
           widget.zoneId,
           widget.order,
+          widget.x ?? 0,
+          widget.y ?? 0,
+          widget.width ?? 180,
+          widget.height ?? 180,
           JSON.stringify(widget.bindingsConfig),
           JSON.stringify(widget.triggerRules),
           JSON.stringify(widget.styleOverrides)
