@@ -140,7 +140,25 @@ pid_listening_on_port() {
   if ! command -v lsof >/dev/null 2>&1; then
     return 1
   fi
-  lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null | head -n 1
+  local pid
+  pid="$(lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null | head -n 1)"
+  if [[ -n "${pid}" ]] && kill -0 "${pid}" 2>/dev/null; then
+    echo "${pid}"
+  fi
+}
+
+pid_is_ipc_server() {
+  local pid="$1"
+  if ! kill -0 "${pid}" 2>/dev/null; then
+    return 1
+  fi
+  local cmdline
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    cmdline="$(ps -p "${pid}" -o command= 2>/dev/null || true)"
+  else
+    cmdline="$(cat "/proc/${pid}/cmdline" 2>/dev/null | tr '\0' ' ' || true)"
+  fi
+  [[ "${cmdline}" == *"ipc_server.py"* ]]
 }
 
 pid_cwd_matches_root() {
@@ -448,11 +466,15 @@ start_ipc_server() {
     fi
     local occupied_by
     occupied_by="$(pid_listening_on_port "${PM_CONTROL_PORT}" || true)"
-    if [[ -n "${occupied_by}" ]] && pid_cwd_matches_root "${occupied_by}"; then
-      kill "${occupied_by}" 2>/dev/null || true
-      sleep 1
-      if ! port_in_use "${PM_CONTROL_PORT}"; then
-        echo "Reclaimed stale process manager listener on port ${PM_CONTROL_PORT} (pid ${occupied_by})"
+    if [[ -n "${occupied_by}" ]]; then
+      if pid_cwd_matches_root "${occupied_by}" || pid_is_ipc_server "${occupied_by}"; then
+        echo "Reclaiming stale process manager listener on port ${PM_CONTROL_PORT} (pid ${occupied_by})"
+        kill "${occupied_by}" 2>/dev/null || true
+        sleep 1
+        if port_in_use "${PM_CONTROL_PORT}"; then
+          sleep 1
+          kill -9 "${occupied_by}" 2>/dev/null || true
+        fi
       fi
     fi
     if port_in_use "${PM_CONTROL_PORT}"; then
@@ -503,16 +525,25 @@ stop_ipc_server() {
   if [[ -f "${PID_DIR}/ipc.pid" ]]; then
     local pid
     pid="$(cat "${PID_DIR}/ipc.pid")"
-    kill "${pid}" 2>/dev/null || true
+    if kill -0 "${pid}" 2>/dev/null; then
+      kill "${pid}" 2>/dev/null || true
+      sleep 1
+      kill -9 "${pid}" 2>/dev/null || true
+    fi
     rm -f "${PID_DIR}/ipc.pid"
   fi
   if [[ "${SOCKET_PATH}" != tcp://* ]]; then
     rm -f "${SOCKET_PATH}"
-  elif port_in_use "${PM_CONTROL_PORT}" && pm_status_healthy; then
+  fi
+  
+  if port_in_use "${PM_CONTROL_PORT}"; then
     local pid
     pid="$(pid_listening_on_port "${PM_CONTROL_PORT}" || true)"
-    if [[ -n "${pid}" ]]; then
+    if [[ -n "${pid}" ]] && (pid_cwd_matches_root "${pid}" || pid_is_ipc_server "${pid}"); then
+      echo "Cleaning up lingering IPC server on port ${PM_CONTROL_PORT} (pid ${pid})"
       kill "${pid}" 2>/dev/null || true
+      sleep 1
+      kill -9 "${pid}" 2>/dev/null || true
     fi
   fi
 }

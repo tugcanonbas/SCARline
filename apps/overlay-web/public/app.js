@@ -93,6 +93,7 @@ function setupChrome() {
     :root { color-scheme: dark; }
     body { margin: 0; background: transparent; overflow: hidden; font-family: ui-sans-serif, system-ui, sans-serif; }
     .overlay-root { position: relative; width: 100vw; height: 100vh; overflow: hidden; background: ${chromeMode === 'transparent' ? 'transparent' : '#020617'}; }
+    .overlay-root[data-chrome="web"] { background: #020617; }
     .overlay-toolbar { position: fixed; top: 14px; left: 50%; z-index: 9999; display: flex; transform: translateX(-50%); align-items: center; gap: 12px; border: 1px solid rgba(148, 163, 184, 0.24); border-radius: 999px; background: rgba(2, 6, 23, 0.78); padding: 9px 12px; color: #e2e8f0; box-shadow: 0 20px 50px rgba(0,0,0,.32); backdrop-filter: blur(16px); }
     .overlay-toolbar[hidden] { display: none; }
     .overlay-toolbar span { font-size: 12px; line-height: 1; }
@@ -150,11 +151,17 @@ function authHeaders() {
 }
 
 async function fetchJson(path) {
-  const response = await fetch(`${apiOrigin}${path}`, { headers: authHeaders() });
-  if (!response.ok) {
-    throw new Error(`${path} failed with ${response.status}`);
+  const url = `${apiOrigin}${path}`;
+  try {
+    const response = await fetch(url, { headers: authHeaders() });
+    if (!response.ok) {
+      throw new Error(`Fetch failed for ${path}: ${response.status} ${response.statusText}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error(`fetchJson failed for ${url}`, error);
+    throw error;
   }
-  return response.json();
 }
 
 async function postJson(path, payload) {
@@ -603,6 +610,11 @@ async function renderLayout() {
     wrapper.dataset.widgetId = widget.widgetId;
     wrapper.dataset.state = widgetInitialState(widget);
     wrapper.style.zIndex = String(100 + Number(widget.order || 0));
+    wrapper.style.position = 'absolute';
+    wrapper.style.left = `${widget.x || 0}px`;
+    wrapper.style.top = `${widget.y || 0}px`;
+    wrapper.style.width = `${widget.width || 180}px`;
+    wrapper.style.height = `${widget.height || 180}px`;
     zoneNode.appendChild(wrapper);
     state.wrappers.set(widget.id, wrapper);
 
