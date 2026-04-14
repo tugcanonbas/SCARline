@@ -1,18 +1,11 @@
 import { z } from 'zod';
 
-export const zoneSchema = z.object({
-  id: z.string().min(1),
-  x: z.number().int().nonnegative(),
-  y: z.number().int().nonnegative(),
-  width: z.number().int().positive(),
-  height: z.number().int().positive(),
-  display: z.number().int().nonnegative().default(0)
-});
+export const widgetWindowModeSchema = z.enum(['transparent_electron', 'browser_popup']);
 
 export const widgetInstanceSchema = z.object({
   id: z.string().uuid(),
   widgetId: z.string().min(1),
-  zoneId: z.string().min(1),
+  windowMode: widgetWindowModeSchema,
   order: z.number().int().default(0),
   x: z.number().int().default(0),
   y: z.number().int().default(0),
@@ -30,7 +23,6 @@ export const layoutConfigSchema = z.object({
   type: z.enum(['participant', 'researcher_monitor']),
   targetDisplay: z.string().default('0'),
   isTransparent: z.boolean().default(true),
-  zones: z.array(zoneSchema).min(1),
   widgets: z.array(widgetInstanceSchema).default([])
 });
 

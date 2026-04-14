@@ -1,7 +1,11 @@
 const appRoot = document.getElementById('app');
 const query = new URLSearchParams(window.location.search);
 const pathSegments = window.location.pathname.replace(/^\/+/, '').split('/').filter(Boolean);
-const pathLayoutId = pathSegments[0] === 'overlay' ? pathSegments[1] : pathSegments[0];
+const isLauncherRoute = pathSegments[0] === 'overlay' && pathSegments[1] === 'launcher';
+const overlayBasePath = pathSegments[0] === 'overlay' ? '/overlay' : '';
+const pathLayoutId = isLauncherRoute
+  ? pathSegments[2]
+  : (pathSegments[0] === 'overlay' ? pathSegments[1] : pathSegments[0]);
 const apiOrigin = window.__SCARLINE_API_ORIGIN || '';
 const wsBase = window.__SCARLINE_WS_URL || window.location.origin.replace(/^http/, 'ws');
 const token = query.get('token') || '';
@@ -27,7 +31,12 @@ const state = {
   currentSession: null,
   bindingsFrozen: false,
   sessionEnded: false,
-  targetZone: query.get('zone') || '',
+  instanceId: query.get('instanceId') || '',
+  popupMode: query.get('popupMode') || '',
+  isLauncher: isLauncherRoute || query.get('launcher') === '1',
+  popupWindows: new Map(),
+  popupSyncTimer: null,
+  popupBlocked: new Set(),
   lastExportProgress: null
 };
 
@@ -91,7 +100,7 @@ function setupChrome() {
   const style = document.createElement('style');
   style.textContent = `
     :root { color-scheme: dark; }
-    body { margin: 0; background: transparent; overflow: hidden; font-family: ui-sans-serif, system-ui, sans-serif; }
+    html, body { margin: 0; background: transparent; overflow: hidden; font-family: ui-sans-serif, system-ui, sans-serif; }
     .overlay-root { position: relative; width: 100vw; height: 100vh; overflow: hidden; background: ${chromeMode === 'transparent' ? 'transparent' : '#020617'}; }
     .overlay-root[data-chrome="web"] { background: #020617; }
     .overlay-toolbar { position: fixed; top: 14px; left: 50%; z-index: 9999; display: flex; transform: translateX(-50%); align-items: center; gap: 12px; border: 1px solid rgba(148, 163, 184, 0.24); border-radius: 999px; background: rgba(2, 6, 23, 0.78); padding: 9px 12px; color: #e2e8f0; box-shadow: 0 20px 50px rgba(0,0,0,.32); backdrop-filter: blur(16px); }
@@ -114,6 +123,7 @@ function setupChrome() {
   document.head.appendChild(style);
 
   rootShell.className = 'overlay-root';
+  rootShell.dataset.chrome = chromeMode;
   toolbar.className = 'overlay-toolbar';
   toolbar.hidden = !showToolbar;
   sessionNode.textContent = 'No active session';
@@ -291,8 +301,55 @@ function injectRuntime(html, metadata, instanceId) {
       window.WebSocket = blockNetwork('WebSocket');
       window.EventSource = blockNetwork('EventSource');
       window.XMLHttpRequest = blockNetwork('XMLHttpRequest');
+      function formatValue(element, value) {
+        if (value === undefined || value === null) return null;
+        if (element?.dataset?.format === 'number') {
+          const decimals = Number(element.dataset.decimals ?? '0');
+          const numeric = Number(value);
+          if (!Number.isNaN(numeric)) return numeric.toFixed(decimals);
+        }
+        return String(value);
+      }
+      function applyDomBinding(key, value) {
+        const update = () => {
+          for (const element of document.querySelectorAll('[data-bind]')) {
+            if (element.dataset.bind !== key) continue;
+            if (element.dataset.bindClass) {
+              const className = element.dataset.bindClass;
+              const falseClassName = element.dataset.bindClassFalse;
+              if (value) {
+                element.classList.add(className);
+                if (falseClassName) element.classList.remove(falseClassName);
+              } else {
+                element.classList.remove(className);
+                if (falseClassName) element.classList.add(falseClassName);
+              }
+            }
+            if (element.dataset.bindStyle) {
+              const styleName = element.dataset.bindStyle;
+              const unit = element.dataset.styleUnit ?? '';
+              element.style.setProperty(styleName, String(value) + unit);
+            }
+            if (element.dataset.bindAttr) {
+              const attrName = element.dataset.bindAttr;
+              const formatted = formatValue(element, value);
+              if (formatted !== null) element.setAttribute(attrName, formatted);
+            }
+            if (element.dataset.bindText !== 'false') {
+              const formatted = formatValue(element, value);
+              if (formatted !== null) element.textContent = formatted;
+            }
+          }
+        };
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', update, { once: true });
+        } else {
+          update();
+        }
+      }
       function emitBinding(key, value) {
         bindings.set(key, value);
+        applyDomBinding(key, value);
         const handlers = bindingHandlers.get(key) || [];
         handlers.forEach((handler) => {
           try { handler(value); } catch (error) { console.error(error); }
@@ -364,6 +421,51 @@ function injectRuntime(html, metadata, instanceId) {
     return html.replace('<head>', `<head>${runtime}`);
   }
   return `${runtime}${html}`;
+}
+
+function withBaseTag(html, href) {
+  if (!href || html.includes('<base ')) {
+    return html;
+  }
+  const baseTag = `<base href="${href}" />`;
+  if (html.includes('<head>')) {
+    return html.replace('<head>', `<head>${baseTag}`);
+  }
+  return `${baseTag}${html}`;
+}
+
+async function loadWidgetAssets(widgetId) {
+  const normalizedWidgetId = String(widgetId || '').trim();
+  if (!normalizedWidgetId) {
+    throw new Error('Missing widget id');
+  }
+
+  const pathPrefixes = overlayBasePath ? [overlayBasePath, ''] : ['', '/overlay'];
+  let lastError = null;
+
+  for (const prefix of pathPrefixes) {
+    const assetPrefix = `${prefix}/assets/${normalizedWidgetId}`;
+    const metadataUrl = `${assetPrefix}/widget.json`;
+    const htmlUrl = `${assetPrefix}/index.html`;
+    try {
+      const [metadataResponse, htmlResponse] = await Promise.all([
+        fetch(metadataUrl),
+        fetch(htmlUrl)
+      ]);
+      if (!metadataResponse.ok || !htmlResponse.ok) {
+        throw new Error(`Asset fetch failed (${metadataResponse.status}/${htmlResponse.status}) via ${assetPrefix}`);
+      }
+      return {
+        metadataText: await metadataResponse.text(),
+        htmlText: await htmlResponse.text(),
+        assetBaseHref: `${window.location.origin}${assetPrefix}/`
+      };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError ?? new Error(`Unable to load assets for widget ${normalizedWidgetId}`);
 }
 
 function normalizeWidgetMetadata(metadata) {
@@ -563,6 +665,153 @@ function validateWidgetCompatibility(metadata, widget) {
   }
 }
 
+function widgetWindowMode(widget) {
+  if (widget.windowMode === 'browser_popup' || widget.windowMode === 'transparent_electron') {
+    return widget.windowMode;
+  }
+  return state.layout?.isTransparent === false ? 'browser_popup' : 'transparent_electron';
+}
+
+function buildInstanceOverlayUrl(widget, mode) {
+  const params = new URLSearchParams();
+  params.set('layoutId', state.layoutId);
+  params.set('instanceId', widget.id);
+  params.set('chrome', mode === 'transparent_electron' ? 'transparent' : 'web');
+  params.set('toolbar', mode === 'browser_popup' ? '0' : '1');
+  if (state.studyId) params.set('studyId', state.studyId);
+  if (state.conditionId) params.set('conditionId', state.conditionId);
+  if (token) params.set('token', token);
+  if (state.currentSession?.id || state.currentSession?.sessionId) {
+    params.set('sessionId', state.currentSession.id || state.currentSession.sessionId);
+  }
+  const overlayPrefix = overlayBasePath || '/overlay';
+  return `${window.location.origin}${overlayPrefix}/${state.layoutId}?${params.toString()}`;
+}
+
+function popupFeatureString(widget) {
+  const left = Number(widget.x || 0);
+  const top = Number(widget.y || 0);
+  const width = Math.max(120, Number(widget.width || 180));
+  const height = Math.max(100, Number(widget.height || 180));
+  return [
+    'popup=yes',
+    'resizable=yes',
+    'scrollbars=no',
+    'toolbar=yes',
+    'location=yes',
+    'menubar=yes',
+    'status=yes',
+    `left=${left}`,
+    `top=${top}`,
+    `width=${width}`,
+    `height=${height}`
+  ].join(',');
+}
+
+async function syncPopupBounds() {
+  if (!state.studyId || !state.layoutId || state.popupWindows.size === 0 || !token) {
+    return;
+  }
+  const windows = [];
+  for (const [instanceId, popup] of state.popupWindows.entries()) {
+    if (!popup || popup.closed) continue;
+    windows.push({
+      instanceId,
+      x: Math.max(0, Number(popup.screenX || 0)),
+      y: Math.max(0, Number(popup.screenY || 0)),
+      width: Math.max(1, Number(popup.outerWidth || 0)),
+      height: Math.max(1, Number(popup.outerHeight || 0))
+    });
+  }
+  if (windows.length === 0) return;
+  try {
+    await postJson('/api/system/overlay/windows/update', {
+      studyId: state.studyId,
+      layoutId: state.layoutId,
+      windows
+    });
+  } catch (error) {
+    console.warn('Failed to sync popup bounds', error);
+  }
+}
+
+function ensurePopupSyncLoop() {
+  clearInterval(state.popupSyncTimer);
+  state.popupSyncTimer = setInterval(syncPopupBounds, 1200);
+}
+
+function renderLauncherFallback(popups) {
+  const fallback = document.createElement('section');
+  fallback.className = 'overlay-shell';
+  const title = document.createElement('strong');
+  title.textContent = 'Popup windows blocked by browser';
+  const detail = document.createElement('small');
+  detail.textContent = 'Use the buttons below to open each widget window manually.';
+  fallback.append(title, detail);
+  const actionRow = document.createElement('div');
+  actionRow.style.display = 'flex';
+  actionRow.style.flexWrap = 'wrap';
+  actionRow.style.gap = '8px';
+  actionRow.style.justifyContent = 'center';
+  actionRow.style.marginTop = '12px';
+  for (const widget of popups) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = `Open ${widget.widgetId}`;
+    button.addEventListener('click', () => {
+      const popup = window.open(
+        buildInstanceOverlayUrl(widget, 'browser_popup'),
+        `scarline_widget_${widget.id}`,
+        popupFeatureString(widget)
+      );
+      if (popup) {
+        state.popupWindows.set(widget.id, popup);
+        state.popupBlocked.delete(widget.id);
+        syncPopupBounds();
+      } else {
+        state.popupBlocked.add(widget.id);
+      }
+    });
+    actionRow.appendChild(button);
+  }
+  fallback.appendChild(actionRow);
+  stage.replaceChildren(fallback);
+}
+
+function openBrowserPopups() {
+  const popupWidgets = state.layout?.widgets || [];
+  if (popupWidgets.length === 0) {
+    stage.replaceChildren(makeShell('No widgets in layout', 'Add widgets in Participant View to open browser windows.'));
+    return;
+  }
+
+  for (const widget of popupWidgets) {
+    const existing = state.popupWindows.get(widget.id);
+    if (existing && !existing.closed) {
+      continue;
+    }
+    const popup = window.open(
+      buildInstanceOverlayUrl(widget, 'browser_popup'),
+      `scarline_widget_${widget.id}`,
+      popupFeatureString(widget)
+    );
+    if (popup) {
+      state.popupWindows.set(widget.id, popup);
+      state.popupBlocked.delete(widget.id);
+    } else {
+      state.popupBlocked.add(widget.id);
+    }
+  }
+
+  if (state.popupBlocked.size > 0) {
+    renderLauncherFallback(popupWidgets);
+  } else {
+    stage.replaceChildren(makeShell('Browser widget launcher active', `${popupWidgets.length} widget windows opened.`));
+  }
+  ensurePopupSyncLoop();
+  syncPopupBounds();
+}
+
 async function renderLayout() {
   if (!state.studyId || !state.layoutId) {
     stage.replaceChildren(makeShell('Overlay waiting for a participant layout', 'Open from Admin Panel or provide studyId and layoutId.'));
@@ -582,25 +831,31 @@ async function renderLayout() {
   stage.replaceChildren();
   layoutNode.textContent = state.layout.name || state.layoutId;
 
-  for (const zone of state.layout.zones) {
-    if (state.targetZone && state.targetZone !== zone.id && state.targetZone !== String(state.layout.zones.indexOf(zone))) {
+  if (state.isLauncher && state.popupMode === 'browser') {
+    openBrowserPopups();
+    return;
+  }
+
+  const widgetHost = document.createElement('section');
+  widgetHost.className = 'overlay-zone';
+  widgetHost.style.left = '0px';
+  widgetHost.style.top = '0px';
+  widgetHost.style.width = '100%';
+  widgetHost.style.height = '100%';
+  widgetHost.style.zIndex = '10';
+  stage.appendChild(widgetHost);
+
+  for (const widget of state.layout.widgets) {
+    if (state.instanceId && widget.id !== state.instanceId) {
       continue;
     }
 
-    const zoneNode = document.createElement('section');
-    zoneNode.className = 'overlay-zone';
-    zoneNode.dataset.zoneId = zone.id;
-    zoneNode.style.left = `${zone.x}px`;
-    zoneNode.style.top = `${zone.y}px`;
-    zoneNode.style.width = `${zone.width}px`;
-    zoneNode.style.height = `${zone.height}px`;
-    zoneNode.style.zIndex = String(10 + Number(zone.display || 0));
-    stage.appendChild(zoneNode);
-  }
-
-  for (const widget of state.layout.widgets) {
-    const zoneNode = stage.querySelector(`[data-zone-id="${widget.zoneId}"]`);
-    if (!zoneNode) {
+    const mode = widgetWindowMode(widget);
+    if (state.instanceId && mode === 'browser_popup' && chromeMode === 'transparent') {
+      continue;
+    }
+    if (!state.instanceId && mode === 'browser_popup' && chromeMode === 'transparent') {
+      // Browser popup widgets are rendered separately; transparent overlay keeps only electron windows.
       continue;
     }
 
@@ -611,20 +866,17 @@ async function renderLayout() {
     wrapper.dataset.state = widgetInitialState(widget);
     wrapper.style.zIndex = String(100 + Number(widget.order || 0));
     wrapper.style.position = 'absolute';
-    wrapper.style.left = `${widget.x || 0}px`;
-    wrapper.style.top = `${widget.y || 0}px`;
-    wrapper.style.width = `${widget.width || 180}px`;
-    wrapper.style.height = `${widget.height || 180}px`;
-    zoneNode.appendChild(wrapper);
+    wrapper.style.left = state.instanceId ? '0px' : `${widget.x || 0}px`;
+    wrapper.style.top = state.instanceId ? '0px' : `${widget.y || 0}px`;
+    wrapper.style.width = state.instanceId ? '100%' : `${widget.width || 180}px`;
+    wrapper.style.height = state.instanceId ? '100%' : `${widget.height || 180}px`;
+    widgetHost.appendChild(wrapper);
     state.wrappers.set(widget.id, wrapper);
 
     try {
-      const [metadataResponse, htmlResponse] = await Promise.all([
-        fetch(`assets/${widget.widgetId}/widget.json`),
-        fetch(`assets/${widget.widgetId}/index.html`)
-      ]);
-      const metadata = normalizeWidgetMetadata(await metadataResponse.json());
-      const html = await htmlResponse.text();
+      const assets = await loadWidgetAssets(widget.widgetId);
+      const metadata = normalizeWidgetMetadata(JSON.parse(assets.metadataText));
+      const html = withBaseTag(assets.htmlText, assets.assetBaseHref);
       validateWidgetCompatibility(metadata, widget);
       state.widgets.set(widget.id, { ...widget, metadata });
 
@@ -794,6 +1046,12 @@ window.addEventListener('online', () => {
   }
 });
 window.addEventListener('offline', () => setConnectionStatus('Offline', 'error'));
+window.addEventListener('beforeunload', () => {
+  if (state.popupSyncTimer) {
+    clearInterval(state.popupSyncTimer);
+    state.popupSyncTimer = null;
+  }
+});
 renderLayout()
   .then(connectSocket)
   .catch((error) => {

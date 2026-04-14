@@ -94,7 +94,40 @@ function actorUserId(request: FastifyRequest, config: CoreApiConfig): string | n
   }
 }
 
+function publicGatewayPort(config: CoreApiConfig, system: Record<string, unknown>): number {
+  const configured = Number(config.SCARLINE_PORT);
+  if (Number.isFinite(configured) && configured > 0) {
+    return configured;
+  }
+
+  const persisted = Number(system.scarline_port ?? system.platformPort ?? 8088);
+  return Number.isFinite(persisted) && persisted > 0 ? persisted : 8088;
+}
+
 async function callProcessManager(
+  socketPath: string,
+  method: 'GET' | 'POST',
+  path: string,
+  body: Record<string, unknown> = {}
+): Promise<Record<string, unknown>> {
+  const candidates = [socketPath];
+  if (!socketPath.startsWith('http://') && socketPath.includes('/host-tmp/')) {
+    candidates.push('http://host.docker.internal:4098');
+  }
+
+  let lastError: unknown = null;
+  for (const candidate of candidates) {
+    try {
+      return await callProcessManagerTarget(candidate, method, path, body);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Process Manager unavailable');
+}
+
+async function callProcessManagerTarget(
   socketPath: string,
   method: 'GET' | 'POST',
   path: string,
@@ -259,8 +292,8 @@ async function duplicateStudy(pool: Pool, sourceStudyId: string, name?: string |
         [layoutId, newStudyId, layout.name, layout.type, layout.target_display, JSON.stringify(layout.layout_config)]
       );
       await client.query(
-        `INSERT INTO widget_instances (layout_id, widget_id, zone_id, "order", bindings_config, trigger_rules, style_overrides)
-         SELECT $1, widget_id, zone_id, "order", bindings_config, trigger_rules, style_overrides
+        `INSERT INTO widget_instances (layout_id, widget_id, window_mode, "order", bindings_config, trigger_rules, style_overrides)
+         SELECT $1, widget_id, window_mode, "order", bindings_config, trigger_rules, style_overrides
          FROM widget_instances WHERE layout_id = $2`,
         [layoutId, layout.id]
       );
@@ -1469,35 +1502,71 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
       layoutId: z.string().uuid(),
       conditionId: z.string().uuid().nullable().optional(),
       targetDisplay: z.number().int().nonnegative().optional(),
-      mode: z.enum(['single', 'zones']).default('single'),
       clickThrough: z.boolean().optional()
     }).parse(request.body ?? {});
 
     try {
       const system = await getSystemConfiguration(pool);
-      const platformPort = system?.platformPort ?? 8088;
+      const platformPort = publicGatewayPort(config, system);
       const token = bearerToken(request);
       if (!token) {
         return fail(reply, 401, 'UNAUTHORIZED', 'Overlay configuration requires an authenticated token');
       }
 
-      const params = new URLSearchParams({
-        chrome: 'transparent',
+      const layout = await queryOne(pool, `
+        SELECT id, layout_config
+        FROM view_layouts
+        WHERE study_id = $1 AND id = $2
+      `, [payload.studyId, payload.layoutId]);
+      if (!layout) {
+        return fail(reply, 404, 'NOT_FOUND', 'Participant layout not found');
+      }
+      const widgets = await queryMany(pool, `
+        SELECT id, widget_id, x, y, width, height, window_mode
+        FROM widget_instances
+        WHERE layout_id = $1
+        ORDER BY "order" ASC
+      `, [payload.layoutId]);
+      const layoutConfig = (layout.layout_config as Record<string, unknown> | null) ?? {};
+      const defaultMode = layoutConfig.isTransparent === false ? 'browser_popup' : 'transparent_electron';
+      const baseParams = new URLSearchParams({
         token,
         studyId: payload.studyId,
         sessionId: payload.sessionId,
         layoutId: payload.layoutId
       });
-      if (payload.conditionId) {
-        params.set('conditionId', payload.conditionId);
-      }
-      const overlayUrl = `http://127.0.0.1:${platformPort}/overlay/${payload.layoutId}?${params.toString()}`;
+      if (payload.conditionId) baseParams.set('conditionId', payload.conditionId);
+      const windows = widgets.map((widget) => {
+        const mode = widget.window_mode === 'browser_popup' || widget.window_mode === 'transparent_electron'
+          ? widget.window_mode
+          : defaultMode;
+        const perWidgetParams = new URLSearchParams(baseParams.toString());
+        perWidgetParams.set('instanceId', String(widget.id));
+        perWidgetParams.set('chrome', mode === 'transparent_electron' ? 'transparent' : 'web');
+        if (mode === 'browser_popup') perWidgetParams.set('toolbar', '1');
+        return {
+          instanceId: widget.id,
+          widgetId: widget.widget_id,
+          mode,
+          clickThrough: mode === 'transparent_electron' ? (payload.clickThrough ?? true) : false,
+          bounds: {
+            x: Number(widget.x ?? 0),
+            y: Number(widget.y ?? 0),
+            width: Number(widget.width ?? 180),
+            height: Number(widget.height ?? 180)
+          },
+          url: `http://127.0.0.1:${platformPort}/overlay/${payload.layoutId}?${perWidgetParams.toString()}`
+        };
+      });
+      const launcherParams = new URLSearchParams(baseParams.toString());
+      launcherParams.set('popupMode', 'browser');
+      const launcherUrl = `http://127.0.0.1:${platformPort}/overlay/launcher/${payload.layoutId}?${launcherParams.toString()}`;
 
       return ok(await callProcessManager(config.PM_SOCKET_PATH, 'POST', '/overlay/configure', {
-        url: overlayUrl,
-        mode: payload.mode,
+        mode: 'windows',
         targetDisplay: payload.targetDisplay ?? 0,
-        clickThrough: payload.clickThrough ?? true,
+        windows,
+        launcherUrl,
         session: {
           studyId: payload.studyId,
           sessionId: payload.sessionId,
@@ -1505,6 +1574,157 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
           conditionId: payload.conditionId ?? null
         }
       }));
+    } catch (error) {
+      return fail(reply, 503, 'PROCESS_MANAGER_UNAVAILABLE', error instanceof Error ? error.message : 'Process Manager unavailable');
+    }
+  });
+
+  app.post('/api/system/overlay/windows/open', async (request, reply) => {
+    const payload = z.object({
+      studyId: z.string().uuid(),
+      layoutId: z.string().uuid(),
+      instanceId: z.string().uuid(),
+      sessionId: z.string().uuid().nullable().optional(),
+      conditionId: z.string().uuid().nullable().optional(),
+      mode: z.enum(['transparent_electron', 'browser_popup']).optional(),
+      targetDisplay: z.number().int().nonnegative().optional(),
+      clickThrough: z.boolean().optional()
+    }).parse(request.body ?? {});
+
+    try {
+      const token = bearerToken(request);
+      if (!token) {
+        return fail(reply, 401, 'UNAUTHORIZED', 'Overlay window open requires an authenticated token');
+      }
+
+      const system = await getSystemConfiguration(pool);
+      const platformPort = publicGatewayPort(config, system);
+      const row = await queryOne(pool, `
+        SELECT view_layouts.layout_config,
+               widget_instances.id,
+               widget_instances.widget_id,
+               widget_instances.x,
+               widget_instances.y,
+               widget_instances.width,
+               widget_instances.height,
+               widget_instances.window_mode
+        FROM widget_instances
+        INNER JOIN view_layouts ON view_layouts.id = widget_instances.layout_id
+        WHERE view_layouts.study_id = $1
+          AND view_layouts.id = $2
+          AND widget_instances.id = $3
+      `, [payload.studyId, payload.layoutId, payload.instanceId]);
+
+      if (!row) {
+        return fail(reply, 404, 'NOT_FOUND', 'Widget window not found');
+      }
+
+      const layoutConfig = (row.layout_config as Record<string, unknown> | null) ?? {};
+      const defaultMode = layoutConfig.isTransparent === false ? 'browser_popup' : 'transparent_electron';
+      const mode = payload.mode
+        ?? (row.window_mode === 'browser_popup' || row.window_mode === 'transparent_electron' ? row.window_mode : defaultMode);
+      const params = new URLSearchParams({
+        token,
+        studyId: payload.studyId,
+        layoutId: payload.layoutId,
+        instanceId: payload.instanceId,
+        chrome: mode === 'transparent_electron' ? 'transparent' : 'web'
+      });
+      if (payload.sessionId) params.set('sessionId', payload.sessionId);
+      if (payload.conditionId) params.set('conditionId', payload.conditionId);
+      if (mode === 'browser_popup') params.set('toolbar', '1');
+
+      const windowSpec = {
+        instanceId: row.id,
+        widgetId: row.widget_id,
+        mode,
+        clickThrough: mode === 'transparent_electron' ? (payload.clickThrough ?? true) : false,
+        bounds: {
+          x: Number(row.x ?? 0),
+          y: Number(row.y ?? 0),
+          width: Number(row.width ?? 180),
+          height: Number(row.height ?? 180)
+        },
+        url: `http://127.0.0.1:${platformPort}/overlay/${payload.layoutId}?${params.toString()}`
+      };
+
+      const processResult = await callProcessManager(config.PM_SOCKET_PATH, 'POST', '/overlay/windows/open', {
+        mode: 'windows',
+        targetDisplay: payload.targetDisplay ?? 0,
+        windows: [windowSpec],
+        session: {
+          studyId: payload.studyId,
+          sessionId: payload.sessionId ?? null,
+          layoutId: payload.layoutId,
+          conditionId: payload.conditionId ?? null
+        }
+      });
+      return ok({ opened: windowSpec, processManager: processResult });
+    } catch (error) {
+      return fail(reply, 503, 'PROCESS_MANAGER_UNAVAILABLE', error instanceof Error ? error.message : 'Process Manager unavailable');
+    }
+  });
+
+  app.post('/api/system/overlay/windows/update', async (request, reply) => {
+    const payload = z.object({
+      studyId: z.string().uuid(),
+      layoutId: z.string().uuid(),
+      windows: z.array(z.object({
+        instanceId: z.string().uuid(),
+        x: z.number().int().nonnegative(),
+        y: z.number().int().nonnegative(),
+        width: z.number().int().positive(),
+        height: z.number().int().positive()
+      })).min(1)
+    }).parse(request.body ?? {});
+
+    try {
+      const updates: Array<Record<string, unknown>> = [];
+      for (const windowUpdate of payload.windows) {
+        const row = await queryOne(pool, `
+          UPDATE widget_instances
+          SET x = $4, y = $5, width = $6, height = $7
+          WHERE id = $1
+            AND layout_id = $2
+            AND layout_id IN (
+              SELECT id FROM view_layouts WHERE study_id = $3
+            )
+          RETURNING id, widget_id, window_mode, x, y, width, height
+        `, [
+          windowUpdate.instanceId,
+          payload.layoutId,
+          payload.studyId,
+          windowUpdate.x,
+          windowUpdate.y,
+          windowUpdate.width,
+          windowUpdate.height
+        ]);
+        if (row) {
+          updates.push({
+            instanceId: row.id,
+            widgetId: row.widget_id,
+            mode: row.window_mode,
+            bounds: {
+              x: row.x,
+              y: row.y,
+              width: row.width,
+              height: row.height
+            }
+          });
+        }
+      }
+
+      if (updates.length === 0) {
+        return fail(reply, 404, 'NOT_FOUND', 'No matching widget windows found');
+      }
+
+      const processResult = await callProcessManager(
+        config.PM_SOCKET_PATH,
+        'POST',
+        '/overlay/windows/update',
+        { windows: updates }
+      );
+      return ok({ updated: updates, processManager: processResult });
     } catch (error) {
       return fail(reply, 503, 'PROCESS_MANAGER_UNAVAILABLE', error instanceof Error ? error.message : 'Process Manager unavailable');
     }

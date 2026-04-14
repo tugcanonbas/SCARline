@@ -4,8 +4,14 @@ import { randomUUID } from 'node:crypto';
 
 export const load = async ({ fetch, locals, params }) => {
   await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator', 'viewer']);
+  const layouts = await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/layouts`, locals.accessToken);
+  const participantLayoutSummary = layouts.find((layout: Record<string, unknown>) => layout.type === 'participant') ?? layouts[0] ?? null;
+  const participantLayout = participantLayoutSummary
+    ? await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/layouts/${participantLayoutSummary.id}`, locals.accessToken)
+    : null;
   return {
-    layouts: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/layouts`, locals.accessToken),
+    layouts,
+    participantLayout,
     widgets: await apiRequest(fetch, locals.apiBase, '/widgets/catalogue', locals.accessToken),
     studyId: params.id,
     accessToken: locals.accessToken
@@ -27,7 +33,6 @@ export const actions = {
         layoutConfig = JSON.parse(String(layoutJsonRaw));
       } catch {
         layoutConfig = {
-          zones: [{ id: 'primary', x: 0, y: 0, width: 1920, height: 1080, display: 0 }],
           widgets: []
         };
       }
@@ -35,12 +40,15 @@ export const actions = {
       // Legacy checkbox path — widgetIds list
       const selectedWidgets = formData.getAll('widgetIds').map(String);
       layoutConfig = {
-        zones: [{ id: 'primary', x: 40, y: 40, width: 1280, height: 720, display: 0 }],
         widgets: selectedWidgets.map((widgetId, index) => ({
           id: randomUUID(),
           widgetId,
-          zoneId: 'primary',
+          windowMode: 'transparent_electron',
           order: index,
+          x: 40 + (index * 180),
+          y: 40,
+          width: 180,
+          height: 180,
           bindingsConfig: {},
           triggerRules: [],
           styleOverrides: {}
@@ -60,7 +68,8 @@ export const actions = {
       headers: { authorization: `Bearer ${locals.accessToken}` }
     });
     const layoutsPayload = await layoutsResponse.json();
-    const existing = layoutsPayload.data?.[0];
+    const existing = (layoutsPayload.data ?? []).find((entry: Record<string, unknown>) => entry.type === 'participant')
+      ?? layoutsPayload.data?.[0];
 
     if (existing) {
       await fetch(`${locals.apiBase}/studies/${params.id}/layouts/${existing.id}`, {
@@ -83,4 +92,3 @@ export const actions = {
     }
   }
 };
-

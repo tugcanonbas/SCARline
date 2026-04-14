@@ -1,9 +1,10 @@
 <script lang="ts">
   import PageHeader from '$lib/components/PageHeader.svelte';
   import StudyTabs from '$lib/components/StudyTabs.svelte';
-  import SurfaceCard from '$lib/components/SurfaceCard.svelte';
 
   let { data } = $props();
+  const apiBase = '/api';
+  const currentLayout = $derived((data.participantLayout as Record<string, unknown> | null) ?? (data.layouts[0] as Record<string, unknown> | null) ?? null);
 
   // ─── Types ──────────────────────────────────────────────────────────────────
   type WidgetMeta = {
@@ -16,7 +17,7 @@
   type PlacedWidget = {
     id: string;
     widgetId: string;
-    zoneId: string;
+    windowMode: 'transparent_electron' | 'browser_popup';
     order: number;
     x: number;
     y: number;
@@ -35,7 +36,7 @@
 
   // ─── State ──────────────────────────────────────────────────────────────────
   let layoutName = $state(
-    (data.layouts[0] as Record<string, unknown>)?.name as string ?? 'Primary Participant Layout'
+    (currentLayout?.name as string) ?? 'Primary Participant Layout'
   );
   let placed = $state<PlacedWidget[]>(buildInitialPlaced());
   let selectedId = $state<string | null>(null);
@@ -43,21 +44,107 @@
   let canvasEl = $state<HTMLDivElement | null>(null);
   let searchQuery = $state('');
   let activeCategory = $state('all');
-  let isTransparent = $state(
-    Boolean(((data.layouts[0] as Record<string, unknown>)?.layoutConfig as any)?.isTransparent ?? true)
-  );
   let saving = $state(false);
   let saveResult = $state<{ ok: boolean; message: string } | null>(null);
 
-  function getOverlayUrl(transparent = true) {
-    const layout = data.layouts[0] as Record<string, unknown>;
-    const url = new URL(`${window.location.origin}/overlay/`);
+  function getOverlayUrl(layoutId: string) {
+    const url = new URL(`${window.location.origin}/overlay/launcher/${layoutId}`);
     url.searchParams.set('studyId', data.studyId as string);
-    url.searchParams.set('layoutId', layout?.id as string);
-    url.searchParams.set('chrome', transparent ? 'transparent' : 'web');
-    if (!transparent) url.searchParams.set('toolbar', '0');
+    url.searchParams.set('layoutId', layoutId);
+    url.searchParams.set('popupMode', 'browser');
+    url.searchParams.set('chrome', 'web');
+    url.searchParams.set('toolbar', '0');
     if (data.accessToken) url.searchParams.set('token', data.accessToken as string);
     return url.toString();
+  }
+
+  function getWidgetOverlayUrl(layoutId: string, instanceId: string, mode: 'transparent_electron' | 'browser_popup') {
+    const url = new URL(`${window.location.origin}/overlay/${layoutId}`);
+    url.searchParams.set('studyId', data.studyId as string);
+    url.searchParams.set('layoutId', layoutId);
+    url.searchParams.set('instanceId', instanceId);
+    url.searchParams.set('chrome', mode === 'transparent_electron' ? 'transparent' : 'web');
+    url.searchParams.set('toolbar', '0');
+    if (data.accessToken) url.searchParams.set('token', data.accessToken as string);
+    return url.toString();
+  }
+
+  function canonicalBounds(widget: PlacedWidget) {
+    return {
+      x: Math.round(widget.x / SCALE_X),
+      y: Math.round(widget.y / SCALE_Y),
+      width: Math.round(widget.w / SCALE_X),
+      height: Math.round(widget.h / SCALE_Y)
+    };
+  }
+
+  function popupFeatures(widget: PlacedWidget) {
+    const bounds = canonicalBounds(widget);
+    return [
+      'popup=yes',
+      'resizable=yes',
+      'scrollbars=no',
+      'toolbar=yes',
+      'location=yes',
+      'menubar=yes',
+      'status=yes',
+      `left=${Math.max(0, bounds.x)}`,
+      `top=${Math.max(0, bounds.y)}`,
+      `width=${Math.max(120, bounds.width)}`,
+      `height=${Math.max(100, bounds.height)}`
+    ].join(',');
+  }
+
+  function openBrowserWidgetShell(widget: PlacedWidget) {
+    return window.open('about:blank', `scarline_widget_${widget.id}`, popupFeatures(widget));
+  }
+
+  async function openElectronWidget(layoutId: string, widget: PlacedWidget) {
+    const response = await fetch(`${apiBase}/system/overlay/windows/open`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${data.accessToken as string}`
+      },
+      body: JSON.stringify({
+        studyId: data.studyId as string,
+        layoutId,
+        instanceId: widget.id,
+        mode: widget.windowMode
+      })
+    });
+    if (response.ok) {
+      return;
+    }
+
+    const payload = await response.json().catch(() => null);
+    const directResponse = await fetch('http://127.0.0.1:4097/windows/open', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        mode: 'windows',
+        targetDisplay: 0,
+        windows: [{
+          instanceId: widget.id,
+          widgetId: widget.widgetId,
+          mode: widget.windowMode,
+          clickThrough: widget.windowMode === 'transparent_electron',
+          bounds: canonicalBounds(widget),
+          url: getWidgetOverlayUrl(layoutId, widget.id, widget.windowMode)
+        }],
+        session: {
+          studyId: data.studyId as string,
+          sessionId: null,
+          layoutId,
+          conditionId: null
+        }
+      })
+    }).catch(() => null);
+    if (!directResponse?.ok) {
+      throw new Error(payload?.error?.message || 'Failed to open Electron widget window. Ensure the desktop overlay control server is running.');
+    }
   }
 
   // ─── Catalogue filtering ────────────────────────────────────────────────────
@@ -78,14 +165,17 @@
 
   // ─── Build initial placed widgets from saved layout ─────────────────────────
   function buildInitialPlaced(): PlacedWidget[] {
-    const layout = data.layouts[0] as Record<string, unknown> | undefined;
+    const layout = currentLayout as Record<string, unknown> | null;
     if (!layout) return [];
-    const config = (layout.layoutConfig ?? {}) as Record<string, unknown>;
-    const widgets = Array.isArray(config.widgets) ? config.widgets : [];
+    const widgets = Array.isArray(layout.widgets)
+      ? layout.widgets
+      : Array.isArray((layout.layoutConfig as Record<string, unknown> | undefined)?.widgets)
+        ? ((layout.layoutConfig as Record<string, unknown>).widgets as Array<Record<string, unknown>>)
+        : [];
     return widgets.map((w: Record<string, unknown>, i: number) => ({
       id: String(w.id ?? crypto.randomUUID()),
       widgetId: String(w.widgetId ?? ''),
-      zoneId: 'primary',
+      windowMode: (w.windowMode === 'browser_popup' ? 'browser_popup' : 'transparent_electron'),
       order: Number(w.order ?? i),
       x: Math.round(Number(w.x ?? 40 + i * 200) * SCALE_X),
       y: Math.round(Number(w.y ?? 40) * SCALE_Y),
@@ -132,7 +222,7 @@
     placed = [...placed, {
       id: crypto.randomUUID(),
       widgetId: draggingWidgetId,
-      zoneId: 'primary',
+      windowMode: 'transparent_electron',
       order: placed.length,
       x: Math.max(0, x - w / 2),
       y: Math.max(0, y - h / 2),
@@ -178,18 +268,52 @@
     if (selectedId === id) selectedId = null;
   }
 
+  function onResizeHandleMouseDown(e: MouseEvent, id: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    selectedId = id;
+    const widget = placed.find((p) => p.id === id);
+    if (!widget) return;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startW = widget.w;
+    const startH = widget.h;
+    const minW = Math.max(20, Math.round(((getWidgetMeta(widget.widgetId)?.ui?.minWidth ?? 100) * SCALE_X)));
+    const minH = Math.max(20, Math.round(((getWidgetMeta(widget.widgetId)?.ui?.minHeight ?? 100) * SCALE_Y)));
+
+    const onMove = (me: MouseEvent) => {
+      const nextW = Math.max(minW, Math.min(CANVAS_W - widget.x, startW + (me.clientX - startX)));
+      const nextH = Math.max(minH, Math.min(CANVAS_H - widget.y, startH + (me.clientY - startY)));
+      placed = placed.map((p) => (p.id === id ? { ...p, w: Math.round(nextW), h: Math.round(nextH) } : p));
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
   // ─── Save layout ─────────────────────────────────────────────────────────────
   async function saveLayout() {
     saving = true;
     saveResult = null;
-    // Build layout payload
-    const layoutConfig = {
-      isTransparent,
-      zones: [{ id: 'primary', x: 0, y: 0, width: 1920, height: 1080, display: 0 }],
+    try {
+      const layoutId = await persistLayout();
+      saveResult = { ok: true, message: `Layout saved (${layoutId.slice(0, 8)})` };
+    } catch (error) {
+      saveResult = { ok: false, message: error instanceof Error ? error.message : 'Failed to save layout' };
+    } finally {
+      saving = false;
+    }
+  }
+
+  function buildLayoutPayload() {
+    return {
       widgets: placed.map((p, i) => ({
         id: p.id,
         widgetId: p.widgetId,
-        zoneId: p.zoneId,
+        windowMode: p.windowMode,
         order: i,
         x: Math.round(p.x / SCALE_X),
         y: Math.round(p.y / SCALE_Y),
@@ -200,25 +324,123 @@
         styleOverrides: p.styleOverrides
       }))
     };
+  }
 
-    // Use form POST to server action (existing action handles create/update)
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.style.display = 'none';
+  async function persistLayout(): Promise<string> {
+    if (!data.accessToken) {
+      throw new Error('No access token available');
+    }
 
-    const nameInput = document.createElement('input');
-    nameInput.name = 'name';
-    nameInput.value = layoutName;
-    form.appendChild(nameInput);
+    const payload = {
+      ...buildLayoutPayload(),
+      name: layoutName,
+      type: 'participant',
+      targetDisplay: '0',
+      studyId: data.studyId as string
+    };
 
-    // Pass widgets as JSON blob via hidden input
-    const jsonInput = document.createElement('input');
-    jsonInput.name = 'layoutJson';
-    jsonInput.value = JSON.stringify(layoutConfig);
-    form.appendChild(jsonInput);
+    const layoutsResponse = await fetch(`${apiBase}/studies/${data.studyId}/layouts`, {
+      headers: {
+        authorization: `Bearer ${data.accessToken as string}`
+      }
+    });
+    if (!layoutsResponse.ok) {
+      throw new Error('Failed to query study layouts');
+    }
+    const layoutsPayload = await layoutsResponse.json().catch(() => null);
+    const existing = (layoutsPayload?.data ?? []).find((entry: Record<string, unknown>) => entry.type === 'participant')
+      ?? layoutsPayload?.data?.[0]
+      ?? null;
 
-    document.body.appendChild(form);
-    form.submit();
+    if (existing?.id) {
+      const response = await fetch(`${apiBase}/studies/${data.studyId}/layouts/${existing.id}`, {
+        method: 'PUT',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${data.accessToken as string}`
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        throw new Error('Failed to update participant layout');
+      }
+      return String(existing.id);
+    }
+
+    const response = await fetch(`${apiBase}/studies/${data.studyId}/layouts`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${data.accessToken as string}`
+      },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      throw new Error('Failed to create participant layout');
+    }
+    const created = await response.json().catch(() => null);
+    const layoutId = String(created?.data?.id ?? '');
+    if (!layoutId) {
+      throw new Error('Participant layout created without id');
+    }
+    return layoutId;
+  }
+
+  async function launchBrowserView() {
+    const targets = placed.map((widget) => ({ ...widget }));
+    if (targets.length === 0) {
+      saveResult = { ok: false, message: 'Add at least one widget before launching browser windows' };
+      return;
+    }
+    const popups = targets.map((widget) => ({
+      widget,
+      popup: openBrowserWidgetShell(widget)
+    }));
+    try {
+      const layoutId = await persistLayout();
+      let opened = 0;
+      for (const entry of popups) {
+        if (!entry.popup) continue;
+        entry.popup.location.href = getWidgetOverlayUrl(layoutId, entry.widget.id, 'browser_popup');
+        opened += 1;
+      }
+      if (opened === 0) {
+        window.open(getOverlayUrl(layoutId), '_blank');
+        saveResult = { ok: false, message: 'Browser blocked widget popups. Allow popups for this site and launch again.' };
+        return;
+      }
+      saveResult = { ok: true, message: `Opened ${opened} browser widget window${opened === 1 ? '' : 's'}` };
+    } catch (error) {
+      for (const entry of popups) {
+        entry.popup?.close();
+      }
+      saveResult = { ok: false, message: error instanceof Error ? error.message : 'Failed to launch browser view' };
+    }
+  }
+
+  async function openSelectedWidgetWindow() {
+    if (!selectedWidget) {
+      return;
+    }
+    const widget = { ...selectedWidget };
+    const popup = widget.windowMode === 'browser_popup' ? openBrowserWidgetShell(widget) : null;
+    if (widget.windowMode === 'browser_popup' && !popup) {
+      saveResult = { ok: false, message: 'Browser blocked the widget popup. Allow popups for this site and try again.' };
+      return;
+    }
+    try {
+      const layoutId = await persistLayout();
+      if (widget.windowMode === 'browser_popup') {
+        popup!.location.href = getWidgetOverlayUrl(layoutId, widget.id, 'browser_popup');
+        saveResult = { ok: true, message: 'Browser widget window opened' };
+      } else {
+        await openElectronWidget(layoutId, widget);
+        saveResult = { ok: true, message: 'Electron widget window opened' };
+      }
+    } catch (error) {
+      popup?.close();
+      saveResult = { ok: false, message: error instanceof Error ? error.message : 'Failed to open widget window' };
+    }
   }
 </script>
 
@@ -300,15 +522,9 @@
         placeholder="Layout name"
         type="text"
       />
-      <div class="flex items-center gap-4 px-3 py-1 bg-surface-25 border border-line rounded-lg">
-        <label class="flex items-center gap-2 cursor-pointer select-none">
-          <input type="checkbox" bind:checked={isTransparent} class="w-4 h-4 rounded border-line bg-transparent" />
-          <span class="text-xs font-medium text-slate-400">Transparent</span>
-        </label>
-      </div>
       <button
         class="px-3 py-1.5 border border-line rounded-lg text-xs font-semibold bg-panel-soft hover:bg-panel-hover transition-colors whitespace-nowrap"
-        onclick={() => window.open(getOverlayUrl(false), '_blank')}
+        onclick={launchBrowserView}
         type="button"
       >
         Launch Browser View
@@ -349,6 +565,12 @@
             type="button"
             title="Remove"
           >×</button>
+          <button
+            class="layout-placed-widget__resize"
+            type="button"
+            title="Resize"
+            onmousedown={(e) => onResizeHandleMouseDown(e, pw.id)}
+          >↘</button>
         </div>
       {/each}
 
@@ -371,17 +593,80 @@
       </div>
       <div class="layout-properties__section">
         <p class="layout-properties__label">Position</p>
-        <div class="layout-properties__row">
-          <span>X: {Math.round(selectedWidget.x / SCALE_X)}px</span>
-          <span>Y: {Math.round(selectedWidget.y / SCALE_Y)}px</span>
+        <div class="layout-properties__row layout-properties__grid">
+          <label>X
+            <input
+              type="number"
+              min="0"
+              value={Math.round(selectedWidget.x / SCALE_X)}
+              oninput={(e) => {
+                const value = Number((e.currentTarget as HTMLInputElement).value);
+                placed = placed.map((p) => p.id === selectedWidget.id ? { ...p, x: Math.max(0, Math.round(value * SCALE_X)) } : p);
+              }}
+            />
+          </label>
+          <label>Y
+            <input
+              type="number"
+              min="0"
+              value={Math.round(selectedWidget.y / SCALE_Y)}
+              oninput={(e) => {
+                const value = Number((e.currentTarget as HTMLInputElement).value);
+                placed = placed.map((p) => p.id === selectedWidget.id ? { ...p, y: Math.max(0, Math.round(value * SCALE_Y)) } : p);
+              }}
+            />
+          </label>
         </div>
       </div>
       <div class="layout-properties__section">
         <p class="layout-properties__label">Size</p>
-        <div class="layout-properties__row">
-          <span>W: {Math.round(selectedWidget.w / SCALE_X)}px</span>
-          <span>H: {Math.round(selectedWidget.h / SCALE_Y)}px</span>
+        <div class="layout-properties__row layout-properties__grid">
+          <label>W
+            <input
+              type="number"
+              min="1"
+              value={Math.round(selectedWidget.w / SCALE_X)}
+              oninput={(e) => {
+                const value = Number((e.currentTarget as HTMLInputElement).value);
+                placed = placed.map((p) => p.id === selectedWidget.id ? { ...p, w: Math.max(1, Math.round(value * SCALE_X)) } : p);
+              }}
+            />
+          </label>
+          <label>H
+            <input
+              type="number"
+              min="1"
+              value={Math.round(selectedWidget.h / SCALE_Y)}
+              oninput={(e) => {
+                const value = Number((e.currentTarget as HTMLInputElement).value);
+                placed = placed.map((p) => p.id === selectedWidget.id ? { ...p, h: Math.max(1, Math.round(value * SCALE_Y)) } : p);
+              }}
+            />
+          </label>
         </div>
+      </div>
+      <div class="layout-properties__section">
+        <p class="layout-properties__label">Render Mode</p>
+        <select
+          class="layout-properties__select"
+          value={selectedWidget.windowMode}
+          onchange={(e) => {
+            const value = (e.currentTarget as HTMLSelectElement).value as 'transparent_electron' | 'browser_popup';
+            placed = placed.map((p) => p.id === selectedWidget.id ? { ...p, windowMode: value } : p);
+          }}
+        >
+          <option value="transparent_electron">Transparent (Electron)</option>
+          <option value="browser_popup">Browser window</option>
+        </select>
+      </div>
+      <div class="layout-properties__section">
+        <button
+          class="px-3 py-1.5 border border-line rounded-lg text-xs font-semibold bg-panel-soft hover:bg-panel-hover transition-colors"
+          type="button"
+          onclick={openSelectedWidgetWindow}
+        >
+          Open This Widget Window
+        </button>
       </div>
       {#if meta?.ui}
         <div class="layout-properties__section">
@@ -588,6 +873,19 @@
     padding: 0 2px;
   }
   .layout-placed-widget__remove:hover { color: #f87171; }
+  .layout-placed-widget__resize {
+    position: absolute;
+    right: 2px;
+    bottom: 1px;
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    font-size: 0.7rem;
+    cursor: nwse-resize;
+    line-height: 1;
+    padding: 0 2px;
+  }
+  .layout-placed-widget__resize:hover { color: #cbd5e1; }
 
   /* ── Properties ── */
   .layout-properties {
@@ -604,6 +902,25 @@
   .layout-properties__section { margin-bottom: 0.625rem; }
   .layout-properties__label { font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.12em; color: #64748b; margin-bottom: 0.2rem; }
   .layout-properties__row { display: flex; gap: 0.5rem; font-size: 0.75rem; color: #cbd5e1; }
+  .layout-properties__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+  .layout-properties__grid label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.65rem; color: #94a3b8; }
+  .layout-properties__grid input {
+    border: 1px solid var(--color-line);
+    border-radius: 0.45rem;
+    background: transparent;
+    color: #e2e8f0;
+    padding: 0.25rem 0.4rem;
+    font-size: 0.75rem;
+  }
+  .layout-properties__select {
+    width: 100%;
+    border: 1px solid var(--color-line);
+    border-radius: 0.55rem;
+    background: transparent;
+    color: #e2e8f0;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.75rem;
+  }
   .layout-properties__desc { font-size: 0.71875rem; color: #94a3b8; line-height: 1.4; }
   .layout-properties__empty { padding: 1.5rem 0; text-align: center; font-size: 0.75rem; color: #475569; }
 </style>

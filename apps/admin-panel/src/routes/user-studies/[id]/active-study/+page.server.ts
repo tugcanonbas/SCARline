@@ -146,5 +146,34 @@ export const actions = {
       });
     }
     return undefined;
+  },
+  windowUpdate: async ({ fetch, locals, params, request }) => {
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator']);
+    const formData = await request.formData();
+    const layoutId = String(formData.get('layoutId') ?? '');
+    const payloadRaw = String(formData.get('windows') ?? '[]');
+    let windows: Array<Record<string, unknown>> = [];
+    try {
+      const parsed = JSON.parse(payloadRaw);
+      if (Array.isArray(parsed)) {
+        windows = parsed;
+      }
+    } catch {
+      return fail(400, { message: 'Invalid window update payload' });
+    }
+
+    if (!layoutId || windows.length === 0) {
+      return fail(400, { message: 'Layout and at least one window update are required' });
+    }
+
+    await apiRequest(fetch, locals.apiBase, '/system/overlay/windows/update', locals.accessToken, {
+      method: 'POST',
+      body: JSON.stringify({
+        studyId: params.id,
+        layoutId,
+        windows
+      })
+    });
+    return undefined;
   }
 };

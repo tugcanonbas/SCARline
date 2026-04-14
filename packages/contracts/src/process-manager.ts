@@ -7,6 +7,9 @@ export const processManagerCommandSchema = z.object({
     '/carla/restart',
     '/carla/status',
     '/overlay/reload',
+    '/overlay/configure',
+    '/overlay/windows/update',
+    '/overlay/windows/open',
     '/restart',
     '/status'
   ]),

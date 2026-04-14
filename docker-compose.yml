@@ -97,6 +97,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-scarline}:${POSTGRES_PASSWORD:-scarline}@postgres:5432/${POSTGRES_DB:-scarline}
       AMQP_URL: amqp://${RABBITMQ_USER:-scarline}:${RABBITMQ_PASSWORD:-scarline}@rabbitmq:5672
       PM_SOCKET_PATH: ${PM_SOCKET_PATH:-/host-tmp/scarline.sock}
+      SCARLINE_PORT: ${SCARLINE_PORT:-8088}
       WIDGETS_DIR: /workspace/widgets
       EXPORTS_DIR: /data/scarline/exports
     volumes:

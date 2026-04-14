@@ -110,12 +110,17 @@ test('overlay runtime implements PRD widget lifecycle controls', async () => {
   assert.match(source, /setExportIndicator/);
   assert.match(source, /blockNetwork/);
   assert.match(source, /allowedBindings/);
+  assert.match(source, /applyDomBinding/);
+  assert.match(source, /dataset\.bindStyle/);
   assert.match(source, /setWidgetState/);
   assert.match(source, /sandbox', 'allow-scripts/);
   assert.match(source, /widget-send/);
-  assert.match(source, /targetZone/);
+  assert.match(source, /instanceId/);
   assert.match(source, /postJson/);
-  assert.match(source, /assets\/\$\{widget\.widgetId\}\/widget\.json/);
+  assert.match(source, /loadWidgetAssets/);
+  assert.match(source, /assetPrefix/);
+  assert.match(source, /widget\.json/);
+  assert.match(source, /index\.html/);
 });
 
 test('overlay services expose widget validation and desktop recovery controls', async () => {
@@ -128,6 +133,7 @@ test('overlay services expose widget validation and desktop recovery controls', 
   const desktopOverlay = await readFile(path.join(root, 'apps/desktop-overlay/src/main.mjs'), 'utf8');
   assert.match(desktopOverlay, /render-process-gone/);
   assert.match(desktopOverlay, /did-fail-load/);
-  assert.match(desktopOverlay, /\/click-through/);
+  assert.match(desktopOverlay, /\/windows\/open/);
+  assert.match(desktopOverlay, /\/windows\/update/);
   assert.match(desktopOverlay, /overlayStatus/);
 });

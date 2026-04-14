@@ -7,6 +7,7 @@ const configSchema = z.object({
   AMQP_URL: z.string().min(1),
   JWT_SECRET: z.string().min(16).default('scarline-development-secret'),
   PM_SOCKET_PATH: z.string().default('/tmp/scarline.sock'),
+  SCARLINE_PORT: z.coerce.number().int().positive().default(8088),
   WIDGETS_DIR: z.string().default('/workspace/widgets'),
   EXPORTS_DIR: z.string().default('/data/scarline/exports')
 });

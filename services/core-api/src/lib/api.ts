@@ -125,7 +125,11 @@ async function requireUser(
 }
 
 function rolesForRoute(method: string, path: string): Array<z.infer<typeof RoleSchema>> | undefined {
-  if (path.startsWith('/api/system/overlay/configure')) {
+  if (
+    path.startsWith('/api/system/overlay/configure')
+    || path.startsWith('/api/system/overlay/windows/update')
+    || path.startsWith('/api/system/overlay/windows/open')
+  ) {
     return ['admin', 'researcher', 'operator'];
   }
 
@@ -268,6 +272,16 @@ function layoutSummaryDto(row: Record<string, unknown>) {
     createdAt: (row.created_at as Date)?.toISOString?.() ?? null,
     updatedAt: (row.updated_at as Date)?.toISOString?.() ?? null
   };
+}
+
+function resolveWidgetWindowMode(
+  widget: Record<string, unknown>
+): 'transparent_electron' | 'browser_popup' {
+  const raw = widget.window_mode ?? widget.windowMode;
+  if (raw === 'transparent_electron' || raw === 'browser_popup') {
+    return raw;
+  }
+  return 'transparent_electron';
 }
 
 export async function registerApi(app: FastifyInstance, deps: Dependencies): Promise<void> {
@@ -1541,13 +1555,13 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
 
     for (const widget of payload.widgets) {
       await pool.query(
-        `INSERT INTO widget_instances (id, layout_id, widget_id, zone_id, "order", x, y, width, height, bindings_config, trigger_rules, style_overrides)
+        `INSERT INTO widget_instances (id, layout_id, widget_id, window_mode, "order", x, y, width, height, bindings_config, trigger_rules, style_overrides)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12::jsonb)`,
         [
           widget.id,
           layoutId,
           widget.widgetId,
-          widget.zoneId,
+          widget.windowMode,
           widget.order,
           widget.x ?? 0,
           widget.y ?? 0,
@@ -1582,18 +1596,18 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
       WHERE study_id = $1 AND id = $2
     `, [params.studyId, params.id]);
     const widgets = await queryMany(pool, `SELECT * FROM widget_instances WHERE layout_id = $1 ORDER BY "order" ASC`, [params.id]);
+    const rawLayoutConfig = (row?.layout_config as Record<string, unknown> | undefined) ?? {};
     const data = layoutConfigSchema.parse({
       id: row?.id,
       studyId: row?.study_id,
       name: row?.name,
       type: row?.type,
       targetDisplay: row?.target_display ?? '0',
-      isTransparent: row?.layout_config?.isTransparent ?? true,
-      zones: row?.layout_config?.zones ?? [],
+      isTransparent: rawLayoutConfig?.isTransparent ?? true,
       widgets: widgets.map((widget) => ({
         id: widget.id,
         widgetId: widget.widget_id,
-        zoneId: widget.zone_id,
+        windowMode: resolveWidgetWindowMode(widget as Record<string, unknown>),
         order: widget.order,
         x: widget.x,
         y: widget.y,
@@ -1629,13 +1643,13 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     await pool.query(`DELETE FROM widget_instances WHERE layout_id = $1`, [params.id]);
     for (const widget of payload.widgets) {
       await pool.query(
-        `INSERT INTO widget_instances (id, layout_id, widget_id, zone_id, "order", x, y, width, height, bindings_config, trigger_rules, style_overrides)
+        `INSERT INTO widget_instances (id, layout_id, widget_id, window_mode, "order", x, y, width, height, bindings_config, trigger_rules, style_overrides)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12::jsonb)`,
         [
           widget.id,
           params.id,
           widget.widgetId,
-          widget.zoneId,
+          widget.windowMode,
           widget.order,
           widget.x ?? 0,
           widget.y ?? 0,

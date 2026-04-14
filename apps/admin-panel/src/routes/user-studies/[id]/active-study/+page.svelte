@@ -13,6 +13,7 @@
     name?: string | null;
     status: string;
     startedAt?: string | null;
+    conditionId?: string | null;
   };
 
   const live = createRealtimeStore();
@@ -152,6 +153,84 @@
     };
     return selectedSession ? (allowedTransitions[selectedSessionStatus]?.includes(actionName) ?? false) : false;
   }
+
+  function browserLauncherUrl() {
+    const participantLayoutId = layoutId;
+    if (!participantLayoutId || !selectedSession) return '';
+    const session = (data.sessions as SessionOption[]).find((entry) => entry.id === selectedSession);
+    const url = new URL(`${window.location.origin}/overlay/launcher/${participantLayoutId}`);
+    url.searchParams.set('studyId', data.studyId);
+    url.searchParams.set('layoutId', participantLayoutId);
+    url.searchParams.set('sessionId', selectedSession);
+    if (data.token) url.searchParams.set('token', data.token);
+    if ((session as Record<string, unknown> | undefined)?.conditionId) {
+      url.searchParams.set('conditionId', String((session as Record<string, unknown>).conditionId));
+    }
+    return url.toString();
+  }
+
+  type WindowDraft = {
+    instanceId: string;
+    widgetId: string;
+    mode: 'transparent_electron' | 'browser_popup';
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+
+  const layoutId = $derived(String((data.layoutDetail as Record<string, unknown> | null)?.id ?? ''));
+  let windowDrafts = $state<WindowDraft[]>(
+    ((data.layoutDetail?.widgets ?? []) as Array<Record<string, unknown>>).map((widget) => ({
+      instanceId: String(widget.id),
+      widgetId: String(widget.widgetId),
+      mode: (widget.windowMode === 'browser_popup' ? 'browser_popup' : 'transparent_electron') as WindowDraft['mode'],
+      x: Number(widget.x ?? 0),
+      y: Number(widget.y ?? 0),
+      width: Number(widget.width ?? 180),
+      height: Number(widget.height ?? 180)
+    }))
+  );
+  let windowUpdateStatus = $state<{ ok: boolean; message: string } | null>(null);
+
+  function updateDraft(instanceId: string, patch: Partial<WindowDraft>) {
+    windowDrafts = windowDrafts.map((entry) => (entry.instanceId === instanceId ? { ...entry, ...patch } : entry));
+  }
+
+  function nudgeWindow(entry: WindowDraft, dx = 0, dy = 0) {
+    updateDraft(entry.instanceId, {
+      x: Math.max(0, entry.x + dx),
+      y: Math.max(0, entry.y + dy)
+    });
+  }
+
+  function resizeWindow(entry: WindowDraft, dw = 0, dh = 0) {
+    updateDraft(entry.instanceId, {
+      width: Math.max(1, entry.width + dw),
+      height: Math.max(1, entry.height + dh)
+    });
+  }
+
+  async function applyWindowUpdate(instanceId: string) {
+    const target = windowDrafts.find((entry) => entry.instanceId === instanceId);
+    if (!target || !layoutId) {
+      return;
+    }
+    windowUpdateStatus = null;
+    const formData = new FormData();
+    formData.set('layoutId', layoutId);
+    formData.set('windows', JSON.stringify([{
+      instanceId: target.instanceId,
+      x: target.x,
+      y: target.y,
+      width: target.width,
+      height: target.height
+    }]));
+    const response = await fetch('?/windowUpdate', { method: 'POST', body: formData });
+    windowUpdateStatus = response.ok
+      ? { ok: true, message: `Window updated: ${target.widgetId}` }
+      : { ok: false, message: `Failed to update window: ${target.widgetId}` };
+  }
 </script>
 
 <PageHeader eyebrow="Operator" title="Active Study Controls" description="Realtime session supervision, telemetry inspection, and manual widget control for the current study." />
@@ -226,6 +305,17 @@
         <button disabled={!canTransition('cancel')} type="submit">Cancel</button>
       </form>
     </div>
+    <button
+      class="mt-4 rounded-xl border border-[--color-line] px-4 py-2 text-sm text-slate-200 hover:bg-[--color-panel-hover] disabled:cursor-not-allowed disabled:opacity-50"
+      type="button"
+      disabled={!browserLauncherUrl()}
+      onclick={() => {
+        const url = browserLauncherUrl();
+        if (url) window.open(url, '_blank');
+      }}
+    >
+      Launch Browser Popup Widgets
+    </button>
     <p class="mt-4 text-sm text-slate-400">Session lifecycle controls are wired to CoreAPI command routes for operator execution.</p>
   </SurfaceCard>
 
@@ -325,6 +415,51 @@
         </div>
       {:else}
         <p class="rounded-2xl border border-dashed border-[--color-line] px-4 py-6 text-sm text-slate-400">No widget updates have been received.</p>
+      {/each}
+    </div>
+  </SurfaceCard>
+</div>
+
+<div class="mt-4">
+  <SurfaceCard title="Window Manager" subtitle="Operator-only runtime move/resize controls. Changes persist to the participant layout.">
+    {#if windowUpdateStatus}
+      <p class="mb-3 rounded-xl border px-3 py-2 text-sm {windowUpdateStatus.ok ? 'border-emerald-600/40 bg-emerald-950/40 text-emerald-200' : 'border-red-600/40 bg-red-950/40 text-red-200'}">
+        {windowUpdateStatus.message}
+      </p>
+    {/if}
+    <div class="space-y-3">
+      {#each windowDrafts as entry}
+        <div class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3">
+          <div class="mb-2 flex items-center justify-between gap-2">
+            <p class="font-semibold text-white">{entry.widgetId}</p>
+            <span class="rounded-full border border-[--color-line] px-2 py-0.5 text-xs text-slate-300">{entry.mode === 'browser_popup' ? 'Browser window' : 'Electron transparent'}</span>
+          </div>
+          <div class="grid gap-2 md:grid-cols-4">
+            <label class="text-xs text-slate-400">X
+              <input class="mt-1 w-full rounded border border-[--color-line] bg-transparent px-2 py-1 text-sm" type="number" value={entry.x} oninput={(e) => updateDraft(entry.instanceId, { x: Number((e.currentTarget as HTMLInputElement).value || 0) })} />
+            </label>
+            <label class="text-xs text-slate-400">Y
+              <input class="mt-1 w-full rounded border border-[--color-line] bg-transparent px-2 py-1 text-sm" type="number" value={entry.y} oninput={(e) => updateDraft(entry.instanceId, { y: Number((e.currentTarget as HTMLInputElement).value || 0) })} />
+            </label>
+            <label class="text-xs text-slate-400">W
+              <input class="mt-1 w-full rounded border border-[--color-line] bg-transparent px-2 py-1 text-sm" type="number" value={entry.width} oninput={(e) => updateDraft(entry.instanceId, { width: Math.max(1, Number((e.currentTarget as HTMLInputElement).value || 1)) })} />
+            </label>
+            <label class="text-xs text-slate-400">H
+              <input class="mt-1 w-full rounded border border-[--color-line] bg-transparent px-2 py-1 text-sm" type="number" value={entry.height} oninput={(e) => updateDraft(entry.instanceId, { height: Math.max(1, Number((e.currentTarget as HTMLInputElement).value || 1)) })} />
+            </label>
+          </div>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button type="button" class="rounded-lg border border-[--color-line] px-2 py-1 text-xs text-slate-300" onclick={() => nudgeWindow(entry, -10, 0)}>←10</button>
+            <button type="button" class="rounded-lg border border-[--color-line] px-2 py-1 text-xs text-slate-300" onclick={() => nudgeWindow(entry, 10, 0)}>10→</button>
+            <button type="button" class="rounded-lg border border-[--color-line] px-2 py-1 text-xs text-slate-300" onclick={() => nudgeWindow(entry, 0, -10)}>↑10</button>
+            <button type="button" class="rounded-lg border border-[--color-line] px-2 py-1 text-xs text-slate-300" onclick={() => nudgeWindow(entry, 0, 10)}>↓10</button>
+            <button type="button" class="rounded-lg border border-[--color-line] px-2 py-1 text-xs text-slate-300" onclick={() => resizeWindow(entry, 20, 20)}>+20 size</button>
+            <button type="button" class="rounded-lg border border-[--color-line] px-2 py-1 text-xs text-slate-300" onclick={() => resizeWindow(entry, -20, -20)}>-20 size</button>
+            <button type="button" class="rounded-lg border border-indigo-500/50 bg-indigo-500/15 px-3 py-1 text-xs font-semibold text-indigo-200" onclick={() => applyWindowUpdate(entry.instanceId)}>Apply</button>
+          </div>
+        </div>
+      {:else}
+        <p class="rounded-2xl border border-dashed border-[--color-line] px-4 py-6 text-sm text-slate-400">No widget windows in participant layout.</p>
       {/each}
     </div>
   </SurfaceCard>

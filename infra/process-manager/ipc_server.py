@@ -107,6 +107,46 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as error:
             return False, str(error)
 
+    def _update_overlay_windows(self, payload: dict) -> tuple[bool, str]:
+        port = int(os.environ.get("OVERLAY_CONTROL_PORT", "4097"))
+        encoded = json.dumps(payload).encode("utf8")
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{port}/windows/update",
+            method="POST",
+            data=encoded,
+            headers={
+                "content-type": "application/json",
+                "content-length": str(len(encoded)),
+            },
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=3) as response:
+                return response.status in (200, 202), "electron overlay windows updated"
+        except urllib.error.URLError as error:
+            return False, f"overlay control endpoint unavailable: {error.reason}"
+        except Exception as error:
+            return False, str(error)
+
+    def _open_overlay_windows(self, payload: dict) -> tuple[bool, str]:
+        port = int(os.environ.get("OVERLAY_CONTROL_PORT", "4097"))
+        encoded = json.dumps(payload).encode("utf8")
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{port}/windows/open",
+            method="POST",
+            data=encoded,
+            headers={
+                "content-type": "application/json",
+                "content-length": str(len(encoded)),
+            },
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=3) as response:
+                return response.status in (200, 202), "electron overlay windows opened"
+        except urllib.error.URLError as error:
+            return False, f"overlay control endpoint unavailable: {error.reason}"
+        except Exception as error:
+            return False, str(error)
+
     def _docker_status(self) -> str:
         try:
             result = subprocess.run(  # noqa: S603
@@ -239,6 +279,30 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(400, {"accepted": False, "message": "Invalid JSON payload"})
                 return
             accepted, message = self._configure_overlay(payload if isinstance(payload, dict) else {})
+            self._json(202 if accepted else 503, {"accepted": accepted, "message": message})
+            return
+
+        if self.path.startswith("/overlay/windows/update"):
+            content_length = int(self.headers.get("Content-Length", "0"))
+            raw_payload = self.rfile.read(content_length) if content_length > 0 else b"{}"
+            try:
+                payload = json.loads(raw_payload.decode("utf8")) if raw_payload else {}
+            except Exception:
+                self._json(400, {"accepted": False, "message": "Invalid JSON payload"})
+                return
+            accepted, message = self._update_overlay_windows(payload if isinstance(payload, dict) else {})
+            self._json(202 if accepted else 503, {"accepted": accepted, "message": message})
+            return
+
+        if self.path.startswith("/overlay/windows/open"):
+            content_length = int(self.headers.get("Content-Length", "0"))
+            raw_payload = self.rfile.read(content_length) if content_length > 0 else b"{}"
+            try:
+                payload = json.loads(raw_payload.decode("utf8")) if raw_payload else {}
+            except Exception:
+                self._json(400, {"accepted": False, "message": "Invalid JSON payload"})
+                return
+            accepted, message = self._open_overlay_windows(payload if isinstance(payload, dict) else {})
             self._json(202 if accepted else 503, {"accepted": accepted, "message": message})
             return
 

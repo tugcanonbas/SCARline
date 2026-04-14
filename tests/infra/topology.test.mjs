@@ -105,7 +105,8 @@ test('overlay web exposes widget validation and relative gateway assets', async 
   const source = await readFile(path.join(root, 'apps/overlay-web/src/server.ts'), 'utf8');
   assert.match(source, /\/validate/);
   assert.match(source, /validateWidgetMetadata/);
-  assert.match(source, /src="\.\/app\.js"/);
+  assert.match(source, /src="\/overlay\/app\.js"/);
+  assert.match(source, /\/overlay\/assets\/:widgetId\/:file/);
 });
 
 test('scarline preserves CARLA paths and skips CARLA validation in --no-carla mode', async () => {
@@ -238,4 +239,3 @@ test('launcher correctly configures IPC socket paths for cross-platform fallback
     await rm(tempDir, { recursive: true, force: true });
   }
 });
-

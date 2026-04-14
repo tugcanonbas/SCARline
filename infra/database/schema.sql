@@ -143,7 +143,7 @@ CREATE TABLE IF NOT EXISTS widget_instances (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   layout_id UUID NOT NULL REFERENCES view_layouts(id) ON DELETE CASCADE,
   widget_id VARCHAR(100) NOT NULL,
-  zone_id VARCHAR(100),
+  window_mode VARCHAR(32) NOT NULL DEFAULT 'transparent_electron',
   "order" INTEGER NOT NULL DEFAULT 0,
   x INTEGER NOT NULL DEFAULT 0,
   y INTEGER NOT NULL DEFAULT 0,
@@ -240,6 +240,39 @@ ALTER TABLE devices ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}
 ALTER TABLE export_jobs ADD COLUMN IF NOT EXISTS parameters JSONB NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE export_jobs ADD COLUMN IF NOT EXISTS result_size_bytes BIGINT;
 ALTER TABLE export_jobs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE widget_instances ADD COLUMN IF NOT EXISTS window_mode VARCHAR(32);
+ALTER TABLE widget_instances ADD COLUMN IF NOT EXISTS x INTEGER;
+ALTER TABLE widget_instances ADD COLUMN IF NOT EXISTS y INTEGER;
+ALTER TABLE widget_instances ADD COLUMN IF NOT EXISTS width INTEGER;
+ALTER TABLE widget_instances ADD COLUMN IF NOT EXISTS height INTEGER;
+UPDATE widget_instances
+SET window_mode = COALESCE(NULLIF(window_mode, ''), 'transparent_electron')
+WHERE window_mode IS NULL OR window_mode = '';
+UPDATE widget_instances SET x = COALESCE(x, 0);
+UPDATE widget_instances SET y = COALESCE(y, 0);
+UPDATE widget_instances SET width = COALESCE(width, 180);
+UPDATE widget_instances SET height = COALESCE(height, 180);
+ALTER TABLE widget_instances
+ALTER COLUMN window_mode SET DEFAULT 'transparent_electron';
+ALTER TABLE widget_instances
+ALTER COLUMN x SET DEFAULT 0;
+ALTER TABLE widget_instances
+ALTER COLUMN y SET DEFAULT 0;
+ALTER TABLE widget_instances
+ALTER COLUMN width SET DEFAULT 180;
+ALTER TABLE widget_instances
+ALTER COLUMN height SET DEFAULT 180;
+ALTER TABLE widget_instances
+ALTER COLUMN window_mode SET NOT NULL;
+ALTER TABLE widget_instances
+ALTER COLUMN x SET NOT NULL;
+ALTER TABLE widget_instances
+ALTER COLUMN y SET NOT NULL;
+ALTER TABLE widget_instances
+ALTER COLUMN width SET NOT NULL;
+ALTER TABLE widget_instances
+ALTER COLUMN height SET NOT NULL;
+ALTER TABLE widget_instances DROP COLUMN IF EXISTS zone_id;
 
 CREATE TABLE IF NOT EXISTS study_trigger_rules (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -391,7 +424,7 @@ ON CONFLICT (name) DO NOTHING;
 INSERT INTO system_configuration (key, value)
 VALUES
   ('carla_server_path', 'null'::jsonb),
-  ('scarline_port', '80'::jsonb),
+  ('scarline_port', '8088'::jsonb),
   ('carla_server_port', '2000'::jsonb),
   ('onboarding_completed', 'false'::jsonb),
   ('default_simulation_mode', '"synchronous"'::jsonb),

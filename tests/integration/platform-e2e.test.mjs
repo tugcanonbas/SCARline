@@ -250,22 +250,21 @@ test('public onboarding, study setup, session start, dashboard, and overlay flow
       name: 'Participant Main',
       type: 'participant',
       targetDisplay: '0',
-      layoutConfig: {
-        zones: [
-          { id: 'primary', x: 0, y: 0, width: 1280, height: 720, display: 0 }
-        ],
-        widgets: [
-          {
-            id: widgetInstanceId,
-            widgetId: 'speedometer',
-            zoneId: 'primary',
-            order: 0,
-            bindingsConfig: {},
-            triggerRules: [],
-            styleOverrides: {}
-          }
-        ]
-      }
+      widgets: [
+        {
+          id: widgetInstanceId,
+          widgetId: 'speedometer',
+          windowMode: 'transparent_electron',
+          order: 0,
+          x: 40,
+          y: 40,
+          width: 180,
+          height: 180,
+          bindingsConfig: {},
+          triggerRules: [],
+          styleOverrides: {}
+        }
+      ]
     }
   });
   const layoutId = layoutPayload.data.id;
