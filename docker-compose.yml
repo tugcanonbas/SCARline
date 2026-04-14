@@ -173,7 +173,7 @@ services:
 
   docs:
     image: caddy:2
-    command: caddy file-server --listen :4040 --root /srv
+    command: caddy file-server --browse --listen :4040 --root /srv
     healthcheck:
       test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:4040/ || exit 1"]
       interval: 10s
