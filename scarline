@@ -30,6 +30,38 @@ check_runtime_requirements() {
   fi
 }
 
+ensure_overlay_dependencies() {
+  if [[ "${NO_OVERLAY:-false}" == "true" || "${OVERLAY_TRANSPARENT_ENABLED}" != "true" ]]; then
+    return 0
+  fi
+
+  if pnpm --dir "${ROOT_DIR}/apps/desktop-overlay" exec electron --version >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "Preparing desktop overlay dependencies"
+  if ! pnpm install --frozen-lockfile --filter @scarline/desktop-overlay...; then
+    echo "Frozen lockfile install failed for desktop overlay; retrying without --frozen-lockfile" >&2
+    pnpm install --filter @scarline/desktop-overlay...
+  fi
+
+  if ! pnpm --dir "${ROOT_DIR}/apps/desktop-overlay" exec electron --version >/dev/null 2>&1; then
+    echo "Repairing Electron runtime for desktop overlay"
+    pnpm --dir "${ROOT_DIR}/apps/desktop-overlay" rebuild electron || true
+  fi
+
+  if ! pnpm --dir "${ROOT_DIR}/apps/desktop-overlay" exec electron --version >/dev/null 2>&1; then
+    echo "Electron runtime still invalid after rebuild; forcing overlay reinstall" >&2
+    pnpm install --force --filter @scarline/desktop-overlay...
+    pnpm --dir "${ROOT_DIR}/apps/desktop-overlay" rebuild electron || true
+  fi
+
+  if ! pnpm --dir "${ROOT_DIR}/apps/desktop-overlay" exec electron --version >/dev/null 2>&1; then
+    echo "Failed to prepare Electron runtime for desktop overlay" >&2
+    return 1
+  fi
+}
+
 parse_yaml() {
   local file="$1"
   local prefix="$2"
@@ -249,6 +281,8 @@ start_overlay_desktop() {
     echo "pnpm not installed; skipping transparent overlay launch" >&2
     return 0
   fi
+
+  ensure_overlay_dependencies
 
   if [[ -f "${PID_DIR}/overlay.pid" ]] && kill -0 "$(cat "${PID_DIR}/overlay.pid")" 2>/dev/null; then
     if curl -fsS "http://127.0.0.1:${OVERLAY_CONTROL_PORT}/health" >/dev/null 2>&1; then

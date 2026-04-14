@@ -41,6 +41,49 @@ function Test-RuntimeRequirements {
   }
 }
 
+function Ensure-OverlayDependencies {
+  if ($NoOverlay) {
+    return
+  }
+
+  function Test-OverlayElectronBinary {
+    & pnpm --dir (Join-Path $RootDir "apps/desktop-overlay") exec electron --version *> $null
+    return ($LASTEXITCODE -eq 0)
+  }
+
+  if (Test-OverlayElectronBinary) {
+    return
+  }
+
+  Write-Host "Preparing desktop overlay dependencies"
+  & pnpm install --frozen-lockfile --filter "@scarline/desktop-overlay..."
+  if ($LASTEXITCODE -ne 0) {
+    Write-Warning "Frozen lockfile install failed for desktop overlay; retrying without --frozen-lockfile"
+    & pnpm install --filter "@scarline/desktop-overlay..."
+    if ($LASTEXITCODE -ne 0) {
+      throw "Failed to install desktop overlay dependencies"
+    }
+  }
+
+  if (-not (Test-OverlayElectronBinary)) {
+    Write-Host "Repairing Electron runtime for desktop overlay"
+    & pnpm --dir (Join-Path $RootDir "apps/desktop-overlay") rebuild electron
+  }
+
+  if (-not (Test-OverlayElectronBinary)) {
+    Write-Warning "Electron runtime still invalid after rebuild; forcing overlay reinstall"
+    & pnpm install --force --filter "@scarline/desktop-overlay..."
+    if ($LASTEXITCODE -ne 0) {
+      throw "Failed to force reinstall desktop overlay dependencies"
+    }
+    & pnpm --dir (Join-Path $RootDir "apps/desktop-overlay") rebuild electron
+  }
+
+  if (-not (Test-OverlayElectronBinary)) {
+    throw "Failed to prepare Electron runtime for desktop overlay"
+  }
+}
+
 function Get-ConfigValue {
   param([string]$Key, [string]$Default = "")
   if (-not (Test-Path $ConfigFile)) {
@@ -183,6 +226,8 @@ function Start-OverlayDesktop {
     Write-Warning "pnpm not installed; skipping transparent overlay launch"
     return
   }
+
+  Ensure-OverlayDependencies
 
   $pidFile = Join-Path $PidDir "overlay.pid"
   if (Test-Path $pidFile) {
