@@ -11,16 +11,16 @@
   description="Embedded PRD and implementation references served from the docs container without leaving the Admin shell."
 />
 
-<div class="grid gap-4 xl:grid-cols-[0.35fr_0.65fr]">
+<div class="section-grid" style="grid-template-columns:minmax(0,1fr);">
   <SurfaceCard title="Reference Index">
-    <div class="space-y-3">
+    <div class="list-stack">
       {#each data.sections as section}
         <a
-          class="block rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm text-slate-200 transition hover:border-[--color-accent]/40"
+          class="entity-card entity-card--tight"
           href={section.href}
           target="docs-frame"
         >
-          {section.title}
+          <span class="entity-card__title">{section.title}</span>
         </a>
       {/each}
     </div>

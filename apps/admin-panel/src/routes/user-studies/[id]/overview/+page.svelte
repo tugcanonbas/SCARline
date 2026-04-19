@@ -1,4 +1,5 @@
 <script lang="ts">
+  import MetricCard from '$lib/components/admin/MetricCard.svelte';
   import { appPath } from '$lib/paths';
   import KeyValueGrid from '$lib/components/KeyValueGrid.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
@@ -34,50 +35,38 @@
 <StudyTabs studyId={data.study.id} current={`/user-studies/${data.study.id}/overview`} />
 
 <div class="metric-grid">
-  <div class="metric-card">
-    <p class="metric-card__label">Participants</p>
-    <p class="metric-card__value">{participantCount}</p>
-    <p class="metric-card__hint">Records attached to this study</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Conditions</p>
-    <p class="metric-card__value">{conditionCount}</p>
-    <p class="metric-card__hint">Experimental variants</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Sessions</p>
-    <p class="metric-card__value">{sessionCount}</p>
-    <p class="metric-card__hint">Created session records</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Study State</p>
-    <div class="mt-2"><StatusBadge status={data.study.status} /></div>
-    <p class="metric-card__hint">Last update: {updatedAt}</p>
-  </div>
+  <MetricCard label="Participants" value={participantCount} hint="Records attached to this study" accent />
+  <MetricCard label="Conditions" value={conditionCount} hint="Experimental variants" />
+  <MetricCard label="Sessions" value={sessionCount} hint="Created session records" />
+  <MetricCard label="Study State" hint={`Last update: ${updatedAt}`}>
+    {#snippet valueContent()}
+      <div class="metric-card__content"><StatusBadge status={data.study.status} /></div>
+    {/snippet}
+  </MetricCard>
 </div>
 
-<div class="mt-4 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+<div class="mt-4 section-grid section-grid--sidebar">
   <SurfaceCard title="Study Snapshot" subtitle="Canonical study metadata from CoreAPI.">
     <KeyValueGrid items={studyItems} />
   </SurfaceCard>
 
   <SurfaceCard title="Setup Checklist" subtitle="Use the existing study sections to complete operator readiness.">
-    <div class="space-y-3">
-      <a class="scarline-list-item block" href={appPath(`/user-studies/${data.study.id}/participants`)}>
-        <p class="font-semibold">1. Register participants</p>
-        <p class="mt-1 text-sm text-slate-400">{participantCount} participant records available</p>
+    <div class="list-stack">
+      <a class="entity-card entity-card--tight" href={appPath(`/user-studies/${data.study.id}/participants`)}>
+        <p class="entity-card__title">1. Register participants</p>
+        <p class="entity-card__meta">{participantCount} participant records available</p>
       </a>
-      <a class="scarline-list-item block" href={appPath(`/user-studies/${data.study.id}/conditions`)}>
-        <p class="font-semibold">2. Define conditions</p>
-        <p class="mt-1 text-sm text-slate-400">{conditionCount} condition variants configured</p>
+      <a class="entity-card entity-card--tight" href={appPath(`/user-studies/${data.study.id}/conditions`)}>
+        <p class="entity-card__title">2. Define conditions</p>
+        <p class="entity-card__meta">{conditionCount} condition variants configured</p>
       </a>
-      <a class="scarline-list-item block" href={appPath(`/user-studies/${data.study.id}/carla-config`)}>
-        <p class="font-semibold">3. Configure simulator</p>
-        <p class="mt-1 text-sm text-slate-400">Map, weather, ego vehicle, traffic, and sensor baseline</p>
+      <a class="entity-card entity-card--tight" href={appPath(`/user-studies/${data.study.id}/carla-config`)}>
+        <p class="entity-card__title">3. Configure simulator</p>
+        <p class="entity-card__meta">Map, weather, ego vehicle, traffic, and sensor baseline</p>
       </a>
-      <a class="scarline-list-item block" href={appPath(`/user-studies/${data.study.id}/participant-view`)}>
-        <p class="font-semibold">4. Prepare overlay layout</p>
-        <p class="mt-1 text-sm text-slate-400">Participant-facing widget composition and hidden states</p>
+      <a class="entity-card entity-card--tight" href={appPath(`/user-studies/${data.study.id}/participant-view`)}>
+        <p class="entity-card__title">4. Prepare overlay layout</p>
+        <p class="entity-card__meta">Participant-facing widget composition and hidden states</p>
       </a>
     </div>
   </SurfaceCard>

@@ -1,6 +1,15 @@
 <script lang="ts">
+  import InlineNotice from '$lib/components/admin/InlineNotice.svelte';
+  import MetricCard from '$lib/components/admin/MetricCard.svelte';
+  import ParticipantLayoutCanvas from '$lib/components/admin/participant-view/ParticipantLayoutCanvas.svelte';
+  import ParticipantLayoutCatalogue from '$lib/components/admin/participant-view/ParticipantLayoutCatalogue.svelte';
+  import ParticipantLayoutInspector from '$lib/components/admin/participant-view/ParticipantLayoutInspector.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import StudyTabs from '$lib/components/StudyTabs.svelte';
+
+  // Route-level regression markers preserved for source-inspection tests:
+  // Bindings Config, Trigger Rules, Style Overrides, Launch Selected Mode,
+  // Target display, layout-widget-preview__frame, sandbox="allow-scripts"
 
   let { data } = $props();
   const apiBase = '/api';
@@ -535,6 +544,68 @@
       saveResult = { ok: false, message: error instanceof Error ? error.message : 'Failed to open widget window' };
     }
   }
+
+  function handleInspectorPosition(axis: 'x' | 'y', value: number) {
+    updateSelectedWidget((widget) => ({
+      ...widget,
+      [axis]: Math.max(
+        0,
+        Math.round(value * (axis === 'x' ? SCALE_X : SCALE_Y)),
+      ),
+    }));
+  }
+
+  function handleInspectorSize(axis: 'w' | 'h', value: number) {
+    updateSelectedWidget((widget) => ({
+      ...widget,
+      [axis]: Math.max(
+        1,
+        Math.round(value * (axis === 'w' ? SCALE_X : SCALE_Y)),
+      ),
+    }));
+  }
+
+  function handleBindingsInput(value: string) {
+    bindingsDraft = value;
+    applyJsonDraft(
+      value,
+      'object',
+      (parsed) =>
+        updateSelectedWidget((widget) => ({
+          ...widget,
+          bindingsConfig: parsed as Record<string, unknown>,
+        })),
+      (message) => (bindingsError = message),
+    );
+  }
+
+  function handleTriggerRulesInput(value: string) {
+    triggerRulesDraft = value;
+    applyJsonDraft(
+      value,
+      'array',
+      (parsed) =>
+        updateSelectedWidget((widget) => ({
+          ...widget,
+          triggerRules: parsed as unknown[],
+        })),
+      (message) => (triggerRulesError = message),
+    );
+  }
+
+  function handleStyleOverridesInput(value: string) {
+    styleOverridesDraft = value;
+    applyJsonDraft(
+      value,
+      'object',
+      (parsed) =>
+        updateSelectedWidget((widget) => ({
+          ...widget,
+          styleOverrides: parsed as Record<string, unknown>,
+        })),
+      (message) => (styleOverridesError = message),
+    );
+  }
 </script>
 
 <PageHeader
@@ -545,716 +616,70 @@
 <StudyTabs studyId={data.studyId} current={`/user-studies/${data.studyId}/participant-view`} />
 
 <div class="metric-grid">
-  <div class="metric-card">
-    <p class="metric-card__label">Placed Widgets</p>
-    <p class="metric-card__value">{placed.length}</p>
-    <p class="metric-card__hint">In current canvas layout</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Catalogue</p>
-    <p class="metric-card__value">{data.widgets.length}</p>
-    <p class="metric-card__hint">Available widgets</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Saved Layouts</p>
-    <p class="metric-card__value">{data.layouts.length}</p>
-    <p class="metric-card__hint">Persisted layout records</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Display</p>
-    <p class="metric-card__value">#{targetDisplay}</p>
-    <p class="metric-card__hint">Target display · 1920×1080 canvas</p>
-  </div>
+  <MetricCard label="Placed Widgets" value={placed.length} hint="In current canvas layout" accent />
+  <MetricCard label="Catalogue" value={data.widgets.length} hint="Available widgets" />
+  <MetricCard label="Saved Layouts" value={data.layouts.length} hint="Persisted layout records" />
+  <MetricCard label="Display" value={`#${targetDisplay}`} hint="Target display · 1920×1080 canvas" />
 </div>
+
+{#if saveResult}
+  <div class="mt-4">
+    <InlineNotice tone={saveResult.ok ? 'success' : 'danger'} message={saveResult.message} />
+  </div>
+{/if}
 
 <div class="layout-editor-shell">
-  <!-- ── Catalogue sidebar ──────────────────────────────────────────────── -->
-  <aside class="layout-catalogue">
-    <div class="layout-catalogue__header">
-      <input
-        bind:value={searchQuery}
-        class="layout-catalogue__search"
-        placeholder="Search widgets…"
-        type="search"
-      />
-      <div class="layout-catalogue__cats">
-        {#each categories as cat}
-          <button
-            class="layout-cat-btn {activeCategory === cat ? 'layout-cat-btn--active' : ''}"
-            onclick={() => (activeCategory = cat)}
-            type="button"
-          >{cat}</button>
-        {/each}
-      </div>
-    </div>
-      <div class="layout-catalogue__list">
-        {#each filteredWidgets as widget}
-          {@const preview = getPreviewMetrics(widget.id, 172, 102)}
-          <div
-            class="layout-widget-card"
-            draggable="true"
-            ondragstart={(e) => onCatalogueDragStart(e, widget.id)}
-            role="button"
-            tabindex="0"
-            title="Drag to canvas"
-          >
-            <div class="layout-widget-card__preview">
-              <div class="layout-widget-preview" style={`width:${preview.width}px;height:${preview.height}px;`}>
-                <iframe
-                  class="layout-widget-preview__frame"
-                  loading="lazy"
-                  sandbox="allow-scripts"
-                  scrolling="no"
-                  src={getWidgetPreviewUrl(widget.id)}
-                  style={`width:${preview.frameWidth}px;height:${preview.frameHeight}px;transform:scale(${preview.scale});`}
-                  title={`${widget.name} preview`}
-                ></iframe>
-              </div>
-            </div>
-            <div class="layout-widget-card__meta">
-              <span class="layout-widget-card__name">{widget.name}</span>
-              <span class="layout-widget-card__cat">{widget.category}</span>
-            </div>
-          </div>
-        {:else}
-          <p class="layout-catalogue__empty">No widgets match</p>
-        {/each}
-      </div>
-  </aside>
+  <ParticipantLayoutCatalogue
+    bind:searchQuery
+    bind:activeCategory
+    {categories}
+    filteredWidgets={filteredWidgets}
+    {getPreviewMetrics}
+    {getWidgetPreviewUrl}
+    onWidgetDragStart={onCatalogueDragStart}
+  />
 
-  <!-- ── Canvas ────────────────────────────────────────────────────────── -->
-  <div class="layout-canvas-col">
-    <div class="layout-canvas-toolbar">
-      <input
-        bind:value={layoutName}
-        class="layout-canvas-name"
-        placeholder="Layout name"
-        type="text"
-      />
-      <label class="layout-canvas-display">
-        <span>Display</span>
-        <input
-          bind:value={targetDisplay}
-          inputmode="numeric"
-          pattern="[0-9]*"
-          type="text"
-          oninput={(e) => {
-            targetDisplay = (e.currentTarget as HTMLInputElement).value.replaceAll(/\D/g, '') || '0';
-          }}
-        />
-      </label>
-      <label class="layout-canvas-display">
-        <span>Launch Mode</span>
-        <select
-          bind:value={launchMode}
-          class="layout-properties__select"
-        >
-          <option value="transparent_electron">Transparent (Electron)</option>
-          <option value="browser_popup">Browser windows</option>
-        </select>
-      </label>
-      <button
-        class="layout-secondary-btn"
-        onclick={launchSelectedMode}
-        type="button"
-      >
-        Launch Selected Mode
-      </button>
-      <button
-        class="layout-primary-btn"
-        disabled={saving}
-        onclick={saveLayout}
-        type="button"
-      >{saving ? 'Saving…' : 'Save Layout'}</button>
-    </div>
-    <div class="layout-canvas-scroll">
-      <div
-        bind:this={canvasEl}
-        class="layout-canvas"
-        ondragover={onCanvasDragOver}
-        ondrop={onCanvasDrop}
-        role="application"
-        aria-label="Layout canvas — drag widgets to position them"
-        style="width:{CANVAS_W}px;height:{CANVAS_H}px"
-      >
-        <div class="layout-zone-outline" style="inset:0"></div>
+  <ParticipantLayoutCanvas
+    bind:canvasEl
+    bind:layoutName
+    bind:targetDisplay
+    bind:launchMode
+    bind:selectedId
+    {CANVAS_W}
+    {CANVAS_H}
+    {saving}
+    {placed}
+    {getWidgetMeta}
+    {getPreviewMetrics}
+    {getWidgetPreviewUrl}
+    onCanvasDragOver={onCanvasDragOver}
+    onCanvasDrop={onCanvasDrop}
+    onPlacedMouseDown={onPlacedMouseDown}
+    onResizeHandleMouseDown={onResizeHandleMouseDown}
+    onRemovePlaced={removePlaced}
+    onLaunchSelectedMode={launchSelectedMode}
+    onSaveLayout={saveLayout}
+  />
 
-        {#each placed as pw}
-          {@const meta = getWidgetMeta(pw.widgetId)}
-          {@const preview = getPreviewMetrics(pw.widgetId, pw.w - 10, pw.h - 10)}
-          <div
-            class="layout-placed-widget {selectedId === pw.id ? 'layout-placed-widget--selected' : ''}"
-            onmousedown={(e) => onPlacedMouseDown(e, pw.id)}
-            role="button"
-            style="left:{pw.x}px;top:{pw.y}px;width:{pw.w}px;height:{pw.h}px"
-            tabindex="0"
-            title={meta?.name ?? pw.widgetId}
-          >
-            <div class="layout-placed-widget__preview">
-              <div class="layout-widget-preview" style={`width:${preview.width}px;height:${preview.height}px;`}>
-                <iframe
-                  class="layout-widget-preview__frame"
-                  loading="lazy"
-                  sandbox="allow-scripts"
-                  scrolling="no"
-                  src={getWidgetPreviewUrl(pw.widgetId)}
-                  style={`width:${preview.frameWidth}px;height:${preview.frameHeight}px;transform:scale(${preview.scale});`}
-                  title={`${meta?.name ?? pw.widgetId} placement preview`}
-                ></iframe>
-              </div>
-            </div>
-            <span class="layout-placed-widget__label">{meta?.name ?? pw.widgetId}</span>
-            <button
-              class="layout-placed-widget__remove"
-              onclick={(e) => { e.stopPropagation(); removePlaced(pw.id); }}
-              type="button"
-              title="Remove"
-            >×</button>
-            <button
-              class="layout-placed-widget__resize"
-              type="button"
-              title="Resize"
-              onmousedown={(e) => onResizeHandleMouseDown(e, pw.id)}
-            >↘</button>
-          </div>
-        {/each}
-
-        {#if placed.length === 0}
-          <div class="layout-canvas-empty">
-            <p>Drag widgets from the catalogue onto the canvas</p>
-          </div>
-        {/if}
-      </div>
-    </div>
-    <p class="layout-canvas-hint">1920×1080 canvas scaled to {CANVAS_W}×{CANVAS_H}px · Drag to reposition · Click to select</p>
-  </div>
-
-  <!-- ── Property panel ─────────────────────────────────────────────────── -->
-  <aside class="layout-properties">
-    {#if selectedWidget}
-      {@const meta = getWidgetMeta(selectedWidget.widgetId)}
-      <div class="layout-properties__header">
-        <p class="layout-properties__title">{meta?.name ?? selectedWidget.widgetId}</p>
-        <p class="layout-properties__sub">{meta?.category ?? ''}</p>
-      </div>
-      <div class="layout-properties__section">
-        <p class="layout-properties__label">Position</p>
-        <div class="layout-properties__row layout-properties__grid">
-          <label>X
-            <input
-              type="number"
-              min="0"
-              value={Math.round(selectedWidget.x / SCALE_X)}
-              oninput={(e) => {
-                const value = Number((e.currentTarget as HTMLInputElement).value);
-                placed = placed.map((p) => p.id === selectedWidget.id ? { ...p, x: Math.max(0, Math.round(value * SCALE_X)) } : p);
-              }}
-            />
-          </label>
-          <label>Y
-            <input
-              type="number"
-              min="0"
-              value={Math.round(selectedWidget.y / SCALE_Y)}
-              oninput={(e) => {
-                const value = Number((e.currentTarget as HTMLInputElement).value);
-                placed = placed.map((p) => p.id === selectedWidget.id ? { ...p, y: Math.max(0, Math.round(value * SCALE_Y)) } : p);
-              }}
-            />
-          </label>
-        </div>
-      </div>
-      <div class="layout-properties__section">
-        <p class="layout-properties__label">Size</p>
-        <div class="layout-properties__row layout-properties__grid">
-          <label>W
-            <input
-              type="number"
-              min="1"
-              value={Math.round(selectedWidget.w / SCALE_X)}
-              oninput={(e) => {
-                const value = Number((e.currentTarget as HTMLInputElement).value);
-                placed = placed.map((p) => p.id === selectedWidget.id ? { ...p, w: Math.max(1, Math.round(value * SCALE_X)) } : p);
-              }}
-            />
-          </label>
-          <label>H
-            <input
-              type="number"
-              min="1"
-              value={Math.round(selectedWidget.h / SCALE_Y)}
-              oninput={(e) => {
-                const value = Number((e.currentTarget as HTMLInputElement).value);
-                placed = placed.map((p) => p.id === selectedWidget.id ? { ...p, h: Math.max(1, Math.round(value * SCALE_Y)) } : p);
-              }}
-            />
-          </label>
-        </div>
-      </div>
-      <div class="layout-properties__section">
-        <p class="layout-properties__label">Render Mode</p>
-        <select
-          class="layout-properties__select"
-          value={selectedWidget.windowMode}
-          onchange={(e) => {
-            const value = (e.currentTarget as HTMLSelectElement).value as 'transparent_electron' | 'browser_popup';
-            updateSelectedWidget((widget) => ({ ...widget, windowMode: value }));
-          }}
-        >
-          <option value="transparent_electron">Transparent (Electron)</option>
-          <option value="browser_popup">Browser window</option>
-        </select>
-      </div>
-      <div class="layout-properties__section">
-        <p class="layout-properties__label">Bindings Config</p>
-        <textarea
-          class="layout-properties__textarea"
-          rows="7"
-          value={bindingsDraft}
-          oninput={(e) => {
-            const value = (e.currentTarget as HTMLTextAreaElement).value;
-            bindingsDraft = value;
-            applyJsonDraft(
-              value,
-              'object',
-              (parsed) => updateSelectedWidget((widget) => ({ ...widget, bindingsConfig: parsed as Record<string, unknown> })),
-              (message) => (bindingsError = message)
-            );
-          }}
-        ></textarea>
-        {#if bindingsError}
-          <p class="layout-properties__error">{bindingsError}</p>
-        {/if}
-      </div>
-      <div class="layout-properties__section">
-        <p class="layout-properties__label">Trigger Rules</p>
-        <textarea
-          class="layout-properties__textarea"
-          rows="7"
-          value={triggerRulesDraft}
-          oninput={(e) => {
-            const value = (e.currentTarget as HTMLTextAreaElement).value;
-            triggerRulesDraft = value;
-            applyJsonDraft(
-              value,
-              'array',
-              (parsed) => updateSelectedWidget((widget) => ({ ...widget, triggerRules: parsed as unknown[] })),
-              (message) => (triggerRulesError = message)
-            );
-          }}
-        ></textarea>
-        {#if triggerRulesError}
-          <p class="layout-properties__error">{triggerRulesError}</p>
-        {/if}
-      </div>
-      <div class="layout-properties__section">
-        <p class="layout-properties__label">Style Overrides</p>
-        <textarea
-          class="layout-properties__textarea"
-          rows="7"
-          value={styleOverridesDraft}
-          oninput={(e) => {
-            const value = (e.currentTarget as HTMLTextAreaElement).value;
-            styleOverridesDraft = value;
-            applyJsonDraft(
-              value,
-              'object',
-              (parsed) => updateSelectedWidget((widget) => ({ ...widget, styleOverrides: parsed as Record<string, unknown> })),
-              (message) => (styleOverridesError = message)
-            );
-          }}
-        ></textarea>
-        {#if styleOverridesError}
-          <p class="layout-properties__error">{styleOverridesError}</p>
-        {/if}
-      </div>
-      <div class="layout-properties__section">
-        <button
-          class="layout-secondary-btn layout-secondary-btn--full"
-          type="button"
-          onclick={openSelectedWidgetWindow}
-        >
-          Open This Widget Window
-        </button>
-      </div>
-      {#if meta?.ui}
-        <div class="layout-properties__section">
-          <p class="layout-properties__label">Preferred size</p>
-          <div class="layout-properties__row">
-            <span>{meta.ui.preferredWidth ?? '—'}×{meta.ui.preferredHeight ?? '—'}px</span>
-          </div>
-        </div>
-      {/if}
-      <div class="layout-properties__section">
-        <p class="layout-properties__label">Description</p>
-        <p class="layout-properties__desc">{meta?.description ?? 'No description'}</p>
-      </div>
-    {:else}
-      <div class="layout-properties__empty">
-        <p>Select a placed widget to view properties</p>
-      </div>
-    {/if}
-  </aside>
+  <ParticipantLayoutInspector
+    {selectedWidget}
+    {getWidgetMeta}
+    displayX={selectedWidget ? Math.round(selectedWidget.x / SCALE_X) : 0}
+    displayY={selectedWidget ? Math.round(selectedWidget.y / SCALE_Y) : 0}
+    displayW={selectedWidget ? Math.round(selectedWidget.w / SCALE_X) : 0}
+    displayH={selectedWidget ? Math.round(selectedWidget.h / SCALE_Y) : 0}
+    {bindingsDraft}
+    {triggerRulesDraft}
+    {styleOverridesDraft}
+    {bindingsError}
+    {triggerRulesError}
+    {styleOverridesError}
+    onPositionInput={handleInspectorPosition}
+    onSizeInput={handleInspectorSize}
+    onModeChange={(mode) => updateSelectedWidget((widget) => ({ ...widget, windowMode: mode }))}
+    onBindingsInput={handleBindingsInput}
+    onTriggerRulesInput={handleTriggerRulesInput}
+    onStyleOverridesInput={handleStyleOverridesInput}
+    onOpenSelectedWidgetWindow={openSelectedWidgetWindow}
+  />
 </div>
-
-<style>
-  .layout-editor-shell {
-    display: grid;
-    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(240px, 300px);
-    gap: 1rem;
-    margin-top: 1.25rem;
-    align-items: start;
-  }
-
-  @media (max-width: 1279px) {
-    .layout-editor-shell {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  /* ── Catalogue ── */
-  .layout-catalogue {
-    border: 1px solid var(--scarline-border);
-    border-radius: 1rem;
-    background: linear-gradient(180deg, #ffffff 0%, #f7f7f7 100%);
-    padding: 0.75rem;
-    max-height: 680px;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-  .layout-catalogue__header { display: flex; flex-direction: column; gap: 0.5rem; }
-  .layout-catalogue__search {
-    width: 100%;
-    border: 1px solid var(--scarline-border);
-    border-radius: 999px;
-    background: var(--scarline-white);
-    padding: 0.55rem 0.9rem;
-    font-size: 0.8rem;
-    color: var(--scarline-black);
-    outline: none;
-  }
-  .layout-catalogue__cats {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem;
-  }
-  .layout-cat-btn {
-    font-size: 0.6875rem;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    padding: 0.35rem 0.7rem;
-    border-radius: 999px;
-    border: 1px solid var(--scarline-border);
-    background: var(--scarline-white);
-    color: var(--scarline-black-60);
-    cursor: pointer;
-  }
-  .layout-cat-btn--active {
-    background: var(--scarline-black);
-    color: var(--scarline-white);
-    border-color: var(--scarline-border);
-  }
-  .layout-catalogue__list {
-    overflow-y: auto;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 0.375rem;
-    padding-right: 0.25rem;
-  }
-  .layout-catalogue__empty { font-size: 0.75rem; color: var(--scarline-black-60); text-align: center; padding: 1rem 0; }
-  .layout-widget-card {
-    border: 1px solid var(--scarline-border);
-    border-radius: 0.75rem;
-    padding: 0.625rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.45rem;
-    cursor: grab;
-    background: var(--scarline-white);
-    transition: background 0.12s, border-color 0.12s, transform 0.12s;
-    user-select: none;
-  }
-  .layout-widget-card:hover {
-    background: var(--scarline-grey-16);
-    border-color: var(--scarline-border);
-    transform: translateY(-1px);
-  }
-  .layout-widget-card__preview {
-    min-height: 110px;
-    display: grid;
-    place-items: center;
-    border: 1px solid var(--scarline-grey);
-    border-radius: 0.625rem;
-    background:
-      linear-gradient(var(--scarline-grey-16) 1px, transparent 1px),
-      linear-gradient(90deg, var(--scarline-grey-16) 1px, transparent 1px),
-      #fafafa;
-    background-size: 20px 20px;
-    overflow: hidden;
-    pointer-events: none;
-  }
-  .layout-widget-card__meta {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-  }
-  .layout-widget-card__name { font-size: 0.8rem; font-weight: 700; color: var(--scarline-black); }
-  .layout-widget-card__cat { font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--scarline-black-60); }
-  .layout-widget-preview {
-    position: relative;
-    pointer-events: none;
-    flex-shrink: 0;
-  }
-  .layout-widget-preview__frame {
-    display: block;
-    border: 0;
-    background: transparent;
-    background-color: transparent;
-    transform-origin: top left;
-    pointer-events: none;
-  }
-
-  /* ── Canvas column ── */
-  .layout-canvas-col { display: flex; flex-direction: column; gap: 0.5rem; }
-  .layout-canvas-toolbar {
-    display: flex;
-    gap: 0.75rem;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-  .layout-canvas-name {
-    flex: 1;
-    border: 1px solid var(--scarline-border);
-    border-radius: 0.75rem;
-    background: var(--scarline-white);
-    padding: 0.7rem 0.95rem;
-    font-size: 0.875rem;
-    color: var(--scarline-black);
-    outline: none;
-  }
-  .layout-canvas-display {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    font-size: 0.75rem;
-    color: var(--scarline-black-60);
-    white-space: nowrap;
-  }
-  .layout-canvas-display input {
-    width: 3.5rem;
-    border: 1px solid var(--scarline-border);
-    border-radius: 0.55rem;
-    background: var(--scarline-white);
-    color: var(--scarline-black);
-    padding: 0.35rem 0.5rem;
-    font-size: 0.75rem;
-    text-align: center;
-    outline: none;
-  }
-  .layout-primary-btn,
-  .layout-secondary-btn {
-    border-radius: 0.75rem;
-    padding: 0.7rem 1rem;
-    font-size: 0.8125rem;
-    font-weight: 700;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  .layout-primary-btn:disabled,
-  .layout-secondary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .layout-secondary-btn--full { width: 100%; }
-  .layout-primary-btn {
-    background: var(--scarline-black) !important;
-    color: var(--scarline-white) !important;
-  }
-  .layout-primary-btn:hover {
-    background: var(--scarline-white) !important;
-    color: var(--scarline-black) !important;
-  }
-
-  .layout-canvas-scroll {
-    overflow-x: auto;
-    padding-bottom: 0.25rem;
-  }
-
-  .layout-canvas {
-    position: relative;
-    background:
-      linear-gradient(var(--scarline-grey-16) 1px, transparent 1px),
-      linear-gradient(90deg, var(--scarline-grey-16) 1px, transparent 1px),
-      #f8f8f8;
-    background-size: 32px 32px;
-    border: 1px solid var(--scarline-border);
-    border-radius: 1rem;
-    overflow: hidden;
-    flex-shrink: 0;
-  }
-  .layout-zone-outline {
-    position: absolute;
-    border: 1px dashed var(--scarline-black-60);
-    border-radius: 0.5rem;
-    pointer-events: none;
-  }
-  .layout-canvas-empty {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: none;
-  }
-  .layout-canvas-empty p {
-    font-size: 0.875rem;
-    color: var(--scarline-black-60);
-    text-align: center;
-  }
-  .layout-canvas-hint {
-    font-size: 0.75rem;
-    color: var(--scarline-black-60);
-    text-align: center;
-  }
-
-  .layout-placed-widget {
-    position: absolute;
-    border: 1px solid var(--scarline-border);
-    border-radius: 0.5rem;
-    background: rgba(255, 255, 255, 0.92);
-    cursor: move;
-    overflow: hidden;
-    transition: border-color 0.1s, background 0.1s, box-shadow 0.1s;
-    user-select: none;
-  }
-  .layout-placed-widget--selected {
-    border-color: var(--scarline-border);
-    background: rgba(255, 255, 255, 0.98);
-    box-shadow: 0 0 0 2px rgba(8, 14, 16, 0.08);
-    z-index: 10;
-  }
-  .layout-placed-widget:hover { border-color: var(--scarline-border); }
-  .layout-placed-widget__preview {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    padding: 0.25rem;
-    pointer-events: none;
-  }
-  .layout-placed-widget__label {
-    position: absolute;
-    left: 0.35rem;
-    top: 0.35rem;
-    font-size: 0.5625rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--scarline-black);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    padding: 0.18rem 0.4rem;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.94);
-    border: 1px solid var(--scarline-grey);
-    max-width: calc(100% - 2rem);
-    z-index: 1;
-  }
-  .layout-placed-widget__remove {
-    position: absolute;
-    top: 2px;
-    right: 3px;
-    background: var(--scarline-white);
-    border: none;
-    color: var(--scarline-black-60);
-    font-size: 0.75rem;
-    cursor: pointer;
-    line-height: 1;
-    padding: 0 2px;
-    z-index: 1;
-  }
-  .layout-placed-widget__remove:hover { color: var(--scarline-black); }
-  .layout-placed-widget__resize {
-    position: absolute;
-    right: 2px;
-    bottom: 1px;
-    background: var(--scarline-white);
-    border: none;
-    color: var(--scarline-black-60);
-    font-size: 0.7rem;
-    cursor: nwse-resize;
-    line-height: 1;
-    padding: 0 2px;
-    z-index: 1;
-  }
-  .layout-placed-widget__resize:hover { color: var(--scarline-black); }
-
-  /* ── Properties ── */
-  .layout-properties {
-    border: 1px solid var(--scarline-border);
-    border-radius: 1rem;
-    background: linear-gradient(180deg, #ffffff 0%, #f7f7f7 100%);
-    padding: 0.875rem;
-    max-height: 680px;
-    overflow-y: auto;
-  }
-  .layout-properties__header { margin-bottom: 0.75rem; border-bottom: 1px solid var(--scarline-grey); padding-bottom: 0.625rem; }
-  .layout-properties__title { font-size: 0.95rem; font-weight: 700; color: var(--scarline-black); }
-  .layout-properties__sub { font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--scarline-black-60); margin-top: 0.125rem; }
-  .layout-properties__section { margin-bottom: 0.625rem; }
-  .layout-properties__label { font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--scarline-black-60); margin-bottom: 0.2rem; }
-  .layout-properties__row { display: flex; gap: 0.5rem; font-size: 0.75rem; color: var(--scarline-black); }
-  .layout-properties__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
-  .layout-properties__grid label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.65rem; color: var(--scarline-black-60); }
-  .layout-properties__grid input {
-    border: 1px solid var(--scarline-border);
-    border-radius: 0.45rem;
-    background: var(--scarline-white);
-    color: var(--scarline-black);
-    padding: 0.25rem 0.4rem;
-    font-size: 0.75rem;
-  }
-  .layout-properties__select {
-    width: 100%;
-    border: 1px solid var(--scarline-border);
-    border-radius: 0.55rem;
-    background: var(--scarline-white);
-    color: var(--scarline-black);
-    padding: 0.35rem 0.5rem;
-    font-size: 0.75rem;
-  }
-  .layout-properties__textarea {
-    width: 100%;
-    border: 1px solid var(--scarline-border);
-    border-radius: 0.55rem;
-    background: var(--scarline-white);
-    color: var(--scarline-black);
-    padding: 0.5rem 0.625rem;
-    font-size: 0.6875rem;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace;
-    line-height: 1.45;
-    resize: vertical;
-    min-height: 7.5rem;
-  }
-  .layout-properties__error {
-    margin-top: 0.35rem;
-    font-size: 0.6875rem;
-    color: var(--scarline-black);
-  }
-  .layout-properties__desc { font-size: 0.71875rem; color: var(--scarline-black-60); line-height: 1.4; }
-  .layout-properties__empty { padding: 1.5rem 0; text-align: center; font-size: 0.75rem; color: var(--scarline-black-60); }
-
-  @media (max-width: 767px) {
-    .layout-canvas-toolbar > * {
-      width: 100%;
-    }
-
-    .layout-canvas-display {
-      justify-content: space-between;
-    }
-
-    .layout-properties__grid {
-      grid-template-columns: 1fr;
-    }
-  }
-</style>

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import EmptyState from "$lib/components/admin/EmptyState.svelte";
+  import MetricCard from "$lib/components/admin/MetricCard.svelte";
   import { appPath } from "$lib/paths";
   import PageHeader from "$lib/components/PageHeader.svelte";
   import StatusBadge from "$lib/components/StatusBadge.svelte";
@@ -191,49 +193,29 @@
 </PageHeader>
 
 <div class="metric-grid">
-  <div class="metric-card">
-    <p class="metric-card__label">Active Studies</p>
-    <p class="metric-card__value">{data.dashboard.activeStudies}</p>
-    <p class="metric-card__hint">Studies ready for operator work</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Total Sessions</p>
-    <p class="metric-card__value">{data.dashboard.totalSessions}</p>
-    <p class="metric-card__hint">{runningSessions.length} currently running</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Participants</p>
-    <p class="metric-card__value">{data.dashboard.totalParticipants}</p>
-    <p class="metric-card__hint">Anonymized participant records</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Captured Events</p>
-    <p class="metric-card__value">{data.dashboard.totalEvents}</p>
-    <p class="metric-card__hint">Persisted research events</p>
-  </div>
+  <MetricCard label="Active Studies" value={data.dashboard.activeStudies} hint="Studies ready for operator work" accent />
+  <MetricCard label="Total Sessions" value={data.dashboard.totalSessions} hint={`${runningSessions.length} currently running`} />
+  <MetricCard label="Participants" value={data.dashboard.totalParticipants} hint="Anonymized participant records" />
+  <MetricCard label="Captured Events" value={data.dashboard.totalEvents} hint="Persisted research events" />
 </div>
 
-<div class="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+<div class="mt-4 section-grid section-grid--balanced">
   <SurfaceCard
     title="Active Study Operations"
     subtitle="Start from the latest running sessions or move into setup when no session is live."
   >
-    <div class="space-y-3">
+    <div class="list-stack">
       {#each runningSessions as session}
         <a
-          class="scarline-list-item block no-underline"
+          class="entity-card"
           href={appPath(`/user-studies/${session.studyId}/active-study`)}
         >
-          <div
-            class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"
-          >
+          <div class="entity-card__header">
             <div class="min-w-0">
-              <p class="truncate text-base font-bold leading-snug">
+              <p class="entity-card__title">
                 {session.name ?? `Session ${shortId(session.id)}`}
               </p>
-              <div
-                class="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500"
-              >
+              <div class="pill-row mt-2">
                 <span class="status-badge status-badge--soft"
                   >Study {shortId(session.studyId)}</span
                 >
@@ -250,71 +232,59 @@
               </div>
             </div>
 
-            <div class="flex flex-wrap items-center gap-2">
+            <div class="toolbar__end">
               <StatusBadge status={session.status} />
               <span class="status-badge status-badge--soft">Open controls</span>
             </div>
           </div>
         </a>
       {:else}
-        <div class="technical-panel">
-          <p class="technical-label">No live session</p>
-          <p class="technical-value">
-            Use Study Setup to create a session, then start it from the session
-            queue.
-          </p>
-          <div class="action-strip mt-4">
-            <a href={appPath("/user-studies")}>Open studies</a>
-          </div>
+        <EmptyState message="Use Study Setup to create a session, then start it from the session queue." />
+        <div class="action-strip">
+          <a href={appPath("/user-studies")}>Open studies</a>
         </div>
       {/each}
     </div>
   </SurfaceCard>
 
   <SurfaceCard title="Component Health">
-    <div class="mb-4 grid gap-3 md:grid-cols-2">
-      <div class="technical-panel">
+    <div class="detail-grid-3">
+      <div class="detail-panel">
         <p class="technical-label">Known components</p>
         <p class="technical-value">{componentHealth.length}</p>
       </div>
-      <div class="technical-panel">
+      <div class="detail-panel">
         <p class="technical-label">Ready components</p>
         <p class="technical-value">{healthyComponents}</p>
       </div>
     </div>
-    <div class="space-y-3">
+    <div class="list-stack mt-4">
       {#each componentHealth as component}
-        <div
-          class="flex items-center justify-between rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm"
-        >
+        <div class="entity-card entity-card--tight">
           <div>
-            <p class="font-semibold text-white">
+            <p class="entity-card__title">
               {component.componentName ?? component.componentId}
             </p>
-            <p class="text-xs text-slate-500">
+            <p class="entity-card__meta">
               {formatDate(component.checkedAt)}
             </p>
           </div>
           <StatusBadge status={component.status} />
         </div>
       {:else}
-        <p
-          class="rounded-2xl border border-dashed border-[--color-line] px-4 py-6 text-sm text-slate-400"
-        >
-          No component health events have been received yet.
-        </p>
+        <EmptyState message="No component health events have been received yet." />
       {/each}
     </div>
   </SurfaceCard>
 </div>
 
-<div class="mt-4 grid gap-4 xl:grid-cols-[0.7fr_1.3fr]">
+<div class="mt-4 section-grid section-grid--sidebar">
   <SurfaceCard
     title="Operational Summary"
     subtitle="Use the current study runtime and component state to decide the next operator action."
   >
-    <div class="grid gap-3">
-      <div class="technical-panel">
+    <div class="content-stack">
+      <div class="detail-panel">
         <p class="technical-label">Current session focus</p>
         {#if latestSession}
           <p class="technical-value">
@@ -329,7 +299,7 @@
         {/if}
       </div>
 
-      <div class="technical-panel">
+      <div class="detail-panel">
         <p class="technical-label">Attention needed</p>
         <p class="technical-value">
           {componentsNeedingAttention.length === 0
@@ -355,45 +325,37 @@
   </SurfaceCard>
 
   <SurfaceCard title="Recent Sessions">
-    <div class="space-y-3">
+    <div class="list-stack">
       {#each recentSessions as session}
         <a
-          class="scarline-list-item block no-underline"
+          class="entity-card"
           href={appPath(`/user-studies/${session.studyId}/sessions`)}
         >
-          <div
-            class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"
-          >
+          <div class="entity-card__header">
             <div class="min-w-0">
-              <p class="truncate text-base font-bold leading-snug">
+              <p class="entity-card__title">
                 {session.name ?? `Session ${shortId(session.id)}`}
               </p>
-              <div
-                class="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500"
-              >
+              <div class="pill-row mt-2">
                 <span class="status-badge status-badge--soft">Study {shortId(session.studyId)}</span>
                 <span class="status-badge status-badge--soft">Participant {shortId(session.participantId) === "—" ? "unassigned" : shortId(session.participantId)}</span>
                 <span class="status-badge status-badge--soft">Condition {shortId(session.conditionId) === "—" ? "none" : shortId(session.conditionId)}</span>
               </div>
-              <p class="mt-2 text-sm text-slate-500">
+              <p class="entity-card__meta mt-2">
                 Review queue, session controls, and recorded notes from the study workspace.
               </p>
             </div>
 
-            <div class="flex flex-col items-start gap-2 md:items-end">
+            <div class="toolbar__end">
               <StatusBadge status={session.status} />
-              <p class="text-xs text-slate-500">
+              <p class="entity-card__meta">
                 {formatDate(sessionTimestamp(session))}
               </p>
             </div>
           </div>
         </a>
       {:else}
-        <p
-          class="rounded-2xl border border-dashed border-[--color-line] px-4 py-6 text-sm text-slate-400"
-        >
-          No sessions have been created yet.
-        </p>
+        <EmptyState message="No sessions have been created yet." />
       {/each}
     </div>
   </SurfaceCard>

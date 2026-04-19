@@ -16,6 +16,8 @@
     UsersRound,
     X,
   } from "lucide-svelte";
+  import AppShellNavSection from "$lib/components/admin/shell/AppShellNavSection.svelte";
+  import AppShellUserCard from "$lib/components/admin/shell/AppShellUserCard.svelte";
   import { appPath } from "$lib/paths";
 
   let { data, children } = $props();
@@ -176,63 +178,29 @@
       </button>
 
       <div class="scarline-sidebar-body">
-        <nav
-          class="scarline-nav scarline-nav-primary"
-          aria-label="Primary navigation"
-        >
-          <p class="scarline-nav-label">Workspace</p>
-          {#each visiblePrimaryNavigation as item}
-            <a
-              class={`scarline-nav-item ${isActive(item.href) ? "scarline-nav-item--active" : ""}`}
-              aria-current={isActive(item.href) ? "page" : undefined}
-              aria-label={item.label}
-              href={appPath(item.href)}
-              onclick={() => (mobileNavOpen = false)}
-              title={item.label}
-            >
-              <item.icon size={20} strokeWidth={1.7} />
-              <span class="scarline-nav-item__label">{item.label}</span>
-            </a>
-          {/each}
-        </nav>
+        <div class="scarline-nav-primary">
+          <AppShellNavSection
+            label="Workspace"
+            items={visiblePrimaryNavigation}
+            {isActive}
+            onSelect={() => (mobileNavOpen = false)}
+          />
+        </div>
 
         <div class="scarline-sidebar-footer">
-          <nav
-            class="scarline-nav scarline-nav-utility"
-            aria-label="Utility navigation"
-          >
-            <p class="scarline-nav-label">System</p>
-            {#each visibleUtilityNavigation as item}
-              <a
-                class={`scarline-nav-item ${isActive(item.href) ? "scarline-nav-item--active" : ""}`}
-                aria-current={isActive(item.href) ? "page" : undefined}
-                aria-label={item.label}
-                href={appPath(item.href)}
-                onclick={() => (mobileNavOpen = false)}
-                title={item.label}
-              >
-                <item.icon size={20} strokeWidth={1.7} />
-                <span class="scarline-nav-item__label">{item.label}</span>
-              </a>
-            {/each}
-          </nav>
-
-          <div class="scarline-user-card">
-            <p class="kv-label">Signed In</p>
-            <p class="mt-2 text-base font-bold">
-              {data.user?.displayName ?? data.user?.username}
-            </p>
-            <p class="text-sm text-slate-500">{data.user?.roles?.join(", ")}</p>
-            <a
-              class="mt-4 inline-flex items-center gap-2 text-sm underline"
-              href={appPath("/login?logout=1")}
-              onclick={() => (mobileNavOpen = false)}
-              title="Switch account"
-            >
-              <LogOut size={20} strokeWidth={1.7} />
-              <span class="scarline-nav-item__label">Switch account</span>
-            </a>
+          <div class="scarline-nav-utility">
+            <AppShellNavSection
+              label="System"
+              items={visibleUtilityNavigation}
+              {isActive}
+              onSelect={() => (mobileNavOpen = false)}
+            />
           </div>
+
+          <AppShellUserCard
+            user={data.user}
+            onSelect={() => (mobileNavOpen = false)}
+          />
         </div>
       </div>
     </aside>

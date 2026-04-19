@@ -1,11 +1,12 @@
 <script lang="ts">
+  import InlineNotice from '$lib/components/admin/InlineNotice.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
 
   let { form } = $props();
 </script>
 
-<div class="mx-auto max-w-3xl py-10">
+<div class="page-shell--wide py-10">
   <PageHeader
     eyebrow="Onboarding"
     title="System configuration"
@@ -14,36 +15,32 @@
 
   <SurfaceCard title="Host Settings">
     {#if form?.message}
-      <p class="mb-4 rounded-2xl border border-red-500/30 bg-red-950/40 px-4 py-3 text-sm text-red-100">
-        {form.message}
-      </p>
+      <InlineNotice tone="danger" message={form.message} />
     {/if}
 
-    <form class="grid gap-4 md:grid-cols-2" method="POST">
-      <label class="grid gap-2 text-sm md:col-span-2">
+    <form class="form-grid-2" method="POST">
+      <label class="form-field md:col-span-2">
         <span>CARLA Server Path</span>
-        <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="carlaServerPath" placeholder="/opt/carla/CarlaUE4.sh" />
+        <input name="carlaServerPath" placeholder="/opt/carla/CarlaUE4.sh" />
       </label>
-      <label class="grid gap-2 text-sm">
+      <label class="form-field">
         <span>Data Directory</span>
-        <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="dataDirectory" value=".scarline-runtime" required />
+        <input name="dataDirectory" value=".scarline-runtime" required />
       </label>
-      <label class="grid gap-2 text-sm">
+      <label class="form-field">
         <span>Platform Port</span>
-        <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="platformPort" type="number" value="8088" required />
+        <input name="platformPort" type="number" value="8088" required />
       </label>
-      <label class="grid gap-2 text-sm">
+      <label class="form-field">
         <span>CARLA RPC Port</span>
-        <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="carlaServerPort" type="number" value="2000" required />
+        <input name="carlaServerPort" type="number" value="2000" required />
       </label>
-      <label class="mt-7 flex items-center gap-3 text-sm">
+      <label class="form-choice-card">
         <input class="size-4" name="transparentOverlayEnabled" type="checkbox" checked />
         <span>Enable transparent overlay shell</span>
       </label>
-      <div class="md:col-span-2">
-        <button class="rounded-2xl bg-[--color-accent-strong] px-5 py-3 text-sm font-semibold text-white" type="submit">
-          Continue
-        </button>
+      <div class="form-actions md:col-span-2">
+        <button class="button-primary" type="submit">Continue</button>
       </div>
     </form>
   </SurfaceCard>
