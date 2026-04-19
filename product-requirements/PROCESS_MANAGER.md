@@ -181,6 +181,8 @@ features:
   io_client_enabled: false
 ```
 
+`overlay.target_display` is the default/fallback display. Saved participant layouts can assign individual widget instances to different detected displays; CoreAPI passes those per-widget assignments to the Process Manager when opening windows.
+
 ---
 
 ## 4. Communication with CoreAPI
@@ -193,7 +195,9 @@ The Process Manager communicates with CoreAPI via REST API for:
 | **Shutdown notification** | PM → CoreAPI | `POST /api/system/shutdown` |
 | **Component status push** | PM → CoreAPI | `POST /api/system/component-status` |
 | **CARLA start/stop request** | CoreAPI → PM | PM listens on a local IPC socket |
-| **Overlay reconfigure** | CoreAPI → PM | PM relays to Electron via IPC |
+| **Overlay display topology** | CoreAPI → PM | PM proxies Electron display detection |
+| **Overlay reconfigure** | CoreAPI → PM | PM relays layout/window specs to Electron via IPC |
+| **Overlay window open/update/close** | CoreAPI → PM | PM proxies managed widget window lifecycle requests |
 
 ### Local IPC Socket
 
@@ -204,8 +208,13 @@ POST /carla/start      → Start CARLA Server
 POST /carla/stop       → Stop CARLA Server
 POST /carla/restart    → Restart CARLA Server
 GET  /carla/status     → CARLA Server status
-POST /overlay/reload   → Reload overlay widget layout
-GET  /status           → Full system status
+GET  /overlay/displays        → Connected display topology from Electron
+POST /overlay/configure       → Configure/open managed overlay widget windows
+POST /overlay/windows/open    → Open a specific managed widget window
+POST /overlay/windows/update  → Update/persist managed widget window bounds
+POST /overlay/windows/close   → Close one or more managed widget windows
+POST /overlay/reload          → Reload overlay widget layout
+GET  /status                  → Full system status
 ```
 
 ---

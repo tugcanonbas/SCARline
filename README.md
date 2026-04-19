@@ -25,8 +25,9 @@ SCARline is an automotive UX/HCI research operations platform for designing, run
 - CQRS messaging backbone with RabbitMQ for commands/events.
 - Persistent operational and research data in PostgreSQL.
 - Dual overlay model:
-  - browser overlay runtime (`/overlay`)
-  - desktop transparent overlay (Electron) for participant display.
+  - browser overlay runtime (`/overlay`) with launcher/browser-popup support.
+  - desktop transparent overlay (Electron) for participant displays.
+- Per-widget layout targeting across connected displays, using detected display topology and saved widget bounds.
 - Extensible architecture for widgets, simulator adapters, and sensor drivers.
 
 ## Architecture Overview
@@ -218,6 +219,7 @@ features:
 Notes:
 
 - `platform.port` maps to Nginx host port (default `8088` in this repo).
+- `overlay.target_display` is the default display fallback; Participant View layouts can assign individual widgets to different connected displays.
 - On Linux, process-manager IPC uses `/tmp/scarline.sock`.
 - On macOS, IPC falls back to TCP (`127.0.0.1:4098` by default).
 
@@ -244,6 +246,8 @@ pnpm check
 pnpm lint
 pnpm test
 pnpm test:e2e
+pnpm widgets:build-css
+pnpm widgets:check-css
 ```
 
 Targeted tests:
@@ -278,7 +282,7 @@ This repository is actively developed, and local worktrees may be dirty. Before 
   - backend service-to-service coordination must use RabbitMQ CQRS.
   - CoreAPI owns persistence/auth/REST/WebSocket fanout.
   - frontends consume CoreAPI via REST/WebSocket only.
-  - widgets stay static HTML/CSS/vanilla JS (no widget build pipeline).
+  - widgets stay static HTML/CSS/vanilla JS; shared Tailwind CSS is generated via `pnpm widgets:build-css`, but individual widgets must not add bundlers.
   - Admin RBAC/route guards stay in server loaders/actions.
 - Keep contract updates synchronized across `packages/contracts`, services, and tests.
 

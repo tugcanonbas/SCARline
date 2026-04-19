@@ -149,7 +149,9 @@ The launcher stack has moved significantly toward parity and recovery readiness:
 #### Desktop overlay + control wiring
 
 - Desktop overlay now supports runtime reconfiguration through `/configure`.
-- Configure payload supports URL/mode/display/zones/bounds/session/click-through updates.
+- Configure payload supports URL/mode/display/bounds/session/click-through updates.
+- Display topology is exposed through the desktop overlay, Process Manager, and CoreAPI so Participant View can project detected screens.
+- Managed widget windows can be opened, resized/updated, and closed individually.
 - Status endpoint now exposes richer runtime state context.
 
 ---
@@ -210,6 +212,8 @@ To preserve the implemented data flow without editing design files:
   - serves shared `/images/*`, `/icons/*`, `/dist.css`
   - validates both metadata structures
 - Overlay runtime normalizes metadata before applying existing binding/trigger flow.
+- Shared `widgets/widget-runtime.js` applies declarative binding/state/action behavior across widget contexts.
+- Shared Tailwind CSS is generated into `widgets/dist.css` from `widgets/tailwind-source.css`.
 - Widget `widget.json` categories have been normalized to the product taxonomy.
 - `WIDGET_CATALOGUE.md` now documents all 24 widgets, including `operator-controls`, `operator-notes`, and `sensor-health`.
 
@@ -301,9 +305,10 @@ Notable current limitation found during live validation:
 
 ### 11.1 Overlay Rendering and Persistence
 A final stabilization pass was performed to resolve issues with participant view rendering:
-- **Absolute Positioning**: Transitioned from a zone-based model to an absolute coordinate model (logical 1080p pixels).
+- **Absolute Positioning**: Transitioned from a zone-based model to display-relative device-independent widget coordinates.
 - **Persistence Correction**: Fixed Zod schema mismatches and JSONB mapping logic in the CoreAPI to ensure layout configurations (transparency, coordinates) are correctly saved and retrieved.
 - **Connectivity Stability**: Resolved Docker-to-Host networking mismatches by enabling relative API origin discovery in the overlay runtime.
+- **Per-Widget Display Targeting**: Participant View now persists `targetDisplay` per widget instance, CoreAPI resolves display offsets per widget, and browser-popup/transparent Electron launch paths use the same saved bounds.
 
 ### 11.2 Build Stabilization Target
 The build issue identified in this finalization pass was Sim-Bridge websocket dependency skew:

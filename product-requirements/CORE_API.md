@@ -254,7 +254,7 @@ stateDiagram-v2
 | `GET` | `/api/studies/:studyId/layouts` | List view layouts for study |
 | `POST` | `/api/studies/:studyId/layouts` | Create a view layout |
 | `GET` | `/api/studies/:studyId/layouts/:id` | Get layout detail |
-| `PUT` | `/api/studies/:studyId/layouts/:id` | Update layout (zones, widgets, positioning) |
+| `PUT` | `/api/studies/:studyId/layouts/:id` | Update layout (widgets, per-widget display targeting, positioning) |
 | `DELETE` | `/api/studies/:studyId/layouts/:id` | Delete layout |
 
 ---
@@ -266,11 +266,26 @@ stateDiagram-v2
 | `POST` | `/api/studies/:studyId/sessions/:sessionId/triggers` | Send a manual widget trigger |
 | `GET` | `/api/studies/:studyId/trigger-rules` | Get configurable trigger rules for study |
 | `PUT` | `/api/studies/:studyId/trigger-rules` | Update configurable trigger rules |
-| `GET` | `/api/widgets/catalogue` | List all available widgets from the catalogue |
+| `GET` | `/api/widgets/catalogue` | List all available widgets with normalized metadata and `ui` sizing values from `widget.json` |
 
 ---
 
-### 2.14 Devices
+### 2.14 Overlay Control
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/system/overlay/displays` | Return normalized connected display topology from the desktop overlay/process-manager path |
+| `POST` | `/api/system/overlay/configure` | Configure/open the active overlay layout through the Process Manager |
+| `POST` | `/api/system/overlay/windows/open` | Open one managed widget window using the widget's saved bounds and assigned display |
+| `POST` | `/api/system/overlay/windows/update` | Persist live widget window bounds after resize/move, converting absolute desktop coordinates back to display-relative layout coordinates |
+| `POST` | `/api/system/overlay/windows/close` | Close one or more managed widget windows without deleting them from the saved layout |
+| `POST` | `/api/system/overlay/reload` | Request overlay reload through the Process Manager |
+
+Overlay window launch uses Electron device-independent pixels. Saved widget coordinates remain relative to each widget's assigned participant display; CoreAPI applies the detected display offset only when constructing live window specs.
+
+---
+
+### 2.15 Devices
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -282,7 +297,7 @@ stateDiagram-v2
 
 ---
 
-### 2.15 Export Jobs
+### 2.16 Export Jobs
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -294,7 +309,7 @@ stateDiagram-v2
 
 ---
 
-### 2.16 Session Logs
+### 2.17 Session Logs
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -304,7 +319,7 @@ stateDiagram-v2
 
 ---
 
-### 2.17 Users (Admin)
+### 2.18 Users (Admin)
 
 | Method | Path | Description |
 |--------|------|-------------|

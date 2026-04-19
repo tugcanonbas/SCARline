@@ -376,10 +376,11 @@ Row of action buttons:
 
 **Purpose**: Visual editor for arranging widgets on participant screens.
 
-**APIs**: `GET/POST/PUT /api/studies/:studyId/layouts`, `GET /api/widgets/catalogue`
+**APIs**: `GET/POST/PUT /api/studies/:studyId/layouts`, `GET /api/widgets/catalogue`, `GET /api/system/overlay/displays`, `POST /api/system/overlay/windows/open`, `POST /api/system/overlay/windows/close`
 
 **UI Elements**:
-- Screen simulator canvas (represents the participant's screen dimensions)
+- Display topology strip showing connected screens in their detected relative arrangement
+- Display-aware canvas for the selected participant display dimensions
 - Widget catalogue panel (sidebar):
   - Grouped by category (Driving, Communication, Health, Study Management, General/Infotainment)
   - Drag-and-drop from catalogue to canvas
@@ -387,10 +388,13 @@ Row of action buttons:
 - Placed widgets on canvas:
   - Draggable and resizable
   - Click to configure bindings and trigger rules
+  - Assigned display selector for moving one widget to another connected display
+  - Close live widget window button
   - Delete button
 - Layout presets (save/load named layouts)
-- Preview button (opens overlay web mode in new tab to preview layout)
-- Multi-display support (tabs for different target displays)
+- Launch controls for transparent Electron windows or browser-popup windows
+- Close All Widgets control for live overlay windows
+- Multi-display support with per-widget `targetDisplay`; changing the selected display filters the canvas to widgets assigned to that display without moving other widgets
 
 ---
 
