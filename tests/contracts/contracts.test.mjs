@@ -79,6 +79,14 @@ test('widget catalogue directories contain widget.json and index.html', async ()
   }
 });
 
+test('widget catalogue API exposes normalized widget ui sizing metadata', async () => {
+  const source = await readFile(path.join(root, 'services/core-api/src/lib/widget-catalogue.ts'), 'utf8');
+  const contract = await readFile(path.join(root, 'packages/contracts/src/widget.ts'), 'utf8');
+  assert.match(source, /ui:\s*metadata\.ui/);
+  assert.match(contract, /preferredWidth/);
+  assert.match(contract, /minWidth/);
+});
+
 test('widget binding metadata stays aligned with index.html data-bind usage', async () => {
   const componentsDir = path.join(root, 'widgets/components');
   const entries = await readdir(componentsDir, { withFileTypes: true });
@@ -220,5 +228,10 @@ test('overlay services expose widget validation and desktop recovery controls', 
   assert.match(desktopOverlay, /did-fail-load/);
   assert.match(desktopOverlay, /\/windows\/open/);
   assert.match(desktopOverlay, /\/windows\/update/);
+  assert.match(desktopOverlay, /\/windows\/close/);
+  assert.match(desktopOverlay, /displayTopology/);
+  assert.match(desktopOverlay, /screen\.getAllDisplays/);
+  assert.match(desktopOverlay, /closeWindows/);
+  assert.match(desktopOverlay, /removeRuntimeWindow/);
   assert.match(desktopOverlay, /overlayStatus/);
 });

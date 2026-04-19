@@ -18,7 +18,8 @@
     onBindingsInput,
     onTriggerRulesInput,
     onStyleOverridesInput,
-    onOpenSelectedWidgetWindow
+    onOpenSelectedWidgetWindow,
+    onCloseSelectedWidgetWindow
   } = $props<{
     selectedWidget: Record<string, unknown> | null;
     getWidgetMeta: (widgetId: string) => Record<string, unknown> | undefined;
@@ -39,6 +40,7 @@
     onTriggerRulesInput: (value: string) => void;
     onStyleOverridesInput: (value: string) => void;
     onOpenSelectedWidgetWindow: () => void;
+    onCloseSelectedWidgetWindow: () => void;
   }>();
 </script>
 
@@ -144,6 +146,11 @@
     <div class="layout-properties__section">
       <button class="button-secondary button-block" type="button" onclick={onOpenSelectedWidgetWindow}>
         Open This Widget Window
+      </button>
+    </div>
+    <div class="layout-properties__section">
+      <button class="button-secondary button-block" type="button" onclick={onCloseSelectedWidgetWindow}>
+        Close This Widget Window
       </button>
     </div>
     {#if meta?.ui}

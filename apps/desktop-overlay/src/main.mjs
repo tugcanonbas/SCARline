@@ -42,6 +42,19 @@ function normalizeBounds(bounds = {}) {
   };
 }
 
+function normalizeRect(rect = {}, fallback = {}) {
+  return {
+    x: Number.isFinite(rect.x) ? Number(rect.x) : Number(fallback.x ?? 0),
+    y: Number.isFinite(rect.y) ? Number(rect.y) : Number(fallback.y ?? 0),
+    width: Number.isFinite(rect.width)
+      ? Math.max(1, Number(rect.width))
+      : Math.max(1, Number(fallback.width ?? 1920)),
+    height: Number.isFinite(rect.height)
+      ? Math.max(1, Number(rect.height))
+      : Math.max(1, Number(fallback.height ?? 1080)),
+  };
+}
+
 function normalizeDimension(value, fallback) {
   return Number.isFinite(value)
     ? Math.max(1, Number(value))
@@ -258,6 +271,13 @@ function updateRuntimeWindowBounds(instanceId, windowRef) {
   entry.bounds = normalizeBounds(windowRef.getBounds());
 }
 
+function removeRuntimeWindow(instanceId) {
+  const id = String(instanceId ?? "");
+  runtimeConfig.windows = runtimeConfig.windows.filter(
+    (entry) => String(entry.instanceId ?? "") !== id,
+  );
+}
+
 function attachWindowTracking(windowRef, normalizedSpec) {
   const syncBounds = () =>
     updateRuntimeWindowBounds(normalizedSpec.instanceId, windowRef);
@@ -315,6 +335,9 @@ function createManagedWindow(spec) {
   windowRef.on("closed", () => {
     const existing = windowsById.get(normalizedSpec.instanceId);
     if (existing?.window === windowRef) {
+      if (!existing.retainRuntimeConfigOnClose) {
+        removeRuntimeWindow(normalizedSpec.instanceId);
+      }
       windowsById.delete(normalizedSpec.instanceId);
     }
   });
@@ -360,7 +383,7 @@ function updateManagedWindow(spec) {
   };
 
   if (nextSpec.mode !== existing.spec.mode) {
-    destroyManagedWindow(id);
+    destroyManagedWindow(id, { removeConfig: false });
     createManagedWindow({
       ...nextSpec,
       instanceId: id,
@@ -385,14 +408,23 @@ function updateManagedWindow(spec) {
   });
 }
 
-function destroyManagedWindow(instanceId) {
+function destroyManagedWindow(instanceId, options = {}) {
   const id = String(instanceId ?? "");
   const existing = windowsById.get(id);
   if (!existing) {
+    if (options.removeConfig) {
+      removeRuntimeWindow(id);
+    }
     return;
   }
-  existing.window.removeAllListeners("closed");
-  existing.window.close();
+  if (options.removeConfig) {
+    removeRuntimeWindow(id);
+  } else {
+    existing.retainRuntimeConfigOnClose = true;
+  }
+  if (!existing.window.isDestroyed()) {
+    existing.window.close();
+  }
   windowsById.delete(id);
 }
 
@@ -453,6 +485,41 @@ function reloadWindows() {
   }
 }
 
+function displayTopology() {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  return screen.getAllDisplays().map((display, index) => {
+    const bounds = normalizeRect(display.bounds);
+    const workArea = normalizeRect(display.workArea, bounds);
+    const physicalSize = normalizeRect(
+      {
+        x: 0,
+        y: 0,
+        width: display.size?.width ?? bounds.width,
+        height: display.size?.height ?? bounds.height,
+      },
+      { x: 0, y: 0, width: bounds.width, height: bounds.height },
+    );
+    return {
+      index,
+      id: String(display.id),
+      label: display.label || `Display ${index}`,
+      isPrimary: display.id === primaryDisplay.id,
+      bounds,
+      workArea,
+      scaleFactor: Number.isFinite(display.scaleFactor)
+        ? Number(display.scaleFactor)
+        : 1,
+      rotation: Number.isFinite(display.rotation)
+        ? Number(display.rotation)
+        : 0,
+      physicalSize: {
+        width: physicalSize.width,
+        height: physicalSize.height,
+      },
+    };
+  });
+}
+
 function overlayStatus() {
   return {
     status: "running",
@@ -465,12 +532,7 @@ function overlayStatus() {
       mode: entry.spec.mode,
       bounds: entry.window.getBounds(),
     })),
-    displays: screen.getAllDisplays().map((display, index) => ({
-      index,
-      id: display.id,
-      bounds: display.bounds,
-      scaleFactor: display.scaleFactor,
-    })),
+    displays: displayTopology(),
   };
 }
 
@@ -491,6 +553,16 @@ function configureOverlay(payload = {}) {
         url: String(entry.url ?? ""),
         bounds: normalizeBounds(entry.bounds),
         clickThrough: entry.clickThrough !== false,
+        minWidth: normalizeDimension(entry.minWidth, entry.bounds?.width ?? 180),
+        minHeight: normalizeDimension(entry.minHeight, entry.bounds?.height ?? 180),
+        preferredWidth: normalizeDimension(
+          entry.preferredWidth,
+          entry.bounds?.width ?? entry.minWidth ?? 180,
+        ),
+        preferredHeight: normalizeDimension(
+          entry.preferredHeight,
+          entry.bounds?.height ?? entry.minHeight ?? 180,
+        ),
       }))
       .filter((entry) => entry.instanceId && entry.url);
   }
@@ -588,6 +660,25 @@ function openWindows(payload = {}) {
   runtimeConfig.windows = Array.from(byId.values());
 }
 
+function closeWindows(payload = {}) {
+  const requestedIds = Array.isArray(payload.instanceIds)
+    ? payload.instanceIds.map((id) => String(id)).filter(Boolean)
+    : [];
+  const ids = payload.closeAll === true
+    || (payload.layoutId && payload.layoutId === runtimeConfig.session.layoutId)
+    ? Array.from(new Set([
+        ...runtimeConfig.windows.map((entry) => String(entry.instanceId ?? "")),
+        ...windowsById.keys(),
+      ].filter(Boolean)))
+    : requestedIds;
+
+  for (const id of ids) {
+    destroyManagedWindow(id, { removeConfig: true });
+  }
+
+  return ids.length;
+}
+
 function parseJsonBody(request, callback) {
   let body = "";
   request.on("data", (chunk) => {
@@ -626,6 +717,11 @@ function startControlServer() {
 
     if (request.url === "/health" || request.url === "/status") {
       writeJson(response, 200, overlayStatus());
+      return;
+    }
+
+    if (request.url === "/displays") {
+      writeJson(response, 200, { status: "running", displays: displayTopology() });
       return;
     }
 
@@ -668,6 +764,18 @@ function startControlServer() {
         }
         openWindows(payload);
         writeJson(response, 202, { accepted: true, config: overlayStatus() });
+      });
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/windows/close") {
+      parseJsonBody(request, (payload) => {
+        if (!payload) {
+          writeJson(response, 400, { error: "invalid_json" });
+          return;
+        }
+        const closed = closeWindows(payload);
+        writeJson(response, 202, { accepted: true, closed, config: overlayStatus() });
       });
       return;
     }

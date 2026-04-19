@@ -1790,6 +1790,54 @@ body {
     text-align: center;
   }
 
+  .layout-display-panel {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--scarline-border);
+    border-radius: 12px;
+    background: linear-gradient(180deg, #ffffff 0%, #f4f4f4 100%);
+    padding: 10px 12px;
+  }
+
+  .layout-display-topology {
+    position: relative;
+    min-width: 120px;
+    min-height: 48px;
+    border: 1px solid var(--scarline-grey);
+    border-radius: 10px;
+    background:
+      linear-gradient(var(--scarline-grey-16) 1px, transparent 1px),
+      linear-gradient(90deg, var(--scarline-grey-16) 1px, transparent 1px),
+      #fafafa;
+    background-size: 16px 16px;
+    overflow: hidden;
+  }
+
+  .layout-display-node {
+    position: absolute;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--scarline-border);
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--scarline-black-60);
+    font-size: 9px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .layout-display-node--selected {
+    border-color: var(--scarline-black);
+    background: var(--scarline-black);
+    color: var(--scarline-white);
+  }
+
+  .layout-display-panel__meta {
+    color: var(--scarline-black-60);
+    font-size: 12px;
+  }
+
   .layout-canvas-scroll {
     overflow-x: auto;
     padding-bottom: 4px;
@@ -1876,6 +1924,7 @@ body {
     text-transform: uppercase;
   }
 
+  .layout-placed-widget__close,
   .layout-placed-widget__remove,
   .layout-placed-widget__resize {
     position: absolute;
@@ -1891,6 +1940,12 @@ body {
     top: 2px;
     right: 3px;
     font-size: 12px;
+  }
+
+  .layout-placed-widget__close {
+    top: 2px;
+    right: 22px;
+    font-size: 11px;
   }
 
   .layout-placed-widget__resize {

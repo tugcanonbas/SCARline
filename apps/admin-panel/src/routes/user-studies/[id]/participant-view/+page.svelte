@@ -9,7 +9,7 @@
 
   // Route-level regression markers preserved for source-inspection tests:
   // Bindings Config, Trigger Rules, Style Overrides, Launch Selected Mode,
-  // Target display, layout-widget-preview__frame, sandbox="allow-scripts"
+  // Close All Widgets, Target display, layout-widget-preview__frame, sandbox="allow-scripts"
 
   let { data } = $props();
   const apiBase = '/api';
@@ -30,6 +30,17 @@
     width: number;
     height: number;
   };
+  type OverlayDisplay = {
+    index: number;
+    id: string;
+    label?: string;
+    isPrimary: boolean;
+    bounds: { x: number; y: number; width: number; height: number };
+    workArea: { x: number; y: number; width: number; height: number };
+    scaleFactor: number;
+    rotation?: number;
+    physicalSize: { width: number; height: number };
+  };
   type PlacedWidget = {
     id: string;
     widgetId: string;
@@ -44,11 +55,18 @@
     styleOverrides: Record<string, unknown>;
   };
 
-  // ─── Canvas dimensions (1920×1080 scaled to fit 860px wide) ─────────────────
-  const CANVAS_W = 860;
-  const CANVAS_H = Math.round(CANVAS_W * (9 / 16)); // 484
-  const SCALE_X = CANVAS_W / 1920;
-  const SCALE_Y = CANVAS_H / 1080;
+  const CANVAS_MAX_W = 860;
+  const FALLBACK_DISPLAY: OverlayDisplay = {
+    index: 0,
+    id: 'fallback-0',
+    label: 'Fallback Display',
+    isPrimary: true,
+    bounds: { x: 0, y: 0, width: 1920, height: 1080 },
+    workArea: { x: 0, y: 0, width: 1920, height: 1080 },
+    scaleFactor: 1,
+    rotation: 0,
+    physicalSize: { width: 1920, height: 1080 }
+  };
 
   // ─── State ──────────────────────────────────────────────────────────────────
   let initializedLayoutId = $state('');
@@ -70,6 +88,87 @@
   let bindingsError = $state<string | null>(null);
   let triggerRulesError = $state<string | null>(null);
   let styleOverridesError = $state<string | null>(null);
+  let displayFallbackNotice = $state<string | null>(null);
+
+  function normalizeRect(value: unknown, fallback: OverlayDisplay['bounds']) {
+    const rect = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+    return {
+      x: Number.isFinite(Number(rect.x)) ? Number(rect.x) : fallback.x,
+      y: Number.isFinite(Number(rect.y)) ? Number(rect.y) : fallback.y,
+      width: Number.isFinite(Number(rect.width)) ? Math.max(1, Number(rect.width)) : fallback.width,
+      height: Number.isFinite(Number(rect.height)) ? Math.max(1, Number(rect.height)) : fallback.height
+    };
+  }
+
+  function normalizeDisplay(value: unknown, index: number): OverlayDisplay {
+    const display = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+    const bounds = normalizeRect(display.bounds, FALLBACK_DISPLAY.bounds);
+    const workArea = normalizeRect(display.workArea, bounds);
+    const physicalSize = normalizeRect(display.physicalSize, { x: 0, y: 0, width: bounds.width, height: bounds.height });
+    return {
+      index: Number.isFinite(Number(display.index)) ? Number(display.index) : index,
+      id: String(display.id ?? `display-${index}`),
+      label: typeof display.label === 'string' ? display.label : `Display ${index}`,
+      isPrimary: display.isPrimary === true,
+      bounds,
+      workArea,
+      scaleFactor: Number.isFinite(Number(display.scaleFactor)) ? Number(display.scaleFactor) : 1,
+      rotation: Number.isFinite(Number(display.rotation)) ? Number(display.rotation) : 0,
+      physicalSize: { width: physicalSize.width, height: physicalSize.height }
+    };
+  }
+
+  const overlayDisplayPayload = $derived((data.overlayDisplays as Record<string, unknown> | null) ?? null);
+  const detectedDisplays = $derived(
+    Array.isArray(overlayDisplayPayload?.displays) && overlayDisplayPayload.displays.length > 0
+      ? overlayDisplayPayload.displays.map((display: unknown, index: number) => normalizeDisplay(display, index))
+      : [FALLBACK_DISPLAY]
+  );
+  const usingFallbackDisplay = $derived(Boolean(overlayDisplayPayload?.fallback) || detectedDisplays[0]?.id === FALLBACK_DISPLAY.id);
+  const selectedDisplay = $derived(
+    detectedDisplays.find((display) => display.index === Number(targetDisplay))
+      ?? detectedDisplays.find((display) => display.isPrimary)
+      ?? detectedDisplays[0]
+      ?? FALLBACK_DISPLAY
+  );
+  const canvasScale = $derived(Math.min(1, CANVAS_MAX_W / Math.max(1, selectedDisplay.bounds.width)));
+  const CANVAS_W = $derived(Math.max(1, Math.round(selectedDisplay.bounds.width * canvasScale)));
+  const CANVAS_H = $derived(Math.max(1, Math.round(selectedDisplay.bounds.height * canvasScale)));
+  const displayHint = $derived(
+    `${selectedDisplay.bounds.width}×${selectedDisplay.bounds.height} @ ${selectedDisplay.bounds.x},${selectedDisplay.bounds.y}`
+  );
+
+  function toCanvas(value: number) {
+    return Math.round(value * canvasScale);
+  }
+
+  function fromCanvas(value: number) {
+    return Math.round(value / Math.max(0.01, canvasScale));
+  }
+
+  function clamp(value: number, min: number, max: number) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function widgetMinimumSize(widgetId: string) {
+    const meta = getWidgetMeta(widgetId);
+    return {
+      width: Math.max(1, Number(meta?.ui?.minWidth ?? 100)),
+      height: Math.max(1, Number(meta?.ui?.minHeight ?? 100))
+    };
+  }
+
+  function placedForCanvas(widget: PlacedWidget) {
+    return {
+      ...widget,
+      x: toCanvas(widget.x),
+      y: toCanvas(widget.y),
+      w: toCanvas(widget.w),
+      h: toCanvas(widget.h)
+    };
+  }
+
+  const placedCanvas = $derived(placed.map((widget) => placedForCanvas(widget)));
 
   function getWidgetOverlayUrl(layoutId: string, instanceId: string, mode: 'transparent_electron' | 'browser_popup') {
     const url = new URL(`${window.location.origin}/overlay/${layoutId}`);
@@ -86,12 +185,21 @@
     return `/overlay/assets/${widgetId}/index.html?preview=admin`;
   }
 
-  function canonicalBounds(widget: PlacedWidget) {
+  function relativeBounds(widget: PlacedWidget) {
     return {
-      x: Math.round(widget.x / SCALE_X),
-      y: Math.round(widget.y / SCALE_Y),
-      width: Math.round(widget.w / SCALE_X),
-      height: Math.round(widget.h / SCALE_Y)
+      x: Math.round(widget.x),
+      y: Math.round(widget.y),
+      width: Math.round(widget.w),
+      height: Math.round(widget.h)
+    };
+  }
+
+  function absoluteBounds(widget: PlacedWidget) {
+    const relative = relativeBounds(widget);
+    return {
+      ...relative,
+      x: selectedDisplay.bounds.x + relative.x,
+      y: selectedDisplay.bounds.y + relative.y
     };
   }
 
@@ -105,7 +213,8 @@
     mode: 'transparent_electron' | 'browser_popup' = widget.windowMode
   ) {
     const meta = getWidgetMeta(widget.widgetId);
-    const targetDisplayValue = Math.max(0, Number(targetDisplay || '0') || 0);
+    const targetDisplayValue = selectedDisplay.index;
+    const bounds = absoluteBounds(widget);
     const response = await fetch(`${apiBase}/system/overlay/windows/open`, {
       method: 'POST',
       headers: {
@@ -116,7 +225,8 @@
         studyId: data.studyId as string,
         layoutId,
         instanceId: widget.id,
-        mode
+        mode,
+        targetDisplay: targetDisplayValue
       })
     });
     if (response.ok) {
@@ -137,11 +247,11 @@
           widgetId: widget.widgetId,
           mode,
           clickThrough: false,
-          bounds: canonicalBounds(widget),
-          minWidth: meta?.ui?.minWidth ?? canonicalBounds(widget).width,
-          minHeight: meta?.ui?.minHeight ?? canonicalBounds(widget).height,
-          preferredWidth: meta?.ui?.preferredWidth ?? canonicalBounds(widget).width,
-          preferredHeight: meta?.ui?.preferredHeight ?? canonicalBounds(widget).height,
+          bounds,
+          minWidth: meta?.ui?.minWidth ?? bounds.width,
+          minHeight: meta?.ui?.minHeight ?? bounds.height,
+          preferredWidth: meta?.ui?.preferredWidth ?? bounds.width,
+          preferredHeight: meta?.ui?.preferredHeight ?? bounds.height,
           url: getWidgetOverlayUrl(layoutId, widget.id, mode)
         }],
         session: {
@@ -226,10 +336,10 @@
       widgetId: String(w.widgetId ?? ''),
       windowMode: (w.windowMode === 'browser_popup' ? 'browser_popup' : 'transparent_electron'),
       order: Number(w.order ?? i),
-      x: Math.round(Number(w.x ?? 40 + i * 200) * SCALE_X),
-      y: Math.round(Number(w.y ?? 40) * SCALE_Y),
-      w: Math.round(Number(w.width ?? 180) * SCALE_X),
-      h: Math.round(Number(w.height ?? 180) * SCALE_Y),
+      x: Math.round(Number(w.x ?? 40 + i * 200)),
+      y: Math.round(Number(w.y ?? 40)),
+      w: Math.round(Number(w.width ?? getWidgetBaseSize(String(w.widgetId ?? '')).width)),
+      h: Math.round(Number(w.height ?? getWidgetBaseSize(String(w.widgetId ?? '')).height)),
       bindingsConfig: (w.bindingsConfig as Record<string, unknown>) ?? {},
       triggerRules: (w.triggerRules as unknown[]) ?? [],
       styleOverrides: (w.styleOverrides as Record<string, unknown>) ?? {}
@@ -244,6 +354,19 @@
       placed = buildInitialPlaced();
       selectedId = null;
       initializedLayoutId = nextLayoutId;
+    }
+  });
+
+  $effect(() => {
+    if (detectedDisplays.length === 0) return;
+    const exists = detectedDisplays.some((display) => display.index === Number(targetDisplay));
+    if (!exists) {
+      const previousDisplay = targetDisplay;
+      const fallback = detectedDisplays.find((display) => display.isPrimary) ?? detectedDisplays[0];
+      targetDisplay = String(fallback.index);
+      displayFallbackNotice = `Saved display #${previousDisplay} is unavailable. Participant View is using display #${fallback.index}.`;
+    } else {
+      displayFallbackNotice = null;
     }
   });
 
@@ -294,11 +417,11 @@
   }
   function getPreferredWidth(widgetId: string) {
     const meta = getWidgetMeta(widgetId);
-    return Math.round((meta?.ui?.preferredWidth ?? 180) * SCALE_X);
+    return Math.round(meta?.ui?.preferredWidth ?? meta?.ui?.minWidth ?? 180);
   }
   function getPreferredHeight(widgetId: string) {
     const meta = getWidgetMeta(widgetId);
-    return Math.round((meta?.ui?.preferredHeight ?? 180) * SCALE_Y);
+    return Math.round(meta?.ui?.preferredHeight ?? meta?.ui?.minHeight ?? 180);
   }
 
   // ─── Drag widget from catalogue onto canvas ──────────────────────────────────
@@ -317,17 +440,17 @@
     e.preventDefault();
     if (!draggingWidgetId || !canvasEl) return;
     const rect = canvasEl.getBoundingClientRect();
-    const x = Math.max(0, Math.min(e.clientX - rect.left, CANVAS_W - 120));
-    const y = Math.max(0, Math.min(e.clientY - rect.top, CANVAS_H - 80));
     const w = getPreferredWidth(draggingWidgetId);
     const h = getPreferredHeight(draggingWidgetId);
+    const x = clamp(fromCanvas(e.clientX - rect.left) - Math.round(w / 2), 0, Math.max(0, selectedDisplay.bounds.width - w));
+    const y = clamp(fromCanvas(e.clientY - rect.top) - Math.round(h / 2), 0, Math.max(0, selectedDisplay.bounds.height - h));
     placed = [...placed, {
       id: crypto.randomUUID(),
       widgetId: draggingWidgetId,
       windowMode: 'transparent_electron',
       order: placed.length,
-      x: Math.max(0, x - w / 2),
-      y: Math.max(0, y - h / 2),
+      x,
+      y,
       w,
       h,
       bindingsConfig: {},
@@ -346,13 +469,17 @@
     draggingPlacedId = id;
     selectedId = id;
     const widget = placed.find((p) => p.id === id)!;
-    dragOffset = { x: e.offsetX, y: e.offsetY };
+    dragOffset = { x: fromCanvas(e.offsetX), y: fromCanvas(e.offsetY) };
     const onMove = (me: MouseEvent) => {
       if (!canvasEl || !draggingPlacedId) return;
       const rect = canvasEl.getBoundingClientRect();
       placed = placed.map((p) =>
         p.id === id
-          ? { ...p, x: Math.max(0, Math.min(me.clientX - rect.left - dragOffset.x, CANVAS_W - p.w)), y: Math.max(0, Math.min(me.clientY - rect.top - dragOffset.y, CANVAS_H - p.h)) }
+          ? {
+              ...p,
+              x: clamp(fromCanvas(me.clientX - rect.left) - dragOffset.x, 0, Math.max(0, selectedDisplay.bounds.width - p.w)),
+              y: clamp(fromCanvas(me.clientY - rect.top) - dragOffset.y, 0, Math.max(0, selectedDisplay.bounds.height - p.h))
+            }
           : p
       );
     };
@@ -380,12 +507,11 @@
     const startY = e.clientY;
     const startW = widget.w;
     const startH = widget.h;
-    const minW = Math.max(20, Math.round(((getWidgetMeta(widget.widgetId)?.ui?.minWidth ?? 100) * SCALE_X)));
-    const minH = Math.max(20, Math.round(((getWidgetMeta(widget.widgetId)?.ui?.minHeight ?? 100) * SCALE_Y)));
+    const minSize = widgetMinimumSize(widget.widgetId);
 
     const onMove = (me: MouseEvent) => {
-      const nextW = Math.max(minW, Math.min(CANVAS_W - widget.x, startW + (me.clientX - startX)));
-      const nextH = Math.max(minH, Math.min(CANVAS_H - widget.y, startH + (me.clientY - startY)));
+      const nextW = clamp(startW + fromCanvas(me.clientX - startX), minSize.width, Math.max(minSize.width, selectedDisplay.bounds.width - widget.x));
+      const nextH = clamp(startH + fromCanvas(me.clientY - startY), minSize.height, Math.max(minSize.height, selectedDisplay.bounds.height - widget.y));
       placed = placed.map((p) => (p.id === id ? { ...p, w: Math.round(nextW), h: Math.round(nextH) } : p));
     };
     const onUp = () => {
@@ -417,10 +543,10 @@
         widgetId: p.widgetId,
         windowMode: p.windowMode,
         order: i,
-        x: Math.round(p.x / SCALE_X),
-        y: Math.round(p.y / SCALE_Y),
-        width: Math.round(p.w / SCALE_X),
-        height: Math.round(p.h / SCALE_Y),
+        x: Math.round(p.x),
+        y: Math.round(p.y),
+        width: Math.round(p.w),
+        height: Math.round(p.h),
         bindingsConfig: p.bindingsConfig,
         triggerRules: p.triggerRules,
         styleOverrides: p.styleOverrides
@@ -545,12 +671,73 @@
     }
   }
 
+  async function closeOverlayWindows(options: { instanceIds?: string[]; closeAll?: boolean }) {
+    const layoutId = String(currentLayout?.id ?? '');
+    const body = {
+      studyId: data.studyId as string,
+      ...(layoutId ? { layoutId } : {}),
+      instanceIds: options.instanceIds ?? [],
+      closeAll: options.closeAll === true
+    };
+    const response = await fetch(`${apiBase}/system/overlay/windows/close`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${data.accessToken as string}`
+      },
+      body: JSON.stringify(body)
+    });
+    if (response.ok) {
+      return;
+    }
+
+    const payload = await response.json().catch(() => null);
+    const directResponse = await fetch('http://127.0.0.1:4097/windows/close', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        layoutId: layoutId || undefined,
+        instanceIds: body.instanceIds,
+        closeAll: body.closeAll
+      })
+    }).catch(() => null);
+    if (!directResponse?.ok) {
+      throw new Error(payload?.error?.message || 'Failed to close widget window. Ensure the desktop overlay control server is running.');
+    }
+  }
+
+  async function closePlacedWidgetWindow(id: string) {
+    try {
+      await closeOverlayWindows({ instanceIds: [id] });
+      saveResult = { ok: true, message: 'Widget window closed' };
+    } catch (error) {
+      saveResult = { ok: false, message: error instanceof Error ? error.message : 'Failed to close widget window' };
+    }
+  }
+
+  async function closeSelectedWidgetWindow() {
+    if (!selectedWidget) return;
+    await closePlacedWidgetWindow(selectedWidget.id);
+  }
+
+  async function closeAllWidgetWindows() {
+    try {
+      await closeOverlayWindows({ closeAll: true });
+      saveResult = { ok: true, message: 'All widget windows closed' };
+    } catch (error) {
+      saveResult = { ok: false, message: error instanceof Error ? error.message : 'Failed to close widget windows' };
+    }
+  }
+
   function handleInspectorPosition(axis: 'x' | 'y', value: number) {
     updateSelectedWidget((widget) => ({
       ...widget,
-      [axis]: Math.max(
+      [axis]: clamp(
+        Math.round(value),
         0,
-        Math.round(value * (axis === 'x' ? SCALE_X : SCALE_Y)),
+        Math.max(0, (axis === 'x' ? selectedDisplay.bounds.width - widget.w : selectedDisplay.bounds.height - widget.h)),
       ),
     }));
   }
@@ -558,9 +745,10 @@
   function handleInspectorSize(axis: 'w' | 'h', value: number) {
     updateSelectedWidget((widget) => ({
       ...widget,
-      [axis]: Math.max(
-        1,
-        Math.round(value * (axis === 'w' ? SCALE_X : SCALE_Y)),
+      [axis]: clamp(
+        Math.round(value),
+        axis === 'w' ? widgetMinimumSize(widget.widgetId).width : widgetMinimumSize(widget.widgetId).height,
+        axis === 'w' ? selectedDisplay.bounds.width - widget.x : selectedDisplay.bounds.height - widget.y,
       ),
     }));
   }
@@ -619,12 +807,24 @@
   <MetricCard label="Placed Widgets" value={placed.length} hint="In current canvas layout" accent />
   <MetricCard label="Catalogue" value={data.widgets.length} hint="Available widgets" />
   <MetricCard label="Saved Layouts" value={data.layouts.length} hint="Persisted layout records" />
-  <MetricCard label="Display" value={`#${targetDisplay}`} hint="Target display · 1920×1080 canvas" />
+  <MetricCard label="Display" value={`#${selectedDisplay.index}`} hint={usingFallbackDisplay ? 'Fallback display · 1920×1080' : displayHint} />
 </div>
 
 {#if saveResult}
   <div class="mt-4">
     <InlineNotice tone={saveResult.ok ? 'success' : 'danger'} message={saveResult.message} />
+  </div>
+{/if}
+
+{#if usingFallbackDisplay}
+  <div class="mt-4">
+    <InlineNotice tone="warning" message="Display detection is unavailable. Participant View is using the fallback 1920×1080 display until the desktop overlay reports connected screens." />
+  </div>
+{/if}
+
+{#if displayFallbackNotice}
+  <div class="mt-4">
+    <InlineNotice tone="warning" message={displayFallbackNotice} />
   </div>
 {/if}
 
@@ -647,8 +847,13 @@
     bind:selectedId
     {CANVAS_W}
     {CANVAS_H}
+    displayWidth={selectedDisplay.bounds.width}
+    displayHeight={selectedDisplay.bounds.height}
+    displays={detectedDisplays}
+    selectedDisplayIndex={selectedDisplay.index}
+    {usingFallbackDisplay}
     {saving}
-    {placed}
+    placed={placedCanvas}
     {getWidgetMeta}
     {getPreviewMetrics}
     {getWidgetPreviewUrl}
@@ -657,17 +862,19 @@
     onPlacedMouseDown={onPlacedMouseDown}
     onResizeHandleMouseDown={onResizeHandleMouseDown}
     onRemovePlaced={removePlaced}
+    onClosePlaced={closePlacedWidgetWindow}
     onLaunchSelectedMode={launchSelectedMode}
+    onCloseAllWidgets={closeAllWidgetWindows}
     onSaveLayout={saveLayout}
   />
 
   <ParticipantLayoutInspector
     {selectedWidget}
     {getWidgetMeta}
-    displayX={selectedWidget ? Math.round(selectedWidget.x / SCALE_X) : 0}
-    displayY={selectedWidget ? Math.round(selectedWidget.y / SCALE_Y) : 0}
-    displayW={selectedWidget ? Math.round(selectedWidget.w / SCALE_X) : 0}
-    displayH={selectedWidget ? Math.round(selectedWidget.h / SCALE_Y) : 0}
+    displayX={selectedWidget ? Math.round(selectedWidget.x) : 0}
+    displayY={selectedWidget ? Math.round(selectedWidget.y) : 0}
+    displayW={selectedWidget ? Math.round(selectedWidget.w) : 0}
+    displayH={selectedWidget ? Math.round(selectedWidget.h) : 0}
     {bindingsDraft}
     {triggerRulesDraft}
     {styleOverridesDraft}
@@ -681,5 +888,6 @@
     onTriggerRulesInput={handleTriggerRulesInput}
     onStyleOverridesInput={handleStyleOverridesInput}
     onOpenSelectedWidgetWindow={openSelectedWidgetWindow}
+    onCloseSelectedWidgetWindow={closeSelectedWidgetWindow}
   />
 </div>

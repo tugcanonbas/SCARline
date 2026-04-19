@@ -118,6 +118,83 @@ function widgetUiFor(
   return { minWidth, minHeight, preferredWidth, preferredHeight, width, height };
 }
 
+type OverlayDisplay = {
+  index: number;
+  id: string;
+  label?: string;
+  isPrimary: boolean;
+  bounds: { x: number; y: number; width: number; height: number };
+  workArea: { x: number; y: number; width: number; height: number };
+  scaleFactor: number;
+  rotation?: number;
+  physicalSize: { width: number; height: number };
+};
+
+function normalizeRect(value: unknown, fallback: { x: number; y: number; width: number; height: number }) {
+  const rect = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  return {
+    x: Number.isFinite(Number(rect.x)) ? Number(rect.x) : fallback.x,
+    y: Number.isFinite(Number(rect.y)) ? Number(rect.y) : fallback.y,
+    width: Number.isFinite(Number(rect.width)) ? Math.max(1, Number(rect.width)) : fallback.width,
+    height: Number.isFinite(Number(rect.height)) ? Math.max(1, Number(rect.height)) : fallback.height
+  };
+}
+
+function fallbackOverlayDisplay(): OverlayDisplay {
+  const bounds = { x: 0, y: 0, width: 1920, height: 1080 };
+  return {
+    index: 0,
+    id: 'fallback-0',
+    label: 'Fallback Display',
+    isPrimary: true,
+    bounds,
+    workArea: bounds,
+    scaleFactor: 1,
+    rotation: 0,
+    physicalSize: { width: bounds.width, height: bounds.height }
+  };
+}
+
+function normalizeOverlayDisplay(value: unknown, index: number): OverlayDisplay {
+  const display = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  const bounds = normalizeRect(display.bounds, { x: 0, y: 0, width: 1920, height: 1080 });
+  const workArea = normalizeRect(display.workArea, bounds);
+  const physicalSize = normalizeRect(
+    display.physicalSize,
+    { x: 0, y: 0, width: bounds.width, height: bounds.height }
+  );
+  return {
+    index: Number.isFinite(Number(display.index)) ? Number(display.index) : index,
+    id: String(display.id ?? `display-${index}`),
+    label: typeof display.label === 'string' ? display.label : `Display ${index}`,
+    isPrimary: display.isPrimary === true,
+    bounds,
+    workArea,
+    scaleFactor: Number.isFinite(Number(display.scaleFactor)) ? Number(display.scaleFactor) : 1,
+    rotation: Number.isFinite(Number(display.rotation)) ? Number(display.rotation) : 0,
+    physicalSize: { width: physicalSize.width, height: physicalSize.height }
+  };
+}
+
+async function resolveOverlayDisplays(config: CoreApiConfig): Promise<OverlayDisplay[]> {
+  try {
+    const response = await callProcessManager(config.PM_SOCKET_PATH, 'GET', '/overlay/displays');
+    const displays = Array.isArray(response.displays) ? response.displays : [];
+    const normalized = displays.map((display, index) => normalizeOverlayDisplay(display, index));
+    return normalized.length > 0 ? normalized : [fallbackOverlayDisplay()];
+  } catch {
+    return [fallbackOverlayDisplay()];
+  }
+}
+
+function selectOverlayDisplay(displays: OverlayDisplay[], targetDisplay: number | undefined): OverlayDisplay {
+  const target = Number.isFinite(Number(targetDisplay)) ? Number(targetDisplay) : 0;
+  return displays.find((display) => display.index === target)
+    ?? displays.find((display) => display.isPrimary)
+    ?? displays[0]
+    ?? fallbackOverlayDisplay();
+}
+
 async function callProcessManager(
   socketPath: string,
   method: 'GET' | 'POST',
@@ -1528,6 +1605,14 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
     }
   });
 
+  app.get('/api/system/overlay/displays', async () => {
+    const displays = await resolveOverlayDisplays(config);
+    return ok({
+      displays,
+      fallback: displays.length === 1 && displays[0]?.id === 'fallback-0'
+    });
+  });
+
   app.post('/api/system/overlay/configure', async (request, reply) => {
     const payload = z.object({
       studyId: z.string().uuid(),
@@ -1542,6 +1627,8 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
       const system = await getSystemConfiguration(pool);
       const platformPort = publicGatewayPort(config, system);
       const widgetMetadataMap = await loadWidgetMetadataMap(config.WIDGETS_DIR);
+      const displays = await resolveOverlayDisplays(config);
+      const selectedDisplay = selectOverlayDisplay(displays, payload.targetDisplay ?? 0);
       const token = bearerToken(request);
       if (!token) {
         return fail(reply, 401, 'UNAUTHORIZED', 'Overlay configuration requires an authenticated token');
@@ -1582,14 +1669,16 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
         perWidgetParams.set('instanceId', String(widget.id));
         perWidgetParams.set('chrome', mode === 'transparent_electron' ? 'transparent' : 'web');
         if (mode === 'browser_popup') perWidgetParams.set('toolbar', '1');
+        const relativeX = Number(widget.x ?? 0);
+        const relativeY = Number(widget.y ?? 0);
         return {
           instanceId: widget.id,
           widgetId: widget.widget_id,
           mode,
           clickThrough: mode === 'transparent_electron' ? (payload.clickThrough ?? false) : false,
           bounds: {
-            x: Number(widget.x ?? 0),
-            y: Number(widget.y ?? 0),
+            x: selectedDisplay.bounds.x + relativeX,
+            y: selectedDisplay.bounds.y + relativeY,
             width: widgetUi.width,
             height: widgetUi.height
           },
@@ -1606,7 +1695,8 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
 
       return ok(await callProcessManager(config.PM_SOCKET_PATH, 'POST', '/overlay/configure', {
         mode: 'windows',
-        targetDisplay: payload.targetDisplay ?? 0,
+        targetDisplay: selectedDisplay.index,
+        displays,
         windows,
         launcherUrl,
         session: {
@@ -1650,7 +1740,8 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
                widget_instances.y,
                widget_instances.width,
                widget_instances.height,
-               widget_instances.window_mode
+               widget_instances.window_mode,
+               view_layouts.target_display
         FROM widget_instances
         INNER JOIN view_layouts ON view_layouts.id = widget_instances.layout_id
         WHERE view_layouts.study_id = $1
@@ -1667,6 +1758,9 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
         width: Number(row.width ?? 0),
         height: Number(row.height ?? 0)
       });
+      const displays = await resolveOverlayDisplays(config);
+      const rowTargetDisplay = Math.max(0, Number(row.target_display ?? 0) || 0);
+      const selectedDisplay = selectOverlayDisplay(displays, payload.targetDisplay ?? rowTargetDisplay);
       const defaultMode = layoutConfig.isTransparent === false ? 'browser_popup' : 'transparent_electron';
       const mode = payload.mode
         ?? (row.window_mode === 'browser_popup' || row.window_mode === 'transparent_electron' ? row.window_mode : defaultMode);
@@ -1680,6 +1774,8 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
       if (payload.sessionId) params.set('sessionId', payload.sessionId);
       if (payload.conditionId) params.set('conditionId', payload.conditionId);
       if (mode === 'browser_popup') params.set('toolbar', '1');
+      const relativeX = Number(row.x ?? 0);
+      const relativeY = Number(row.y ?? 0);
 
       const windowSpec = {
         instanceId: row.id,
@@ -1687,8 +1783,8 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
         mode,
         clickThrough: mode === 'transparent_electron' ? (payload.clickThrough ?? false) : false,
         bounds: {
-          x: Number(row.x ?? 0),
-          y: Number(row.y ?? 0),
+          x: selectedDisplay.bounds.x + relativeX,
+          y: selectedDisplay.bounds.y + relativeY,
           width: widgetUi.width,
           height: widgetUi.height
         },
@@ -1701,7 +1797,8 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
 
       const processResult = await callProcessManager(config.PM_SOCKET_PATH, 'POST', '/overlay/windows/open', {
         mode: 'windows',
-        targetDisplay: payload.targetDisplay ?? 0,
+        targetDisplay: selectedDisplay.index,
+        displays,
         windows: [windowSpec],
         session: {
           studyId: payload.studyId,
@@ -1716,22 +1813,59 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
     }
   });
 
+  app.post('/api/system/overlay/windows/close', async (request, reply) => {
+    const payload = z.object({
+      studyId: z.string().uuid().optional(),
+      layoutId: z.string().uuid().optional(),
+      instanceIds: z.array(z.string().uuid()).optional(),
+      closeAll: z.boolean().optional()
+    }).parse(request.body ?? {});
+
+    try {
+      const processResult = await callProcessManager(config.PM_SOCKET_PATH, 'POST', '/overlay/windows/close', {
+        layoutId: payload.layoutId,
+        instanceIds: payload.instanceIds ?? [],
+        closeAll: payload.closeAll === true
+      });
+      return ok({ closed: true, processManager: processResult });
+    } catch (error) {
+      return fail(reply, 503, 'PROCESS_MANAGER_UNAVAILABLE', error instanceof Error ? error.message : 'Process Manager unavailable');
+    }
+  });
+
   app.post('/api/system/overlay/windows/update', async (request, reply) => {
     const payload = z.object({
       studyId: z.string().uuid(),
       layoutId: z.string().uuid(),
       windows: z.array(z.object({
         instanceId: z.string().uuid(),
-        x: z.number().int().nonnegative(),
-        y: z.number().int().nonnegative(),
+        x: z.number().int(),
+        y: z.number().int(),
         width: z.number().int().positive(),
         height: z.number().int().positive()
       })).min(1)
     }).parse(request.body ?? {});
 
     try {
+      const layout = await queryOne(pool, `
+        SELECT target_display
+        FROM view_layouts
+        WHERE study_id = $1 AND id = $2
+      `, [payload.studyId, payload.layoutId]);
+      const displays = await resolveOverlayDisplays(config);
+      const selectedDisplay = selectOverlayDisplay(displays, Math.max(0, Number(layout?.target_display ?? 0) || 0));
       const updates: Array<Record<string, unknown>> = [];
       for (const windowUpdate of payload.windows) {
+        const inputX = Number(windowUpdate.x);
+        const inputY = Number(windowUpdate.y);
+        const relativeX = inputX >= selectedDisplay.bounds.x
+          && inputX <= selectedDisplay.bounds.x + selectedDisplay.bounds.width
+          ? inputX - selectedDisplay.bounds.x
+          : inputX;
+        const relativeY = inputY >= selectedDisplay.bounds.y
+          && inputY <= selectedDisplay.bounds.y + selectedDisplay.bounds.height
+          ? inputY - selectedDisplay.bounds.y
+          : inputY;
         const row = await queryOne(pool, `
           UPDATE widget_instances
           SET x = $4, y = $5, width = $6, height = $7
@@ -1745,8 +1879,8 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
           windowUpdate.instanceId,
           payload.layoutId,
           payload.studyId,
-          windowUpdate.x,
-          windowUpdate.y,
+          Math.max(0, Math.round(relativeX)),
+          Math.max(0, Math.round(relativeY)),
           windowUpdate.width,
           windowUpdate.height
         ]);
@@ -1756,8 +1890,8 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
             widgetId: row.widget_id,
             mode: row.window_mode,
             bounds: {
-              x: row.x,
-              y: row.y,
+              x: selectedDisplay.bounds.x + Number(row.x ?? 0),
+              y: selectedDisplay.bounds.y + Number(row.y ?? 0),
               width: row.width,
               height: row.height
             }

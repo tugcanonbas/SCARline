@@ -135,7 +135,13 @@ test('participant view editor exposes widget bindings, triggers, and style overr
   assert.match(source, /targetDisplay/);
   assert.match(source, /launchMode/);
   assert.match(source, /Launch Selected Mode/);
+  assert.match(source, /Close All Widgets/);
   assert.match(source, /Target display/);
+  assert.match(source, /overlayDisplays/);
+  assert.match(source, /selectedDisplay\.bounds/);
+  assert.match(source, /preferredWidth/);
+  assert.match(source, /preferredHeight/);
+  assert.match(source, /windows\/close/);
   assert.match(source, /Must be a JSON object/);
   assert.match(source, /Must be a JSON array/);
   assert.match(source, /getWidgetPreviewUrl/);

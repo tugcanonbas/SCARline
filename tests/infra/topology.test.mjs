@@ -102,6 +102,8 @@ test('process manager ipc can relay overlay reloads to electron control endpoint
   const source = await readFile(path.join(root, 'infra/process-manager/ipc_server.py'), 'utf8');
   assert.match(source, /OVERLAY_CONTROL_PORT/);
   assert.match(source, /\/overlay\/reload/);
+  assert.match(source, /\/overlay\/displays/);
+  assert.match(source, /\/overlay\/windows\/close/);
   assert.match(source, /urllib\.request/);
   assert.match(source, /TcpHTTPServer/);
   assert.match(source, /_start_carla/);
@@ -127,6 +129,9 @@ test('desktop overlay exposes health and reload control hooks', async () => {
   assert.match(source, /windowRef\.on\('move'/);
   assert.match(source, /windowRef\.on\('resize'/);
   assert.match(source, /screen\.getAllDisplays/);
+  assert.match(source, /displayTopology/);
+  assert.match(source, /\/displays/);
+  assert.match(source, /\/windows\/close/);
   assert.match(source, /render-process-gone/);
 });
 

@@ -56,6 +56,7 @@ export async function loadWidgetCatalogue(widgetsDir: string): Promise<Record<st
         name: metadata.name,
         description: metadata.description,
         category: metadata.category,
+        ui: metadata.ui,
         previewUrl: `/overlay/assets/${metadata.id}/${hasWidgetPreview ? previewFile : 'index.html'}`
       });
     } catch {

@@ -9,10 +9,12 @@ export const load = async ({ fetch, locals, params }) => {
   const participantLayout = participantLayoutSummary
     ? await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/layouts/${participantLayoutSummary.id}`, locals.accessToken)
     : null;
+  const widgets = await apiRequest(fetch, locals.apiBase, '/widgets/catalogue', locals.accessToken);
   return {
     layouts,
     participantLayout,
-    widgets: await apiRequest(fetch, locals.apiBase, '/widgets/catalogue', locals.accessToken),
+    widgets,
+    overlayDisplays: await apiRequest(fetch, locals.apiBase, '/system/overlay/displays', locals.accessToken),
     studyId: params.id,
     accessToken: locals.accessToken
   };
@@ -40,20 +42,30 @@ export const actions = {
     } else {
       // Legacy checkbox path — widgetIds list
       const selectedWidgets = formData.getAll('widgetIds').map(String);
+      const widgetCatalogue = await apiRequest(fetch, locals.apiBase, '/widgets/catalogue', locals.accessToken);
+      const widgetMetaById = new Map(
+        (widgetCatalogue ?? []).map((widget: Record<string, unknown>) => [String(widget.id), widget])
+      );
       layoutConfig = {
-        widgets: selectedWidgets.map((widgetId, index) => ({
-          id: randomUUID(),
-          widgetId,
-          windowMode: 'transparent_electron',
-          order: index,
-          x: 40 + (index * 180),
-          y: 40,
-          width: 180,
-          height: 180,
-          bindingsConfig: {},
-          triggerRules: [],
-          styleOverrides: {}
-        }))
+        widgets: selectedWidgets.map((widgetId, index) => {
+          const meta = widgetMetaById.get(widgetId) as Record<string, unknown> | undefined;
+          const ui = meta?.ui as Record<string, unknown> | undefined;
+          const width = Math.max(1, Number(ui?.preferredWidth ?? ui?.minWidth ?? 180));
+          const height = Math.max(1, Number(ui?.preferredHeight ?? ui?.minHeight ?? 180));
+          return {
+            id: randomUUID(),
+            widgetId,
+            windowMode: 'transparent_electron',
+            order: index,
+            x: 40 + (index * width),
+            y: 40,
+            width,
+            height,
+            bindingsConfig: {},
+            triggerRules: [],
+            styleOverrides: {}
+          };
+        })
       };
     }
 

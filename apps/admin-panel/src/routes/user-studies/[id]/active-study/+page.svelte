@@ -289,7 +289,8 @@
         instanceId: widget.instanceId,
         sessionId: selectedSession,
         conditionId: selectedSessionObj?.conditionId ?? null,
-        mode
+        mode,
+        targetDisplay: targetDisplayValue
       })
     });
     if (response.ok) {

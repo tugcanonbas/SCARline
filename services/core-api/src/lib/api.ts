@@ -129,6 +129,8 @@ function rolesForRoute(method: string, path: string): Array<z.infer<typeof RoleS
     path.startsWith('/api/system/overlay/configure')
     || path.startsWith('/api/system/overlay/windows/update')
     || path.startsWith('/api/system/overlay/windows/open')
+    || path.startsWith('/api/system/overlay/windows/close')
+    || path.startsWith('/api/system/overlay/displays')
   ) {
     return ['admin', 'researcher', 'operator'];
   }

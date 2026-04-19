@@ -39,7 +39,9 @@ test('core api exposes full PRD management surfaces', async () => {
     '/api/session-logs/:sessionId/summary',
     '/api/system/process-manager/status',
     '/api/system/carla/:action',
-    '/api/system/overlay/reload'
+    '/api/system/overlay/reload',
+    '/api/system/overlay/displays',
+    '/api/system/overlay/windows/close'
   ]) {
     assert.match(source, new RegExp(route.replaceAll('/', '\\/').replaceAll(':', '\\:')));
   }
@@ -179,6 +181,10 @@ test('core api hardens realtime scoping, component status, triggers, and outbox'
   assert.match(prd, /EXPORT_SCOPE_MISMATCH/);
   assert.match(prd, /payload\.clickThrough \?\? false/);
   assert.match(prd, /\/api\/system\/overlay\/windows\/update/);
+  assert.match(prd, /\/api\/system\/overlay\/windows\/close/);
+  assert.match(prd, /\/api\/system\/overlay\/displays/);
+  assert.match(prd, /selectOverlayDisplay/);
+  assert.match(prd, /selectedDisplay\.bounds\.x \+/);
   assert.match(prd, /loadWidgetMetadataMap/);
   assert.match(prd, /preferredWidth/);
   assert.match(prd, /minWidth/);

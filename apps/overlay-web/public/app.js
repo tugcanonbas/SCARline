@@ -189,8 +189,8 @@ function isDesktopWidgetWindow() {
 
 function readCurrentWindowBounds() {
   return {
-    x: Math.max(0, Number(window.screenX || window.screenLeft || 0)),
-    y: Math.max(0, Number(window.screenY || window.screenTop || 0)),
+    x: Number(window.screenX || window.screenLeft || 0),
+    y: Number(window.screenY || window.screenTop || 0),
     width: Math.max(1, Number(window.outerWidth || window.innerWidth || 0)),
     height: Math.max(1, Number(window.outerHeight || window.innerHeight || 0)),
   };
