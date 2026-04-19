@@ -6,6 +6,7 @@
   import StatusBadge from "$lib/components/StatusBadge.svelte";
   import SurfaceCard from "$lib/components/SurfaceCard.svelte";
   import { createRealtimeStore } from "$lib/stores/realtime";
+  import { untrack } from "svelte";
 
   type RecentSession = {
     id: string;
@@ -51,6 +52,22 @@
 
   let recentSessions = $state<RecentSession[]>([]);
   let componentHealth = $state<ComponentHealth[]>([]);
+
+  function mergeRecentSession(session: RecentSession) {
+    const current = untrack(() => recentSessions);
+    recentSessions = [session, ...current.filter((entry) => entry.id !== session.id)].slice(
+      0,
+      5,
+    );
+  }
+
+  function mergeComponentHealthEntry(component: ComponentHealth) {
+    const current = untrack(() => componentHealth);
+    componentHealth = [
+      component,
+      ...current.filter((entry) => entry.componentId !== component.componentId),
+    ];
+  }
 
   $effect(() => {
     recentSessions = data.dashboard.recentSessions;
@@ -108,12 +125,7 @@
       notes: null,
     };
 
-    recentSessions = [
-      normalized,
-      ...recentSessions.filter(
-        (session: RecentSession) => session.id !== sessionId,
-      ),
-    ].slice(0, 5);
+    mergeRecentSession(normalized);
   });
 
   $effect(() => {
@@ -136,13 +148,7 @@
       message: typeof latest.message === "string" ? latest.message : undefined,
     };
 
-    componentHealth = [
-      normalized,
-      ...componentHealth.filter(
-        (component: ComponentHealth) =>
-          component.componentId !== normalized.componentId,
-      ),
-    ];
+    mergeComponentHealthEntry(normalized);
   });
 
   function formatDate(value: string | null) {

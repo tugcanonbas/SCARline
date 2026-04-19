@@ -86,26 +86,5 @@ export const actions = {
       method: 'DELETE'
     }, 'Failed to delete condition');
     return result.ok ? undefined : result.failure;
-  },
-
-  // Legacy default — redirects to create
-  default: async ({ fetch, locals, params, request }) => {
-    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
-    const formData = await request.formData();
-    const rules = parseRules(formData);
-    const result = await apiAction(fetch, locals.apiBase, `/studies/${params.id}/conditions`, locals.accessToken, {
-      method: 'POST',
-      body: JSON.stringify({
-        name: formData.get('name'),
-        description: formData.get('description') || null,
-        order: Number(formData.get('order') || 0),
-        carlaOverrides: carlaOverridesFromForm(formData),
-        widgetOverrides: {
-          hidden_widgets: String(formData.get('hiddenWidgets') || '').split(',').map((s) => s.trim()).filter(Boolean),
-          triggerRules: rules
-        }
-      })
-    }, 'Failed to create condition');
-    return result.ok ? undefined : result.failure;
   }
 };

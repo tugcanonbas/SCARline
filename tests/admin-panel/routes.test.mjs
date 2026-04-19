@@ -101,6 +101,32 @@ test('sensor configuration route supports explicit driver saves and defaults', a
   assert.match(source, /parseJsonObject/);
 });
 
+test('admin routes do not mix default and named page actions', async () => {
+  for (const routeFile of [
+    'user-studies/[id]/conditions/+page.server.ts',
+    'user-studies/[id]/sensors/+page.server.ts',
+    'settings/system/+page.server.ts',
+    'settings/users/+page.server.ts',
+    'settings/devices/+page.server.ts',
+    'exports/+page.server.ts',
+    'researchers/[id]/+page.server.ts',
+    'user-studies/[id]/sessions/+page.server.ts',
+    'user-studies/[id]/active-study/+page.server.ts'
+  ]) {
+    const source = await readRoute(routeFile);
+    const hasDefaultAction = /default:\s*async/.test(source);
+    const namedActions = Array.from(source.matchAll(/^\s*([a-zA-Z][\w]*):\s*async/gm))
+      .map(([, actionName]) => actionName)
+      .filter((actionName) => actionName !== 'default');
+
+    assert.equal(
+      hasDefaultAction && namedActions.length > 0,
+      false,
+      `${routeFile} mixes default and named actions`
+    );
+  }
+});
+
 test('participant view editor exposes widget bindings, triggers, and style overrides', async () => {
   const source = await readRoute('user-studies/[id]/participant-view/+page.svelte');
   assert.match(source, /Bindings Config/);
@@ -218,4 +244,37 @@ test('admin realtime store reconnects and resubscribes after socket drops', asyn
   assert.match(source, /setTimeout/);
   assert.match(source, /currentChannels/);
   assert.match(source, /currentFilters/);
+});
+
+test('dashboard and active study realtime updates avoid self-tracking effect loops', async () => {
+  const dashboard = await readRoute('dashboard/+page.svelte');
+  const activeStudy = await readRoute('user-studies/[id]/active-study/+page.svelte');
+
+  assert.match(dashboard, /untrack\(\(\) => recentSessions\)/);
+  assert.match(dashboard, /untrack\(\(\) => componentHealth\)/);
+  assert.doesNotMatch(dashboard, /recentSessions = \[\s*normalized,\s*\.\.\.recentSessions/);
+  assert.doesNotMatch(dashboard, /componentHealth = \[\s*normalized,\s*\.\.\.componentHealth/);
+
+  assert.match(activeStudy, /untrack\(\(\) => speedHistory\)/);
+  assert.match(activeStudy, /untrack\(\(\) => throttleHistory\)/);
+  assert.match(activeStudy, /untrack\(\(\) => brakeHistory\)/);
+  assert.doesNotMatch(activeStudy, /speedHistory = \[\.\.\.speedHistory\.slice/);
+  assert.doesNotMatch(activeStudy, /throttleHistory = \[\.\.\.throttleHistory\.slice/);
+  assert.doesNotMatch(activeStudy, /brakeHistory = \[\.\.\.brakeHistory\.slice/);
+});
+
+test('admin shell publishes icon assets for root browser probes', async () => {
+  const appHtml = await readFile(path.join(root, 'apps/admin-panel/src/app.html'), 'utf8');
+
+  assert.match(appHtml, /href="\/favicon\.ico"/);
+  assert.match(appHtml, /href="\/apple-touch-icon\.png"/);
+  assert.match(appHtml, /href="\/apple-touch-icon-precomposed\.png"/);
+
+  for (const assetPath of [
+    'apps/admin-panel/static/favicon.ico',
+    'apps/admin-panel/static/apple-touch-icon.png',
+    'apps/admin-panel/static/apple-touch-icon-precomposed.png'
+  ]) {
+    await access(path.join(root, assetPath));
+  }
 });

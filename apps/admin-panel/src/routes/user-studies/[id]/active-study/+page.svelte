@@ -11,6 +11,7 @@
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import StudyTabs from '$lib/components/StudyTabs.svelte';
   import { createRealtimeStore } from '$lib/stores/realtime';
+  import { untrack } from 'svelte';
 
   // Route-level regression marker preserved for source-inspection tests:
   // Launch Browser Popup Widgets
@@ -79,15 +80,19 @@
   let throttleHistory = $state<number[]>([]);
   let brakeHistory = $state<number[]>([]);
 
+  function pushTelemetrySample(history: number[], nextValue: number) {
+    return [...history.slice(-MAX_HISTORY + 1), nextValue];
+  }
+
   $effect(() => {
     const v = vehicle(latestTelemetry);
     const speed = Number(v.speed ?? 0);
     const throttle = Number(v.throttle ?? 0);
     const brake = Number(v.brake ?? 0);
     if (speed > 0 || throttle > 0 || brake > 0) {
-      speedHistory = [...speedHistory.slice(-MAX_HISTORY + 1), speed];
-      throttleHistory = [...throttleHistory.slice(-MAX_HISTORY + 1), throttle];
-      brakeHistory = [...brakeHistory.slice(-MAX_HISTORY + 1), brake];
+      speedHistory = pushTelemetrySample(untrack(() => speedHistory), speed);
+      throttleHistory = pushTelemetrySample(untrack(() => throttleHistory), throttle);
+      brakeHistory = pushTelemetrySample(untrack(() => brakeHistory), brake);
     }
   });
 

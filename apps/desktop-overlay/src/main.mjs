@@ -3,6 +3,7 @@ import { app, BrowserWindow, screen } from "electron";
 
 const controlPort = Number(process.env.OVERLAY_CONTROL_PORT ?? 4097);
 const globalClickThrough = process.env.OVERLAY_CLICK_THROUGH !== "false";
+const transparentWindowsFocusable = process.env.OVERLAY_FOCUSABLE === 'true';
 
 const runtimeConfig = {
   targetDisplay: Number(process.env.OVERLAY_DISPLAY ?? 0),
@@ -65,7 +66,7 @@ function createWindowOptions(spec) {
   });
   const mode = normalizeMode(spec.mode);
   const transparent = mode === "transparent_electron";
-  const focusable = true;
+  const focusable = transparent ? transparentWindowsFocusable : true;
   const minWidth = normalizeDimension(spec.minWidth, bounds.width);
   const minHeight = normalizeDimension(spec.minHeight, bounds.height);
   return {
@@ -79,13 +80,13 @@ function createWindowOptions(spec) {
     skipTaskbar: transparent,
     acceptFirstMouse: true,
     movable: true,
-    resizable: true,
+    resizable: !transparent,
     minimizable: !transparent,
     maximizable: !transparent,
     fullscreenable: !transparent,
     thickFrame: !transparent,
     roundedCorners: !transparent,
-    backgroundMaterial: transparent ? "none" : undefined,
+    backgroundMaterial: transparent ? 'none' : undefined,
     hasShadow: !transparent,
     backgroundColor: transparent ? "#00000000" : "#020617",
     show: false,
@@ -126,10 +127,13 @@ function applyWindowBehavior(windowRef, spec) {
   const mode = normalizeMode(spec.mode);
   const transparent = mode === "transparent_electron";
   if (transparent) {
-    windowRef.setBackgroundColor("#00000000");
+    windowRef.setBackgroundColor('#00000000');
     const clickThrough = spec.clickThrough === true && globalClickThrough;
     windowRef.setIgnoreMouseEvents(clickThrough, { forward: true });
-    windowRef.setFocusable(!clickThrough);
+    windowRef.setFocusable(process.env.OVERLAY_FOCUSABLE === 'true');
+    if (clickThrough) {
+      windowRef.setFocusable(false);
+    }
     windowRef.setAlwaysOnTop(true, "screen-saver");
     windowRef.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   } else {
@@ -189,7 +193,7 @@ function enforceRendererTransparency(windowRef, spec, onReady = () => {}) {
       return;
     }
 
-    windowRef.setBackgroundColor("#00000000");
+    windowRef.setBackgroundColor('#00000000');
     windowRef.webContents
       .insertCSS(transparentCss)
       .catch(() => {
@@ -257,10 +261,10 @@ function updateRuntimeWindowBounds(instanceId, windowRef) {
 function attachWindowTracking(windowRef, normalizedSpec) {
   const syncBounds = () =>
     updateRuntimeWindowBounds(normalizedSpec.instanceId, windowRef);
-  windowRef.on("move", syncBounds);
-  windowRef.on("resize", syncBounds);
-  windowRef.on("moved", syncBounds);
-  windowRef.on("resized", syncBounds);
+  windowRef.on('move', syncBounds);
+  windowRef.on('resize', syncBounds);
+  windowRef.on('moved', syncBounds);
+  windowRef.on('resized', syncBounds);
 }
 
 function createManagedWindow(spec) {

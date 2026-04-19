@@ -67,7 +67,7 @@
           </div>
         {/each}
         <div class="form-actions">
-          <button class="button-primary" type="submit">Save Sensor Configuration</button>
+          <button class="button-primary" formaction="?/save" type="submit">Save Sensor Configuration</button>
           <button class="button-secondary" formaction="?/preset" type="submit">Apply Default Sensor Set</button>
         </div>
       </form>

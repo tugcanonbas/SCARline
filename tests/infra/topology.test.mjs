@@ -76,6 +76,12 @@ test('nginx exposes PRD-aligned single-domain routing', async () => {
   const config = await readFile(path.join(root, 'infra/nginx/default.conf'), 'utf8');
   assert.match(config, /absolute_redirect off;/);
   assert.match(config, /return 302 \/admin\/dashboard;/);
+  assert.match(config, /location = \/favicon\.ico/);
+  assert.match(config, /location = \/apple-touch-icon\.png/);
+  assert.match(config, /location = \/apple-touch-icon-precomposed\.png/);
+  assert.match(config, /proxy_pass http:\/\/admin-panel:3000\/admin\/favicon\.ico;/);
+  assert.match(config, /proxy_pass http:\/\/admin-panel:3000\/admin\/apple-touch-icon\.png;/);
+  assert.match(config, /proxy_pass http:\/\/admin-panel:3000\/admin\/apple-touch-icon-precomposed\.png;/);
   assert.match(config, /location \/admin\//);
   assert.match(config, /location \/docs\//);
   assert.match(config, /location \/overlay\//);
