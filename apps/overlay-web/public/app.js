@@ -28,6 +28,7 @@ const state = {
   layout: null,
   widgets: new Map(),
   frames: new Map(),
+  directWidgets: new Map(),
   wrappers: new Map(),
   hiddenWidgetIds: new Set(),
   highlightedWidgetIds: new Set(),
@@ -62,6 +63,10 @@ const statusNode = document.createElement("span");
 const sessionNode = document.createElement("span");
 const layoutNode = document.createElement("span");
 const exportNode = document.createElement("span");
+
+function isDirectDesktopWidgetWindow() {
+  return isDesktopWidgetWindow();
+}
 
 function getPath(source, path) {
   return path.split(".").reduce((value, key) => value?.[key], source);
@@ -264,12 +269,35 @@ function waitForLaunchGate() {
 }
 
 function setupChrome() {
+  if (isDirectDesktopWidgetWindow()) {
+    document.documentElement.style.setProperty(
+      "background",
+      "transparent",
+      "important",
+    );
+    document.documentElement.style.setProperty(
+      "background-color",
+      "transparent",
+      "important",
+    );
+    document.body.style.setProperty("background", "transparent", "important");
+    document.body.style.setProperty(
+      "background-color",
+      "transparent",
+      "important",
+    );
+    appRoot.replaceChildren();
+    appRoot.hidden = true;
+    setConnectionStatus("Disconnected", "warn");
+    return;
+  }
+
   const showToolbar =
     chromeMode !== "transparent" && query.get("toolbar") !== "0";
   const style = document.createElement("style");
   style.textContent = `
-    :root { color-scheme: dark; }
-    html, body { margin: 0; background: transparent !important; background-color: transparent !important; overflow: hidden; font-family: ui-sans-serif, system-ui, sans-serif; }
+    :root { color-scheme: dark; width: 100%; height: 100%; background: transparent !important; background-color: transparent !important; }
+    html, body { margin: 0; width: 100%; height: 100%; background: transparent !important; background-color: transparent !important; overflow: hidden; font-family: ui-sans-serif, system-ui, sans-serif; }
     .overlay-root { position: relative; width: 100vw; height: 100vh; overflow: hidden; background: ${chromeMode === "transparent" ? "transparent" : "#020617"}; background-color: ${chromeMode === "transparent" ? "transparent" : "#020617"}; }
     .overlay-root[data-chrome="web"] { background: #020617; }
     .overlay-toolbar { position: fixed; top: 14px; left: 50%; z-index: 9999; display: flex; transform: translateX(-50%); align-items: center; gap: 12px; border: 1px solid rgba(148, 163, 184, 0.24); border-radius: 999px; background: rgba(2, 6, 23, 0.78); padding: 9px 12px; color: #e2e8f0; box-shadow: 0 20px 50px rgba(0,0,0,.32); backdrop-filter: blur(16px); }
@@ -279,13 +307,13 @@ function setupChrome() {
     .overlay-toolbar [data-tone="warn"] { color: #fde68a; }
     .overlay-toolbar [data-tone="error"] { color: #fca5a5; }
     .overlay-toolbar button { border: 0; border-radius: 999px; background: rgba(15, 23, 42, .9); color: #f8fafc; cursor: pointer; padding: 7px 10px; font-size: 12px; }
-    .overlay-stage { position: absolute; inset: 0; width: 100vw; height: 100vh; overflow: hidden; }
-    .overlay-shell { position: absolute; inset: 0; display: grid; place-content: center; gap: 10px; background: rgba(2, 6, 23, .92); color: #f8fafc; text-align: center; }
+    .overlay-stage { position: absolute; inset: 0; width: 100vw; height: 100vh; overflow: hidden; background: transparent !important; background-color: transparent !important; }
+    .overlay-shell { position: absolute; inset: 0; display: grid; place-content: center; gap: 10px; background: ${chromeMode === "transparent" ? "transparent" : "rgba(2, 6, 23, .92)"}; color: #f8fafc; text-align: center; }
     .overlay-shell strong { font-size: clamp(24px, 3vw, 44px); letter-spacing: -.04em; }
     .overlay-shell small { color: #94a3b8; font-size: 14px; }
-    .overlay-zone { position: absolute; pointer-events: none; }
-    .overlay-widget { position: relative; width: 100%; height: 100%; pointer-events: none; transition: opacity .18s ease, filter .18s ease, transform .18s ease; }
-    .overlay-widget iframe { pointer-events: auto; }
+    .overlay-zone { position: absolute; pointer-events: none; background: transparent !important; background-color: transparent !important; }
+    .overlay-widget { position: relative; width: 100%; height: 100%; pointer-events: none; transition: opacity .18s ease, filter .18s ease, transform .18s ease; background: transparent !important; background-color: transparent !important; }
+    .overlay-widget iframe { pointer-events: auto; background: transparent !important; background-color: transparent !important; }
     .overlay-widget[data-state="hidden"] { opacity: 0; pointer-events: none; }
     .overlay-widget[data-state="highlighted"] { filter: drop-shadow(0 0 24px rgba(56, 189, 248, .86)); transform: scale(1.015); }
   `;
@@ -475,6 +503,12 @@ function injectRuntime(html, metadata, instanceId) {
   );
   const runtime = `
   <style data-scarline-runtime>
+    :root {
+      width: 100%;
+      height: 100%;
+      background: transparent !important;
+      background-color: transparent !important;
+    }
     html, body {
       width: 100%;
       height: 100%;
@@ -497,10 +531,6 @@ function injectRuntime(html, metadata, instanceId) {
       flex: 1 1 auto;
       min-width: 0;
       min-height: 0;
-      background: transparent !important;
-      background-color: transparent !important;
-      box-shadow: none !important;
-      backdrop-filter: none !important;
     }
   </style>
   <script>
@@ -524,8 +554,6 @@ function injectRuntime(html, metadata, instanceId) {
         const root = document.body.firstElementChild;
         if (root) {
           root.setAttribute('data-widget-root', 'true');
-          root.style.boxShadow = 'none';
-          root.style.backdropFilter = 'none';
         }
         document.documentElement.style.setProperty('background', 'transparent', 'important');
         document.documentElement.style.setProperty('background-color', 'transparent', 'important');
@@ -728,9 +756,213 @@ function enforceFrameTransparency(frame) {
     html?.style?.setProperty("background-color", "transparent", "important");
     body?.style?.setProperty("background", "transparent", "important");
     body?.style?.setProperty("background-color", "transparent", "important");
+    frame.style.background = "transparent";
+    frame.style.backgroundColor = "transparent";
   };
 
   frame.addEventListener("load", apply);
+}
+
+function resolveNodeAssetUrls(node, baseHref) {
+  if (!(node instanceof Element)) {
+    return;
+  }
+
+  for (const attributeName of ["src", "href"]) {
+    if (!node.hasAttribute(attributeName)) {
+      continue;
+    }
+    const value = node.getAttribute(attributeName);
+    if (!value || value.startsWith("data:") || value.startsWith("blob:")) {
+      continue;
+    }
+    node.setAttribute(attributeName, new URL(value, baseHref).toString());
+  }
+
+  for (const element of node.querySelectorAll("[src], [href]")) {
+    resolveNodeAssetUrls(element, baseHref);
+  }
+}
+
+function cloneExecutableScript(sourceScript, baseHref) {
+  const nextScript = document.createElement("script");
+  for (const { name, value } of Array.from(sourceScript.attributes)) {
+    if (name === "src") {
+      nextScript.setAttribute("src", new URL(value, baseHref).toString());
+      continue;
+    }
+    nextScript.setAttribute(name, value);
+  }
+  if (!sourceScript.src) {
+    nextScript.textContent = sourceScript.textContent;
+  }
+  return nextScript;
+}
+
+function forwardWidgetInteraction(instanceId, eventType, payload) {
+  const sessionId = state.currentSession?.sessionId || state.currentSession?.id;
+  if (!state.studyId || !sessionId || !token) {
+    console.debug("Widget interaction", { instanceId, eventType, payload });
+    return;
+  }
+
+  postJson(`/api/studies/${state.studyId}/sessions/${sessionId}/triggers`, {
+    triggerType: "manual",
+    source: "researcher-trigger",
+    widgetId: state.widgets.get(instanceId)?.widgetId || "unknown",
+    instanceId,
+    action: eventType || "widget-send",
+    bindingValues: payload || {},
+    payload: {
+      source: "overlay-widget",
+      eventType,
+      payload,
+    },
+  }).catch((error) =>
+    console.warn("Failed to forward widget interaction", error),
+  );
+}
+
+function createDirectWidgetBridge(instanceId, metadata) {
+  const bindings = new Map();
+  const bindingHandlers = new Map();
+  const triggerHandlers = [];
+  const stateHandlers = [];
+  let currentState = "visible";
+  let disposed = false;
+
+  window.SCARline = {
+    onBinding(key, callback) {
+      if (disposed || typeof callback !== "function") {
+        return;
+      }
+      const handlers = bindingHandlers.get(key) || [];
+      handlers.push(callback);
+      bindingHandlers.set(key, handlers);
+      if (bindings.has(key)) {
+        callback(bindings.get(key));
+      }
+    },
+    onTrigger(callback) {
+      if (disposed || typeof callback !== "function") {
+        return;
+      }
+      triggerHandlers.push(callback);
+    },
+    onStateChange(callback) {
+      if (disposed || typeof callback !== "function") {
+        return;
+      }
+      stateHandlers.push(callback);
+      callback(currentState);
+    },
+    send(type, payload) {
+      forwardWidgetInteraction(instanceId, type, payload);
+    },
+    getBinding(key) {
+      return bindings.get(key);
+    },
+    getState() {
+      return currentState;
+    },
+    getMetadata() {
+      return metadata;
+    },
+    ready() {},
+  };
+
+  return {
+    emitBinding(key, value) {
+      if (disposed) return;
+      bindings.set(key, value);
+      const handlers = bindingHandlers.get(key) || [];
+      handlers.forEach((handler) => {
+        try {
+          handler(value);
+        } catch (error) {
+          console.error(error);
+        }
+      });
+    },
+    emitTrigger(payload) {
+      if (disposed) return;
+      triggerHandlers.forEach((handler) => {
+        try {
+          handler(payload);
+        } catch (error) {
+          console.error(error);
+        }
+      });
+    },
+    emitState(nextState) {
+      if (disposed) return;
+      currentState = nextState;
+      stateHandlers.forEach((handler) => {
+        try {
+          handler(currentState);
+        } catch (error) {
+          console.error(error);
+        }
+      });
+    },
+    teardown() {
+      disposed = true;
+      if (window.SCARline?.getMetadata?.()?.id === metadata.id) {
+        delete window.SCARline;
+      }
+    },
+  };
+}
+
+function mountDirectWidget(wrapper, html, metadata, instanceId) {
+  const parser = new DOMParser();
+  const parsed = parser.parseFromString(html, "text/html");
+  const baseHref =
+    parsed.querySelector("base")?.href || window.location.origin + "/";
+  const bridge = createDirectWidgetBridge(instanceId, metadata);
+
+  wrapper.className = parsed.body.className;
+  wrapper.setAttribute("data-scarline-direct-widget-host", "true");
+  wrapper.dataset.instanceId = instanceId;
+  wrapper.style.position = "fixed";
+  wrapper.style.inset = "0";
+  wrapper.style.width = "100vw";
+  wrapper.style.height = "100vh";
+  wrapper.style.background = "transparent";
+  wrapper.style.backgroundColor = "transparent";
+  wrapper.style.overflow = "hidden";
+  wrapper.style.pointerEvents = "auto";
+  wrapper.replaceChildren();
+
+  for (const child of Array.from(parsed.head.children)) {
+    if (!(child instanceof HTMLElement)) {
+      continue;
+    }
+    if (child.tagName === "STYLE" || child.tagName === "LINK") {
+      const clone = child.cloneNode(true);
+      resolveNodeAssetUrls(clone, baseHref);
+      wrapper.appendChild(clone);
+    }
+  }
+
+  const pendingScripts = [];
+  for (const child of Array.from(parsed.body.childNodes)) {
+    if (child.nodeType === Node.ELEMENT_NODE && child.nodeName === "SCRIPT") {
+      pendingScripts.push(child);
+      continue;
+    }
+    const clone = child.cloneNode(true);
+    if (clone instanceof Element) {
+      resolveNodeAssetUrls(clone, baseHref);
+    }
+    wrapper.appendChild(clone);
+  }
+
+  for (const scriptNode of pendingScripts) {
+    wrapper.appendChild(cloneExecutableScript(scriptNode, baseHref));
+  }
+
+  state.directWidgets.set(instanceId, bridge);
 }
 
 function normalizeWidgetMetadata(metadata) {
@@ -809,8 +1041,7 @@ function normalizeWidgetState(nextState) {
 
 function setWidgetState(instanceId, nextState, options = {}) {
   const wrapper = state.wrappers.get(instanceId);
-  const frame = state.frames.get(instanceId);
-  if (!wrapper || !frame) {
+  if (!wrapper) {
     return;
   }
 
@@ -820,10 +1051,16 @@ function setWidgetState(instanceId, nextState, options = {}) {
 
   wrapper.dataset.state = normalizedState;
   wrapper.hidden = normalizedState === "hidden";
-  frame.contentWindow?.postMessage(
-    { type: "state", instanceId, state: normalizedState },
-    "*",
-  );
+  const directWidget = state.directWidgets.get(instanceId);
+  if (directWidget) {
+    directWidget.emitState(normalizedState);
+  } else {
+    const frame = state.frames.get(instanceId);
+    frame?.contentWindow?.postMessage(
+      { type: "state", instanceId, state: normalizedState },
+      "*",
+    );
+  }
 
   if (normalizedState === "highlighted" && Number(options.durationMs) > 0) {
     const timer = setTimeout(() => {
@@ -838,6 +1075,11 @@ function setWidgetState(instanceId, nextState, options = {}) {
 }
 
 function postBinding(instanceId, key, value) {
+  const directWidget = state.directWidgets.get(instanceId);
+  if (directWidget) {
+    directWidget.emitBinding(key, value);
+    return;
+  }
   const frame = state.frames.get(instanceId);
   frame?.contentWindow?.postMessage(
     { type: "binding", instanceId, key, value },
@@ -1195,11 +1437,16 @@ function applyWidgetUpdate(update) {
       setWidgetState(instanceId, action, { durationMs });
     }
 
-    const frame = state.frames.get(instanceId);
-    frame?.contentWindow?.postMessage(
-      { type: "trigger", instanceId, payload: update },
-      "*",
-    );
+    const directWidget = state.directWidgets.get(instanceId);
+    if (directWidget) {
+      directWidget.emitTrigger(update);
+    } else {
+      const frame = state.frames.get(instanceId);
+      frame?.contentWindow?.postMessage(
+        { type: "trigger", instanceId, payload: update },
+        "*",
+      );
+    }
   }
 }
 
@@ -1316,7 +1563,7 @@ function ensurePopupSyncLoop() {
 }
 
 function installDesktopWindowChrome() {
-  const existing = rootShell.querySelector("[data-overlay-window-chrome]");
+  const existing = document.querySelector("[data-overlay-window-chrome]");
   existing?.remove();
 
   if (!isDesktopWidgetWindow()) {
@@ -1437,7 +1684,11 @@ function installDesktopWindowChrome() {
   );
 
   chrome.append(dragHandle, resizeHandle);
-  rootShell.appendChild(chrome);
+  if (isDirectDesktopWidgetWindow()) {
+    document.body.appendChild(chrome);
+  } else {
+    rootShell.appendChild(chrome);
+  }
   if (!state.desktopChromeResizeBound) {
     window.addEventListener("resize", () => scheduleCurrentWindowBoundsSync(), {
       passive: true,
@@ -1556,6 +1807,13 @@ async function renderLayout() {
   for (const timer of state.widgetStateTimers.values()) {
     clearTimeout(timer);
   }
+  for (const directWidget of state.directWidgets.values()) {
+    directWidget.teardown();
+  }
+  state.directWidgets.clear();
+  document
+    .querySelectorAll("[data-scarline-direct-widget-host]")
+    .forEach((node) => node.remove());
   state.widgets.clear();
   state.frames.clear();
   state.wrappers.clear();
@@ -1569,14 +1827,19 @@ async function renderLayout() {
     return;
   }
 
-  const widgetHost = document.createElement("section");
-  widgetHost.className = "overlay-zone";
-  widgetHost.style.left = "0px";
-  widgetHost.style.top = "0px";
-  widgetHost.style.width = "100%";
-  widgetHost.style.height = "100%";
-  widgetHost.style.zIndex = "10";
-  stage.appendChild(widgetHost);
+  const widgetHost = isDirectDesktopWidgetWindow()
+    ? null
+    : (() => {
+        const host = document.createElement("section");
+        host.className = "overlay-zone";
+        host.style.left = "0px";
+        host.style.top = "0px";
+        host.style.width = "100%";
+        host.style.height = "100%";
+        host.style.zIndex = "10";
+        stage.appendChild(host);
+        return host;
+      })();
 
   for (const widget of state.layout.widgets) {
     if (state.instanceId && widget.id !== state.instanceId) {
@@ -1615,7 +1878,14 @@ async function renderLayout() {
     wrapper.style.height = state.instanceId
       ? "100%"
       : `${widget.height || 180}px`;
-    widgetHost.appendChild(wrapper);
+    wrapper.style.background = "transparent";
+    wrapper.style.backgroundColor = "transparent";
+    wrapper.style.overflow = "hidden";
+    if (isDirectDesktopWidgetWindow()) {
+      document.body.insertBefore(wrapper, appRoot);
+    } else {
+      widgetHost.appendChild(wrapper);
+    }
     state.wrappers.set(widget.id, wrapper);
 
     try {
@@ -1625,19 +1895,23 @@ async function renderLayout() {
       validateWidgetCompatibility(metadata, widget);
       state.widgets.set(widget.id, { ...widget, metadata });
 
-      const frame = document.createElement("iframe");
-      frame.setAttribute("sandbox", "allow-scripts");
-      frame.setAttribute("allowtransparency", "true");
-      frame.style.width = "100%";
-      frame.style.height = "100%";
-      frame.style.border = "0";
-      frame.style.background = "transparent";
-      frame.style.backgroundColor = "transparent";
-      frame.style.pointerEvents = "auto";
-      enforceFrameTransparency(frame);
-      frame.srcdoc = injectRuntime(html, metadata, widget.id);
-      state.frames.set(widget.id, frame);
-      wrapper.appendChild(frame);
+      if (isDirectDesktopWidgetWindow()) {
+        mountDirectWidget(wrapper, html, metadata, widget.id);
+      } else {
+        const frame = document.createElement("iframe");
+        frame.setAttribute("sandbox", "allow-scripts");
+        frame.setAttribute("allowtransparency", "true");
+        frame.style.width = "100%";
+        frame.style.height = "100%";
+        frame.style.border = "0";
+        frame.style.background = "transparent";
+        frame.style.backgroundColor = "transparent";
+        frame.style.pointerEvents = "auto";
+        enforceFrameTransparency(frame);
+        frame.srcdoc = injectRuntime(html, metadata, widget.id);
+        state.frames.set(widget.id, frame);
+        wrapper.appendChild(frame);
+      }
     } catch (error) {
       console.error(error);
       wrapper.appendChild(makeShell(`Widget failed: ${widget.widgetId}`));
@@ -1794,27 +2068,10 @@ window.addEventListener("message", (event) => {
     ) {
       return;
     }
-    const sessionId =
-      state.currentSession?.sessionId || state.currentSession?.id;
-    if (!state.studyId || !sessionId || !token) {
-      console.debug("Widget interaction", event.data);
-      return;
-    }
-
-    postJson(`/api/studies/${state.studyId}/sessions/${sessionId}/triggers`, {
-      triggerType: "manual",
-      source: "researcher-trigger",
-      widgetId: state.widgets.get(event.data.instanceId)?.widgetId || "unknown",
-      instanceId: event.data.instanceId,
-      action: event.data.eventType || "widget-send",
-      bindingValues: event.data.payload || {},
-      payload: {
-        source: "overlay-widget",
-        eventType: event.data.eventType,
-        payload: event.data.payload,
-      },
-    }).catch((error) =>
-      console.warn("Failed to forward widget interaction", error),
+    forwardWidgetInteraction(
+      event.data.instanceId,
+      event.data.eventType || "widget-send",
+      event.data.payload || {},
     );
   }
 });

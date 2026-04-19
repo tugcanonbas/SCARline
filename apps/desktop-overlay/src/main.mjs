@@ -65,9 +65,7 @@ function createWindowOptions(spec) {
   });
   const mode = normalizeMode(spec.mode);
   const transparent = mode === "transparent_electron";
-  const focusable = transparent
-    ? process.env.OVERLAY_FOCUSABLE === "true"
-    : true;
+  const focusable = true;
   const minWidth = normalizeDimension(spec.minWidth, bounds.width);
   const minHeight = normalizeDimension(spec.minHeight, bounds.height);
   return {
@@ -81,7 +79,7 @@ function createWindowOptions(spec) {
     skipTaskbar: transparent,
     acceptFirstMouse: true,
     movable: true,
-    resizable: !transparent,
+    resizable: true,
     minimizable: !transparent,
     maximizable: !transparent,
     fullscreenable: !transparent,
@@ -131,7 +129,7 @@ function applyWindowBehavior(windowRef, spec) {
     windowRef.setBackgroundColor("#00000000");
     const clickThrough = spec.clickThrough === true && globalClickThrough;
     windowRef.setIgnoreMouseEvents(clickThrough, { forward: true });
-    windowRef.setFocusable(process.env.OVERLAY_FOCUSABLE === "true");
+    windowRef.setFocusable(!clickThrough);
     windowRef.setAlwaysOnTop(true, "screen-saver");
     windowRef.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   } else {
@@ -142,17 +140,49 @@ function applyWindowBehavior(windowRef, spec) {
   }
 }
 
-function enforceRendererTransparency(windowRef, spec) {
+function enforceRendererTransparency(windowRef, spec, onReady = () => {}) {
   if (normalizeMode(spec.mode) !== "transparent_electron") {
+    onReady();
     return;
   }
 
   const transparentCss = `
-    html, body, #app, .overlay-root, .overlay-stage, .overlay-zone, .overlay-widget {
+    html, body, #app, .overlay-root, .overlay-stage, .overlay-zone, .overlay-widget, .overlay-widget iframe {
       background: transparent !important;
       background-color: transparent !important;
     }
   `;
+  const transparentScript = `
+    (() => {
+      const applyTransparentDocument = (doc) => {
+        if (!doc) return;
+        doc.documentElement?.style?.setProperty("background", "transparent", "important");
+        doc.documentElement?.style?.setProperty("background-color", "transparent", "important");
+        doc.body?.style?.setProperty("background", "transparent", "important");
+        doc.body?.style?.setProperty("background-color", "transparent", "important");
+      };
+
+      applyTransparentDocument(document);
+      for (const frame of document.querySelectorAll("iframe")) {
+        frame.style.setProperty("background", "transparent", "important");
+        frame.style.setProperty("background-color", "transparent", "important");
+        try {
+          applyTransparentDocument(frame.contentDocument);
+        } catch {
+          // Ignore iframe access failures and keep the window alive.
+        }
+      }
+    })();
+  `;
+  let readySignaled = false;
+
+  const signalReady = () => {
+    if (readySignaled) {
+      return;
+    }
+    readySignaled = true;
+    onReady();
+  };
 
   const applyTransparency = () => {
     if (windowRef.isDestroyed()) {
@@ -160,9 +190,23 @@ function enforceRendererTransparency(windowRef, spec) {
     }
 
     windowRef.setBackgroundColor("#00000000");
-    windowRef.webContents.insertCSS(transparentCss).catch(() => {
-      // Keep windows alive even if CSS injection fails.
-    });
+    windowRef.webContents
+      .insertCSS(transparentCss)
+      .catch(() => {
+        // Keep windows alive even if CSS injection fails.
+      })
+      .finally(() => {
+        windowRef.webContents
+          .executeJavaScript(transparentScript, true)
+          .catch(() => {
+            // Ignore renderer-side transparency failures and keep the window alive.
+          })
+          .finally(() => {
+            if (!windowRef.webContents.isLoadingMainFrame()) {
+              signalReady();
+            }
+          });
+      });
   };
 
   windowRef.webContents.on("dom-ready", applyTransparency);
@@ -217,16 +261,6 @@ function attachWindowTracking(windowRef, normalizedSpec) {
   windowRef.on("resize", syncBounds);
   windowRef.on("moved", syncBounds);
   windowRef.on("resized", syncBounds);
-  if (normalizedSpec.mode === "transparent_electron") {
-    windowRef.on("focus", () => {
-      if (
-        !windowRef.isDestroyed() &&
-        process.env.OVERLAY_FOCUSABLE !== "true"
-      ) {
-        windowRef.blur();
-      }
-    });
-  }
 }
 
 function createManagedWindow(spec) {
@@ -250,15 +284,28 @@ function createManagedWindow(spec) {
   };
 
   const windowRef = new BrowserWindow(createWindowOptions(normalizedSpec));
+  let rendererReady = normalizedSpec.mode !== "transparent_electron";
+  let readyToShow = false;
+  let presented = false;
+  const presentWindow = () => {
+    if (presented || !readyToShow || !rendererReady || windowRef.isDestroyed()) {
+      return;
+    }
+    presented = true;
+    showWindow(windowRef, normalizedSpec);
+  };
+
   applyWindowBehavior(windowRef, normalizedSpec);
-  enforceRendererTransparency(windowRef, normalizedSpec);
+  enforceRendererTransparency(windowRef, normalizedSpec, () => {
+    rendererReady = true;
+    presentWindow();
+  });
   attachRecovery(windowRef, normalizedSpec.url);
   attachWindowTracking(windowRef, normalizedSpec);
 
   windowRef.on("ready-to-show", () => {
-    if (!windowRef.isDestroyed()) {
-      showWindow(windowRef, normalizedSpec);
-    }
+    readyToShow = true;
+    presentWindow();
   });
 
   windowRef.on("closed", () => {

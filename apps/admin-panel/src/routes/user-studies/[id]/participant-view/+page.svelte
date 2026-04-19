@@ -14,6 +14,13 @@
     description?: string;
     ui?: { preferredWidth?: number; preferredHeight?: number; minWidth?: number; minHeight?: number };
   };
+  type PreviewMetrics = {
+    frameWidth: number;
+    frameHeight: number;
+    scale: number;
+    width: number;
+    height: number;
+  };
   type PlacedWidget = {
     id: string;
     widgetId: string;
@@ -71,9 +78,13 @@
     url.searchParams.set('layoutId', layoutId);
     url.searchParams.set('instanceId', instanceId);
     url.searchParams.set('chrome', mode === 'transparent_electron' ? 'transparent' : 'web');
-    url.searchParams.set('toolbar', '0');
+    url.searchParams.set('toolbar', mode === 'browser_popup' ? '1' : '0');
     if (data.accessToken) url.searchParams.set('token', data.accessToken as string);
     return url.toString();
+  }
+
+  function getWidgetPreviewUrl(widgetId: string) {
+    return `/overlay/assets/${widgetId}/index.html?preview=admin`;
   }
 
   function canonicalBounds(widget: PlacedWidget) {
@@ -112,6 +123,7 @@
 
   async function openElectronWidget(layoutId: string, widget: PlacedWidget) {
     const meta = getWidgetMeta(widget.widgetId);
+    const targetDisplayValue = Math.max(0, Number(targetDisplay || '0') || 0);
     const response = await fetch(`${apiBase}/system/overlay/windows/open`, {
       method: 'POST',
       headers: {
@@ -137,7 +149,7 @@
       },
       body: JSON.stringify({
         mode: 'windows',
-        targetDisplay: 0,
+        targetDisplay: targetDisplayValue,
         windows: [{
           instanceId: widget.id,
           widgetId: widget.widgetId,
@@ -277,6 +289,26 @@
 
   function getWidgetMeta(widgetId: string): WidgetMeta | undefined {
     return (data.widgets as WidgetMeta[]).find((w) => w.id === widgetId);
+  }
+  function getWidgetBaseSize(widgetId: string) {
+    const meta = getWidgetMeta(widgetId);
+    return {
+      width: Math.max(1, meta?.ui?.preferredWidth ?? meta?.ui?.minWidth ?? 180),
+      height: Math.max(1, meta?.ui?.preferredHeight ?? meta?.ui?.minHeight ?? 180)
+    };
+  }
+  function getPreviewMetrics(widgetId: string, maxWidth: number, maxHeight: number): PreviewMetrics {
+    const base = getWidgetBaseSize(widgetId);
+    const safeWidth = Math.max(1, maxWidth);
+    const safeHeight = Math.max(1, maxHeight);
+    const scale = Math.max(0.05, Math.min(safeWidth / base.width, safeHeight / base.height));
+    return {
+      frameWidth: base.width,
+      frameHeight: base.height,
+      scale,
+      width: Math.max(1, Math.round(base.width * scale)),
+      height: Math.max(1, Math.round(base.height * scale))
+    };
   }
   function getPreferredWidth(widgetId: string) {
     const meta = getWidgetMeta(widgetId);
@@ -620,23 +652,39 @@
         {/each}
       </div>
     </div>
-    <div class="layout-catalogue__list">
-      {#each filteredWidgets as widget}
-        <div
-          class="layout-widget-card"
-          draggable="true"
-          ondragstart={(e) => onCatalogueDragStart(e, widget.id)}
-          role="button"
-          tabindex="0"
-          title="Drag to canvas"
-        >
-          <span class="layout-widget-card__name">{widget.name}</span>
-          <span class="layout-widget-card__cat">{widget.category}</span>
-        </div>
-      {:else}
-        <p class="layout-catalogue__empty">No widgets match</p>
-      {/each}
-    </div>
+      <div class="layout-catalogue__list">
+        {#each filteredWidgets as widget}
+          {@const preview = getPreviewMetrics(widget.id, 172, 102)}
+          <div
+            class="layout-widget-card"
+            draggable="true"
+            ondragstart={(e) => onCatalogueDragStart(e, widget.id)}
+            role="button"
+            tabindex="0"
+            title="Drag to canvas"
+          >
+            <div class="layout-widget-card__preview">
+              <div class="layout-widget-preview" style={`width:${preview.width}px;height:${preview.height}px;`}>
+                <iframe
+                  class="layout-widget-preview__frame"
+                  loading="lazy"
+                  sandbox="allow-scripts"
+                  scrolling="no"
+                  src={getWidgetPreviewUrl(widget.id)}
+                  style={`width:${preview.frameWidth}px;height:${preview.frameHeight}px;transform:scale(${preview.scale});`}
+                  title={`${widget.name} preview`}
+                ></iframe>
+              </div>
+            </div>
+            <div class="layout-widget-card__meta">
+              <span class="layout-widget-card__name">{widget.name}</span>
+              <span class="layout-widget-card__cat">{widget.category}</span>
+            </div>
+          </div>
+        {:else}
+          <p class="layout-catalogue__empty">No widgets match</p>
+        {/each}
+      </div>
   </aside>
 
   <!-- ── Canvas ────────────────────────────────────────────────────────── -->
@@ -688,6 +736,7 @@
 
       {#each placed as pw}
         {@const meta = getWidgetMeta(pw.widgetId)}
+        {@const preview = getPreviewMetrics(pw.widgetId, pw.w - 10, pw.h - 10)}
         <div
           class="layout-placed-widget {selectedId === pw.id ? 'layout-placed-widget--selected' : ''}"
           onmousedown={(e) => onPlacedMouseDown(e, pw.id)}
@@ -696,6 +745,19 @@
           tabindex="0"
           title={meta?.name ?? pw.widgetId}
         >
+          <div class="layout-placed-widget__preview">
+            <div class="layout-widget-preview" style={`width:${preview.width}px;height:${preview.height}px;`}>
+              <iframe
+                class="layout-widget-preview__frame"
+                loading="lazy"
+                sandbox="allow-scripts"
+                scrolling="no"
+                src={getWidgetPreviewUrl(pw.widgetId)}
+                style={`width:${preview.frameWidth}px;height:${preview.frameHeight}px;transform:scale(${preview.scale});`}
+                title={`${meta?.name ?? pw.widgetId} placement preview`}
+              ></iframe>
+            </div>
+          </div>
           <span class="layout-placed-widget__label">{meta?.name ?? pw.widgetId}</span>
           <button
             class="layout-placed-widget__remove"
@@ -953,18 +1015,46 @@
   .layout-widget-card {
     border: 1px solid var(--color-line);
     border-radius: 0.75rem;
-    padding: 0.5rem 0.75rem;
+    padding: 0.5rem;
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
+    gap: 0.45rem;
     cursor: grab;
     background: transparent;
     transition: background 0.12s, border-color 0.12s;
     user-select: none;
   }
   .layout-widget-card:hover { background: var(--color-panel-hover, rgba(255,255,255,0.04)); border-color: var(--color-accent-strong, #6366f1); }
+  .layout-widget-card__preview {
+    min-height: 110px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    border-radius: 0.625rem;
+    background: #050816;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .layout-widget-card__meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
   .layout-widget-card__name { font-size: 0.75rem; font-weight: 600; color: #e2e8f0; }
   .layout-widget-card__cat { font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; }
+  .layout-widget-preview {
+    position: relative;
+    pointer-events: none;
+    flex-shrink: 0;
+  }
+  .layout-widget-preview__frame {
+    display: block;
+    border: 0;
+    background: transparent;
+    background-color: transparent;
+    transform-origin: top left;
+    pointer-events: none;
+  }
 
   /* ── Canvas column ── */
   .layout-canvas-col { display: flex; flex-direction: column; gap: 0.5rem; }
@@ -1052,33 +1142,44 @@
     position: absolute;
     border: 1px solid rgba(99,102,241,0.4);
     border-radius: 0.5rem;
-    background: rgba(99,102,241,0.08);
+    background: rgba(15, 23, 42, 0.45);
     cursor: move;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.25rem;
     overflow: hidden;
     transition: border-color 0.1s, background 0.1s;
     user-select: none;
   }
   .layout-placed-widget--selected {
     border-color: var(--color-accent-strong, #6366f1);
-    background: rgba(99,102,241,0.18);
+    background: rgba(30, 41, 59, 0.68);
     z-index: 10;
   }
   .layout-placed-widget:hover { border-color: #818cf8; }
+  .layout-placed-widget__preview {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 0.25rem;
+    pointer-events: none;
+  }
   .layout-placed-widget__label {
+    position: absolute;
+    left: 0.35rem;
+    top: 0.35rem;
     font-size: 0.5625rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: #a5b4fc;
+    color: #e2e8f0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    padding: 0 0.25rem;
-    max-width: calc(100% - 1.25rem);
+    padding: 0.18rem 0.4rem;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.84);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    max-width: calc(100% - 2rem);
+    z-index: 1;
   }
   .layout-placed-widget__remove {
     position: absolute;
@@ -1091,6 +1192,7 @@
     cursor: pointer;
     line-height: 1;
     padding: 0 2px;
+    z-index: 1;
   }
   .layout-placed-widget__remove:hover { color: #f87171; }
   .layout-placed-widget__resize {
@@ -1104,6 +1206,7 @@
     cursor: nwse-resize;
     line-height: 1;
     padding: 0 2px;
+    z-index: 1;
   }
   .layout-placed-widget__resize:hover { color: #cbd5e1; }
 

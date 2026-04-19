@@ -102,6 +102,10 @@ test('participant view editor exposes widget bindings, triggers, and style overr
   assert.match(source, /Target display/);
   assert.match(source, /Must be a JSON object/);
   assert.match(source, /Must be a JSON array/);
+  assert.match(source, /getWidgetPreviewUrl/);
+  assert.match(source, /preview=admin/);
+  assert.match(source, /layout-widget-preview__frame/);
+  assert.match(source, /sandbox="allow-scripts"/);
 });
 
 test('exports mutations stay restricted to admin and researcher roles', async () => {

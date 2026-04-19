@@ -118,12 +118,6 @@ function validateWidgetMetadata(
         )
       : null;
   if (!bindingsArray) errors.push("bindings must be an array or object map");
-  if (
-    !Array.isArray(triggersValue) &&
-    !(actionsValue && typeof actionsValue === "object")
-  ) {
-    errors.push("triggers/actions must be declared");
-  }
   if (bindingsArray) {
     const bindingKeys = new Set<string>();
     for (const [index, binding] of bindingsArray.entries()) {
@@ -135,9 +129,9 @@ function validateWidgetMetadata(
       const entry = binding as Record<string, unknown>;
       if (
         typeof entry.key !== "string" ||
-        !/^[a-z][A-Za-z0-9]*(\.[a-z][A-Za-z0-9]*)+$/.test(entry.key)
+        !/^[a-z][A-Za-z0-9_]*(\.[a-z][A-Za-z0-9_]*)+$/.test(entry.key)
       ) {
-        errors.push(`bindings.${index}.key must be a dotted lower-camel path`);
+        errors.push(`bindings.${index}.key must be a dotted binding path`);
       } else if (bindingKeys.has(entry.key)) {
         errors.push(`bindings.${index}.key must be unique`);
       } else {
@@ -283,6 +277,136 @@ function injectWidgetStylesheetRuntime(html: string): string {
   return `${runtime}${html}`;
 }
 
+function escapeInlineScript(value: unknown): string {
+  return JSON.stringify(value).replace(/<\//g, "<\\/");
+}
+
+function widgetPreviewBindingDefaults(
+  metadata: Record<string, unknown>,
+): Record<string, unknown> {
+  const bindingsValue = metadata.bindings;
+  const bindings = Array.isArray(bindingsValue)
+    ? bindingsValue
+    : bindingsValue && typeof bindingsValue === "object"
+      ? Object.entries(bindingsValue as Record<string, unknown>).map(
+          ([key, value]) => ({ key, ...(value as object) }),
+        )
+      : [];
+
+  return Object.fromEntries(
+    bindings.flatMap((binding) => {
+      if (typeof binding !== "object" || binding === null) {
+        return [];
+      }
+
+      const entry = binding as Record<string, unknown>;
+      if (typeof entry.key !== "string" || !("default" in entry)) {
+        return [];
+      }
+
+      return [[entry.key, entry.default]];
+    }),
+  );
+}
+
+function injectWidgetPreviewRuntime(
+  html: string,
+  metadata: Record<string, unknown>,
+): string {
+  const previewRuntime = `
+    <style data-scarline-widget-preview>
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: transparent !important;
+        background-color: transparent !important;
+        pointer-events: none !important;
+      }
+
+      body > *:first-child {
+        pointer-events: none !important;
+      }
+    </style>
+    <script data-scarline-widget-preview-runtime>
+      (() => {
+        const metadata = ${escapeInlineScript(metadata)};
+        const defaults = ${escapeInlineScript(widgetPreviewBindingDefaults(metadata))};
+        const bindings = new Map(Object.entries(defaults));
+        const bindingHandlers = new Map();
+        const stateHandlers = [];
+        const currentState = "visible";
+        const blockedNetwork = (api) => () => Promise.reject(new Error("SCARline admin preview blocks " + api));
+
+        window.fetch = blockedNetwork("fetch");
+        window.WebSocket = function BlockedWebSocket() {
+          throw new Error("SCARline admin preview blocks WebSocket");
+        };
+        window.EventSource = function BlockedEventSource() {
+          throw new Error("SCARline admin preview blocks EventSource");
+        };
+        window.XMLHttpRequest = class BlockedXMLHttpRequest {
+          open() {
+            throw new Error("SCARline admin preview blocks XMLHttpRequest");
+          }
+          send() {
+            throw new Error("SCARline admin preview blocks XMLHttpRequest");
+          }
+        };
+
+        const queueBinding = (key, callback) => {
+          if (!bindings.has(key)) {
+            return;
+          }
+          queueMicrotask(() => callback(bindings.get(key)));
+        };
+
+        window.SCARline = {
+          onBinding(key, callback) {
+            const handlers = bindingHandlers.get(key) ?? [];
+            handlers.push(callback);
+            bindingHandlers.set(key, handlers);
+            queueBinding(key, callback);
+          },
+          onTrigger() {},
+          onStateChange(callback) {
+            stateHandlers.push(callback);
+            queueMicrotask(() => callback(currentState));
+          },
+          ready() {},
+          getBinding(key) {
+            return bindings.get(key);
+          },
+          getState() {
+            return currentState;
+          },
+          getMetadata() {
+            return metadata;
+          },
+          send() {
+            return false;
+          }
+        };
+
+        document.documentElement.dataset.scarlinePreview = "admin";
+        document.addEventListener("DOMContentLoaded", () => {
+          document.documentElement.style.setProperty("background", "transparent", "important");
+          document.documentElement.style.setProperty("background-color", "transparent", "important");
+          document.body.style.setProperty("background", "transparent", "important");
+          document.body.style.setProperty("background-color", "transparent", "important");
+        }, { once: true });
+      })();
+    </script>
+  `;
+
+  if (html.includes("</head>")) {
+    return html.replace("</head>", `${previewRuntime}</head>`);
+  }
+  return `${previewRuntime}${html}`;
+}
+
 app.get("/health", async () => ({
   status: "healthy",
   mode: process.env.WIDGET_TEST_MODE === "true" ? "widget-test" : "runtime",
@@ -302,6 +426,7 @@ app.get("/overlay/app.js", async (_request, reply) => {
 
 app.get("/assets/:widgetId/:file", async (request, reply) => {
   const params = request.params as { widgetId: string; file: string };
+  const query = request.query as { preview?: string };
   assertSafeAssetPath(params.widgetId, params.file);
   const filePath = path.join(
     await resolveWidgetDir(params.widgetId),
@@ -310,7 +435,18 @@ app.get("/assets/:widgetId/:file", async (request, reply) => {
   if (params.file.endsWith(".html")) {
     setNoCache(reply);
     const html = await fs.readFile(filePath, "utf8");
-    reply.type("text/html").send(injectWidgetStylesheetRuntime(html));
+    let responseHtml = injectWidgetStylesheetRuntime(html);
+    if (query.preview === "admin") {
+      const metadataRaw = await fs.readFile(
+        path.join(await resolveWidgetDir(params.widgetId), "widget.json"),
+        "utf8",
+      );
+      responseHtml = injectWidgetPreviewRuntime(
+        responseHtml,
+        JSON.parse(metadataRaw) as Record<string, unknown>,
+      );
+    }
+    reply.type("text/html").send(responseHtml);
     return;
   }
   const content = await fs.readFile(filePath);
@@ -319,6 +455,7 @@ app.get("/assets/:widgetId/:file", async (request, reply) => {
 
 app.get("/overlay/assets/:widgetId/:file", async (request, reply) => {
   const params = request.params as { widgetId: string; file: string };
+  const query = request.query as { preview?: string };
   assertSafeAssetPath(params.widgetId, params.file);
   const filePath = path.join(
     await resolveWidgetDir(params.widgetId),
@@ -327,7 +464,18 @@ app.get("/overlay/assets/:widgetId/:file", async (request, reply) => {
   if (params.file.endsWith(".html")) {
     setNoCache(reply);
     const html = await fs.readFile(filePath, "utf8");
-    reply.type("text/html").send(injectWidgetStylesheetRuntime(html));
+    let responseHtml = injectWidgetStylesheetRuntime(html);
+    if (query.preview === "admin") {
+      const metadataRaw = await fs.readFile(
+        path.join(await resolveWidgetDir(params.widgetId), "widget.json"),
+        "utf8",
+      );
+      responseHtml = injectWidgetPreviewRuntime(
+        responseHtml,
+        JSON.parse(metadataRaw) as Record<string, unknown>,
+      );
+    }
+    reply.type("text/html").send(responseHtml);
     return;
   }
   const content = await fs.readFile(filePath);
