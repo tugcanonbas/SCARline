@@ -20,6 +20,8 @@ const overlayControlOrigin =
 const token = query.get("token") || "";
 const chromeMode = query.get("chrome") || "web";
 const launchAtMs = Number(query.get("launchAt") || "0");
+const CONDITION_CACHE_TTL_MS = 30_000;
+const CONDITION_FETCH_LOCK_TTL_MS = 4_000;
 
 const state = {
   layoutId: pathLayoutId || query.get("layoutId") || "",
@@ -329,9 +331,12 @@ async function fetchJson(path) {
   try {
     const response = await fetch(url, { headers: authHeaders() });
     if (!response.ok) {
-      throw new Error(
+      const failure = new Error(
         `Fetch failed for ${path}: ${response.status} ${response.statusText}`,
       );
+      failure.status = response.status;
+      failure.statusText = response.statusText;
+      throw failure;
     }
     return response.json();
   } catch (error) {
@@ -410,6 +415,125 @@ function collectBindingOverrides(...sources) {
   return overrides;
 }
 
+function conditionCacheKey(studyId) {
+  return `scarline:overlay:conditions:${studyId}`;
+}
+
+function conditionLockKey(studyId) {
+  return `scarline:overlay:conditions:lock:${studyId}`;
+}
+
+function readLocalStorageJson(key) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalStorageJson(key, value) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore storage failures and continue without shared cache.
+  }
+}
+
+function removeLocalStorageKey(key) {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Ignore storage failures and continue without shared cache.
+  }
+}
+
+function readCachedConditions(studyId, { allowStale = false } = {}) {
+  const cached = readLocalStorageJson(conditionCacheKey(studyId));
+  if (!cached || !Array.isArray(cached.conditions)) {
+    return null;
+  }
+
+  const ageMs = Date.now() - Number(cached.cachedAt || 0);
+  if (!allowStale && ageMs > CONDITION_CACHE_TTL_MS) {
+    return null;
+  }
+
+  return cached;
+}
+
+function pause(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForSharedConditions(studyId, timeoutMs = 1800) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const cached = readCachedConditions(studyId, { allowStale: true });
+    if (cached) {
+      return cached.conditions;
+    }
+    await pause(120);
+  }
+  return null;
+}
+
+async function fetchConditionsForStudy(studyId) {
+  const freshCache = readCachedConditions(studyId);
+  if (freshCache) {
+    return freshCache.conditions;
+  }
+
+  const lockKey = conditionLockKey(studyId);
+  const cacheKey = conditionCacheKey(studyId);
+  const lockToken = `${Date.now()}:${Math.random().toString(16).slice(2)}`;
+  const existingLock = readLocalStorageJson(lockKey);
+  if (
+    existingLock &&
+    Date.now() - Number(existingLock.startedAt || 0) < CONDITION_FETCH_LOCK_TTL_MS
+  ) {
+    const sharedConditions = await waitForSharedConditions(studyId);
+    if (sharedConditions) {
+      return sharedConditions;
+    }
+  }
+
+  writeLocalStorageJson(lockKey, { token: lockToken, startedAt: Date.now() });
+  const ownedLock = readLocalStorageJson(lockKey);
+  if (ownedLock?.token !== lockToken) {
+    const sharedConditions = await waitForSharedConditions(studyId);
+    if (sharedConditions) {
+      return sharedConditions;
+    }
+  }
+
+  try {
+    const payload = await fetchJson(`/api/studies/${studyId}/conditions`);
+    const conditions = Array.isArray(payload?.data) ? payload.data : [];
+    writeLocalStorageJson(cacheKey, {
+      cachedAt: Date.now(),
+      conditions,
+    });
+    return conditions;
+  } catch (error) {
+    const fallbackConditions =
+      readCachedConditions(studyId, { allowStale: true })?.conditions ||
+      (await waitForSharedConditions(studyId, 1000));
+    if (fallbackConditions) {
+      console.warn("Using cached condition overrides after condition fetch failure", error);
+      return fallbackConditions;
+    }
+
+    console.warn("Continuing overlay startup without condition overrides", error);
+    return [];
+  } finally {
+    const currentLock = readLocalStorageJson(lockKey);
+    if (currentLock?.token === lockToken) {
+      removeLocalStorageKey(lockKey);
+    }
+  }
+}
+
 async function loadConditionOverrides(conditionId = state.conditionId) {
   state.hiddenWidgetIds = new Set();
   state.highlightedWidgetIds = new Set();
@@ -419,10 +543,8 @@ async function loadConditionOverrides(conditionId = state.conditionId) {
     return;
   }
 
-  const payload = await fetchJson(`/api/studies/${state.studyId}/conditions`);
-  const condition = (payload.data || []).find(
-    (entry) => entry.id === conditionId,
-  );
+  const conditions = await fetchConditionsForStudy(state.studyId);
+  const condition = conditions.find((entry) => entry.id === conditionId);
   const overrides =
     condition?.widgetOverrides || condition?.widget_overrides || {};
   state.hiddenWidgetIds = collectStringSet(

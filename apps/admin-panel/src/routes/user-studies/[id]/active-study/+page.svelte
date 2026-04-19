@@ -175,25 +175,11 @@
     return selectedSession ? (allowedTransitions[selectedSessionStatus]?.includes(actionName) ?? false) : false;
   }
 
-  function browserLauncherUrl() {
-    const participantLayoutId = layoutId;
-    if (!participantLayoutId || !selectedSession) return '';
-    const session = (data.sessions as SessionOption[]).find((entry) => entry.id === selectedSession);
-    const url = new URL(`${window.location.origin}/overlay/launcher/${participantLayoutId}`);
-    url.searchParams.set('studyId', data.studyId);
-    url.searchParams.set('layoutId', participantLayoutId);
-    url.searchParams.set('sessionId', selectedSession);
-    if (data.token) url.searchParams.set('token', data.token);
-    if ((session as Record<string, unknown> | undefined)?.conditionId) {
-      url.searchParams.set('conditionId', String((session as Record<string, unknown>).conditionId));
-    }
-    return url.toString();
-  }
-
   type WindowDraft = {
     instanceId: string;
     widgetId: string;
     mode: 'transparent_electron' | 'browser_popup';
+    order: number;
     x: number;
     y: number;
     width: number;
@@ -210,6 +196,7 @@
       instanceId: String(widget.id),
       widgetId: String(widget.widgetId),
       mode: (widget.windowMode === 'browser_popup' ? 'browser_popup' : 'transparent_electron') as WindowDraft['mode'],
+      order: Number(widget.order ?? 0),
       x: Number(widget.x ?? 0),
       y: Number(widget.y ?? 0),
       width: Number(widget.width ?? 180),
@@ -226,6 +213,137 @@
 
   function updateDraft(instanceId: string, patch: Partial<WindowDraft>) {
     windowDrafts = windowDrafts.map((entry) => (entry.instanceId === instanceId ? { ...entry, ...patch } : entry));
+  }
+
+  function launchPriority(left: WindowDraft, right: WindowDraft) {
+    return left.order - right.order || left.y - right.y || left.x - right.x;
+  }
+
+  function getWidgetMeta(widgetId: string) {
+    return (data.widgets as Array<Record<string, unknown>>).find((widget) => String(widget.id) === widgetId) ?? null;
+  }
+
+  function canonicalBounds(entry: WindowDraft) {
+    return {
+      x: Math.max(0, Math.round(entry.x)),
+      y: Math.max(0, Math.round(entry.y)),
+      width: Math.max(1, Math.round(entry.width)),
+      height: Math.max(1, Math.round(entry.height))
+    };
+  }
+
+  function getWidgetOverlayUrl(layoutId: string, instanceId: string, mode: 'transparent_electron' | 'browser_popup') {
+    const url = new URL(`${window.location.origin}/overlay/${layoutId}`);
+    url.searchParams.set('studyId', data.studyId);
+    url.searchParams.set('layoutId', layoutId);
+    url.searchParams.set('instanceId', instanceId);
+    url.searchParams.set('sessionId', selectedSession);
+    url.searchParams.set('chrome', mode === 'transparent_electron' ? 'transparent' : 'web');
+    url.searchParams.set('toolbar', mode === 'browser_popup' ? '1' : '0');
+    if (data.token) url.searchParams.set('token', data.token);
+    if (selectedSessionObj?.conditionId) {
+      url.searchParams.set('conditionId', selectedSessionObj.conditionId);
+    }
+    return url.toString();
+  }
+
+  async function openOverlayWindow(
+    widget: WindowDraft,
+    mode: 'transparent_electron' | 'browser_popup'
+  ) {
+    if (!layoutId) {
+      throw new Error('Participant layout is not available');
+    }
+    if (!selectedSession) {
+      throw new Error('Select a session first');
+    }
+
+    const meta = getWidgetMeta(widget.widgetId);
+    const widgetUi = (meta?.ui as Record<string, unknown> | undefined) ?? {};
+    const bounds = canonicalBounds(widget);
+    const targetDisplayValue = Math.max(0, Number((data.layoutDetail as Record<string, unknown> | null)?.targetDisplay ?? 0) || 0);
+    const response = await fetch('/api/system/overlay/windows/open', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${data.token}`
+      },
+      body: JSON.stringify({
+        studyId: data.studyId,
+        layoutId,
+        instanceId: widget.instanceId,
+        sessionId: selectedSession,
+        conditionId: selectedSessionObj?.conditionId ?? null,
+        mode
+      })
+    });
+    if (response.ok) {
+      return;
+    }
+
+    const payload = await response.json().catch(() => null);
+    const directResponse = await fetch('http://127.0.0.1:4097/windows/open', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        mode: 'windows',
+        targetDisplay: targetDisplayValue,
+        windows: [{
+          instanceId: widget.instanceId,
+          widgetId: widget.widgetId,
+          mode,
+          clickThrough: false,
+          bounds,
+          minWidth: Number(widgetUi.minWidth ?? bounds.width),
+          minHeight: Number(widgetUi.minHeight ?? bounds.height),
+          preferredWidth: Number(widgetUi.preferredWidth ?? bounds.width),
+          preferredHeight: Number(widgetUi.preferredHeight ?? bounds.height),
+          url: getWidgetOverlayUrl(layoutId, widget.instanceId, mode)
+        }],
+        session: {
+          studyId: data.studyId,
+          sessionId: selectedSession,
+          layoutId,
+          conditionId: selectedSessionObj?.conditionId ?? null
+        }
+      })
+    }).catch(() => null);
+    if (!directResponse?.ok) {
+      throw new Error(payload?.error?.message || 'Failed to open overlay widget window. Ensure the overlay window control server is running.');
+    }
+  }
+
+  async function launchBrowserWidgetWindows() {
+    if (!selectedSession) {
+      windowUpdateStatus = { ok: false, message: 'Select a session first' };
+      return;
+    }
+    if (!layoutId) {
+      windowUpdateStatus = { ok: false, message: 'Participant layout is not available' };
+      return;
+    }
+
+    const targets = [...windowDrafts].sort(launchPriority);
+    if (targets.length === 0) {
+      windowUpdateStatus = { ok: false, message: 'No widget windows in participant layout' };
+      return;
+    }
+
+    let opened = 0;
+    for (const widget of targets) {
+      try {
+        await openOverlayWindow(widget, 'browser_popup');
+        opened += 1;
+      } catch (error) {
+        console.error('Failed to launch browser widget window', widget.instanceId, error);
+      }
+    }
+
+    windowUpdateStatus = opened > 0
+      ? { ok: true, message: `Opened ${opened} browser widget window(s)` }
+      : { ok: false, message: 'Failed to open browser widget windows' };
   }
 
   function nudgeWindow(entry: WindowDraft, dx = 0, dy = 0) {
@@ -340,11 +458,8 @@
       <button
         class="mt-4 rounded-xl border border-[--color-line] px-4 py-2 text-sm text-slate-200 hover:bg-[--color-panel-hover] disabled:cursor-not-allowed disabled:opacity-50"
         type="button"
-        disabled={!browserLauncherUrl()}
-        onclick={() => {
-          const url = browserLauncherUrl();
-          if (url) window.open(url, '_blank');
-        }}
+        disabled={!selectedSession || !layoutId || windowDrafts.length === 0}
+        onclick={launchBrowserWidgetWindows}
       >
         Launch Browser Popup Widgets
       </button>

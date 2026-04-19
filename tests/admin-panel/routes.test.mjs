@@ -84,6 +84,14 @@ test('active study server route wires lifecycle and trigger actions', async () =
   assert.match(source, /sessions\/\$\{sessionId\}\/notes/);
 });
 
+test('active study browser launch uses direct overlay window opens', async () => {
+  const source = await readRoute('user-studies/[id]/active-study/+page.svelte');
+  assert.match(source, /Launch Browser Popup Widgets/);
+  assert.match(source, /launchBrowserWidgetWindows/);
+  assert.match(source, /\/api\/system\/overlay\/windows\/open/);
+  assert.doesNotMatch(source, /overlay\/launcher/);
+});
+
 test('sensor configuration route supports explicit driver saves and defaults', async () => {
   const source = await readRoute('user-studies/[id]/sensors/+page.server.ts');
   assert.match(source, /preset:\s*async/);
@@ -184,15 +192,23 @@ test('admin navigation and nginx route PRD admin paths through the Svelte shell'
 
 test('admin auth handles real logout and bootstrap outages explicitly', async () => {
   const login = await readRoute('login/+page.server.ts');
+  const hooks = await readFile(path.join(root, 'apps/admin-panel/src/hooks.server.ts'), 'utf8');
+  const auth = await readFile(path.join(root, 'apps/admin-panel/src/lib/server/auth.ts'), 'utf8');
   const bootstrap = await readFile(path.join(root, 'apps/admin-panel/src/lib/server/bootstrap.ts'), 'utf8');
   const layout = await readRoute('+layout.server.ts');
 
   assert.match(login, /\/auth\/logout/);
-  assert.match(login, /scarline_refresh_token/);
-  assert.match(login, /locals\.accessToken = null/);
-  assert.match(login, /secure: process\.env\.NODE_ENV === 'production'/);
+  assert.match(login, /redirectTo/);
+  assert.match(login, /resolvePostLoginRedirect/);
+  assert.match(hooks, /handleFetch/);
+  assert.match(hooks, /response\.status !== 401/);
+  assert.match(hooks, /createLoginRedirectPath/);
+  assert.match(auth, /clearAuthSession/);
+  assert.match(auth, /URLSearchParams/);
+  assert.match(auth, /secure: process\.env\.NODE_ENV === 'production'/);
   assert.match(bootstrap, /available: false/);
   assert.match(layout, /throw error\(503/);
+  assert.match(layout, /target === '\/login' \? createLoginRedirectPath\(url\)/);
 });
 
 test('admin realtime store reconnects and resubscribes after socket drops', async () => {

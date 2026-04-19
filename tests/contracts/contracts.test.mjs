@@ -146,6 +146,10 @@ test('overlay runtime implements PRD widget lifecycle controls', async () => {
   assert.match(source, /assetPrefix/);
   assert.match(source, /widget\.json/);
   assert.match(source, /index\.html/);
+  assert.match(source, /fetchConditionsForStudy/);
+  assert.match(source, /localStorage/);
+  assert.match(source, /Continuing overlay startup without condition overrides/);
+  assert.match(source, /Using cached condition overrides after condition fetch failure/);
 });
 
 test('overlay widget asset server supports static admin preview injection', async () => {
