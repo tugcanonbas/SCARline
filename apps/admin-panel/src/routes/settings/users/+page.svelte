@@ -93,7 +93,7 @@
                 <input minlength="8" name="password" placeholder="Leave unchanged" type="password" />
               </label>
             </div>
-            <div class="choice-grid" style="grid-template-columns:repeat(4,minmax(0,1fr));">
+            <div class="choice-grid choice-grid--4">
               {#each roles as role}
                 <label class="form-choice-card">
                   <input name="roles" type="checkbox" value={role} checked={(user.roles ?? []).includes(role)} />
