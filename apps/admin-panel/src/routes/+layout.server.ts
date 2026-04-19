@@ -1,5 +1,6 @@
 import { error, redirect } from '@sveltejs/kit';
 import { appPath, stripAppBase } from '$lib/paths';
+import { createLoginRedirectPath } from '$lib/server/auth';
 import { getBootstrapState, resolveRouteGuardRedirect } from '$lib/server/bootstrap';
 
 export const load = async ({ fetch, locals, url }) => {
@@ -15,7 +16,7 @@ export const load = async ({ fetch, locals, url }) => {
   });
 
   if (target) {
-    throw redirect(303, appPath(target));
+    throw redirect(303, target === '/login' ? createLoginRedirectPath(url) : appPath(target));
   }
 
   let user = null;

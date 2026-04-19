@@ -2,7 +2,7 @@
   import PageHeader from '$lib/components/PageHeader.svelte';
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
 
-  let { form } = $props();
+  let { data, form } = $props();
 </script>
 
 <div class="mx-auto max-w-xl py-16">
@@ -14,6 +14,8 @@
 
   <SurfaceCard title="Operator Access" subtitle="JWT-backed session for Admin Panel and Overlay WebSocket connections.">
     <form class="grid gap-4" method="POST">
+      <input name="redirectTo" type="hidden" value={data.redirectTo ?? ''} />
+
       <label class="grid gap-2 text-sm">
         <span class="text-slate-300">Username</span>
         <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="username" required />

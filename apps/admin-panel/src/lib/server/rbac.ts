@@ -19,7 +19,7 @@ export async function requireRole(
   });
 
   if (!response.ok) {
-    throw error(401, 'Authentication required');
+    throw error(response.status, 'Authentication required');
   }
 
   const payload = await response.json();

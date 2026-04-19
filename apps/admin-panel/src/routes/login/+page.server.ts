@@ -1,5 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { appPath } from '$lib/paths';
+import { clearAuthSession, getAuthCookieOptions, resolvePostLoginRedirect, sanitizeRedirectTarget } from '$lib/server/auth';
 import { getBootstrapState } from '$lib/server/bootstrap';
 
 export const load = async ({ cookies, fetch, locals, url }) => {
@@ -15,10 +16,7 @@ export const load = async ({ cookies, fetch, locals, url }) => {
       }).catch(() => undefined);
     }
 
-    cookies.delete('scarline_access_token', { path: '/' });
-    cookies.delete('scarline_refresh_token', { path: '/' });
-    locals.accessToken = null;
-    locals.refreshToken = null;
+    clearAuthSession({ cookies, locals });
   }
 
   const bootstrap = await getBootstrapState(fetch, locals.apiBase);
@@ -27,13 +25,18 @@ export const load = async ({ cookies, fetch, locals, url }) => {
   }
 
   if (locals.accessToken && url.searchParams.get('logout') !== '1') {
-    throw redirect(303, appPath('/dashboard'));
+    throw redirect(303, appPath(resolvePostLoginRedirect(url)));
   }
+
+  return {
+    redirectTo: sanitizeRedirectTarget(url.searchParams.get('redirectTo'))
+  };
 };
 
 export const actions = {
-  default: async ({ fetch, locals, request, cookies }) => {
+  default: async ({ fetch, locals, request, cookies, url }) => {
     const formData = await request.formData();
+    const redirectTo = sanitizeRedirectTarget(String(formData.get('redirectTo') ?? '')) ?? resolvePostLoginRedirect(url);
     const response = await fetch(`${locals.apiBase}/auth/login`, {
       method: 'POST',
       headers: {
@@ -52,14 +55,9 @@ export const actions = {
     }
 
     const payload = await response.json();
-    const cookieOptions = {
-      path: '/',
-      httpOnly: true,
-      sameSite: 'lax' as const,
-      secure: process.env.NODE_ENV === 'production'
-    };
+    const cookieOptions = getAuthCookieOptions();
     cookies.set('scarline_access_token', payload.data.accessToken, cookieOptions);
     cookies.set('scarline_refresh_token', payload.data.refreshToken, cookieOptions);
-    throw redirect(303, appPath('/dashboard'));
+    throw redirect(303, appPath(redirectTo));
   }
 };
