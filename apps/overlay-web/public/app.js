@@ -50,6 +50,7 @@ const state = {
   popupWindows: new Map(),
   popupSyncTimer: null,
   popupBlocked: new Set(),
+  popupDisplays: null,
   lastExportProgress: null,
   sensorSnapshots: new Map(),
   clockTimer: null,
@@ -57,6 +58,27 @@ const state = {
   desktopChromeResizeBound: false,
   desktopWindowPreviewBounds: null,
 };
+
+function requestedBrowserWindowBounds() {
+  const width = Number(query.get("windowWidth") || query.get("width") || 0);
+  const height = Number(query.get("windowHeight") || query.get("height") || 0);
+  const x = Number(query.get("windowX") || query.get("x") || 0);
+  const y = Number(query.get("windowY") || query.get("y") || 0);
+  if (
+    !Number.isFinite(width) ||
+    !Number.isFinite(height) ||
+    width <= 0 ||
+    height <= 0
+  ) {
+    return null;
+  }
+  return {
+    x: Number.isFinite(x) ? x : 0,
+    y: Number.isFinite(y) ? y : 0,
+    width: Math.max(1, Math.round(width)),
+    height: Math.max(1, Math.round(height)),
+  };
+}
 
 const rootShell = document.createElement("div");
 const stage = document.createElement("main");
@@ -194,6 +216,37 @@ function readCurrentWindowBounds() {
     width: Math.max(1, Number(window.outerWidth || window.innerWidth || 0)),
     height: Math.max(1, Number(window.outerHeight || window.innerHeight || 0)),
   };
+}
+
+function applyRequestedBrowserWindowBounds() {
+  if (!state.instanceId || chromeMode !== "web") {
+    return;
+  }
+  const bounds = requestedBrowserWindowBounds();
+  if (!bounds) {
+    return;
+  }
+
+  const resize = () => {
+    try {
+      const chromeWidth = Math.max(
+        0,
+        Number(window.outerWidth || 0) - Number(window.innerWidth || 0),
+      );
+      const chromeHeight = Math.max(
+        0,
+        Number(window.outerHeight || 0) - Number(window.innerHeight || 0),
+      );
+      window.moveTo(bounds.x, bounds.y);
+      window.resizeTo(bounds.width + chromeWidth, bounds.height + chromeHeight);
+    } catch (error) {
+      console.warn("Browser blocked widget window sizing", error);
+    }
+  };
+
+  resize();
+  window.setTimeout(resize, 100);
+  window.setTimeout(resize, 350);
 }
 
 async function persistCurrentWindowBounds(bounds = readCurrentWindowBounds()) {
@@ -1623,6 +1676,45 @@ function widgetWindowMode(widget) {
     : "transparent_electron";
 }
 
+async function resolvePopupDisplays() {
+  if (state.popupDisplays) {
+    return state.popupDisplays;
+  }
+
+  const fallback = {
+    index: Number(state.layout?.targetDisplay || 0) || 0,
+    bounds: { x: 0, y: 0, width: 1920, height: 1080 },
+  };
+
+  try {
+    const payload = await fetchJson("/api/system/overlay/displays");
+    const displays = Array.isArray(payload?.data?.displays)
+      ? payload.data.displays
+      : Array.isArray(payload?.displays)
+        ? payload.displays
+        : [];
+    state.popupDisplays = displays.length > 0 ? displays : [fallback];
+  } catch (error) {
+    console.warn("Continuing popup launch without display topology", error);
+    state.popupDisplays = [fallback];
+  }
+
+  return state.popupDisplays;
+}
+
+function popupDisplayForWidget(widget) {
+  const displays = state.popupDisplays || [];
+  const targetDisplay = Number(widget.targetDisplay ?? state.layout?.targetDisplay ?? 0) || 0;
+  return (
+    displays.find((display) => Number(display.index) === targetDisplay) ||
+    displays.find((display) => display.isPrimary === true) ||
+    displays[0] || {
+      index: targetDisplay,
+      bounds: { x: 0, y: 0, width: 1920, height: 1080 },
+    }
+  );
+}
+
 function buildInstanceOverlayUrl(widget, mode) {
   const params = new URLSearchParams();
   params.set("layoutId", state.layoutId);
@@ -1638,25 +1730,43 @@ function buildInstanceOverlayUrl(widget, mode) {
       state.currentSession.id || state.currentSession.sessionId,
     );
   }
+  if (mode === "browser_popup") {
+    const display = popupDisplayForWidget(widget);
+    const displayBounds = display.bounds || { x: 0, y: 0 };
+    const width = Math.max(120, Number(widget.width || 180));
+    const height = Math.max(100, Number(widget.height || 180));
+    params.set(
+      "windowX",
+      String(Math.round(Number(displayBounds.x || 0) + Number(widget.x || 0))),
+    );
+    params.set(
+      "windowY",
+      String(Math.round(Number(displayBounds.y || 0) + Number(widget.y || 0))),
+    );
+    params.set("windowWidth", String(Math.round(width)));
+    params.set("windowHeight", String(Math.round(height)));
+  }
   const overlayPrefix = overlayBasePath || "/overlay";
   return `${window.location.origin}${overlayPrefix}/${state.layoutId}?${params.toString()}`;
 }
 
 function popupFeatureString(widget) {
-  const left = Number(widget.x || 0);
-  const top = Number(widget.y || 0);
+  const display = popupDisplayForWidget(widget);
+  const displayBounds = display.bounds || { x: 0, y: 0 };
+  const left = Number(displayBounds.x || 0) + Number(widget.x || 0);
+  const top = Number(displayBounds.y || 0) + Number(widget.y || 0);
   const width = Math.max(120, Number(widget.width || 180));
   const height = Math.max(100, Number(widget.height || 180));
   return [
     "popup=yes",
     "resizable=yes",
     "scrollbars=no",
-    "toolbar=yes",
-    "location=yes",
-    "menubar=yes",
-    "status=yes",
-    `left=${left}`,
-    `top=${top}`,
+    "toolbar=no",
+    "location=no",
+    "menubar=no",
+    "status=no",
+    `left=${Math.round(left)}`,
+    `top=${Math.round(top)}`,
     `width=${width}`,
     `height=${height}`,
   ].join(",");
@@ -1676,10 +1786,10 @@ async function syncPopupBounds() {
     if (!popup || popup.closed) continue;
     windows.push({
       instanceId,
-      x: Math.max(0, Number(popup.screenX || 0)),
-      y: Math.max(0, Number(popup.screenY || 0)),
-      width: Math.max(1, Number(popup.outerWidth || 0)),
-      height: Math.max(1, Number(popup.outerHeight || 0)),
+      x: Number(popup.screenX || 0),
+      y: Number(popup.screenY || 0),
+      width: Math.max(1, Number(popup.innerWidth || popup.outerWidth || 0)),
+      height: Math.max(1, Number(popup.innerHeight || popup.outerHeight || 0)),
     });
   }
   if (windows.length === 0) return;
@@ -1873,7 +1983,7 @@ function renderLauncherFallback(popups) {
   stage.replaceChildren(fallback);
 }
 
-function openBrowserPopups() {
+async function openBrowserPopups() {
   const popupWidgets = [...(state.layout?.widgets || [])].sort(
     (left, right) => {
       return (
@@ -1892,6 +2002,8 @@ function openBrowserPopups() {
     );
     return;
   }
+
+  await resolvePopupDisplays();
 
   for (const widget of popupWidgets) {
     const existing = state.popupWindows.get(widget.id);
@@ -1957,10 +2069,11 @@ async function renderLayout() {
   state.widgetStateTimers.clear();
   stage.replaceChildren();
   installDesktopWindowChrome();
+  applyRequestedBrowserWindowBounds();
   layoutNode.textContent = state.layout.name || state.layoutId;
 
   if (state.isLauncher && state.popupMode === "browser") {
-    openBrowserPopups();
+    await openBrowserPopups();
     return;
   }
 

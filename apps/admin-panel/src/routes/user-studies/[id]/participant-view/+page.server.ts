@@ -56,6 +56,7 @@ export const actions = {
             id: randomUUID(),
             widgetId,
             windowMode: 'transparent_electron',
+            targetDisplay,
             order: index,
             x: 40 + (index * width),
             y: 40,

@@ -195,6 +195,23 @@ function selectOverlayDisplay(displays: OverlayDisplay[], targetDisplay: number 
     ?? fallbackOverlayDisplay();
 }
 
+function layoutWidgetConfigMap(layoutConfig: Record<string, unknown> | null | undefined): Map<string, Record<string, unknown>> {
+  const widgets = Array.isArray(layoutConfig?.widgets)
+    ? layoutConfig.widgets as Array<Record<string, unknown>>
+    : [];
+  return new Map(widgets.map((widget) => [String(widget.id ?? ''), widget]));
+}
+
+function widgetTargetDisplay(
+  widgetConfigById: Map<string, Record<string, unknown>>,
+  instanceId: unknown,
+  fallbackTargetDisplay: unknown
+): number {
+  const configured = widgetConfigById.get(String(instanceId))?.targetDisplay;
+  const value = Number(configured ?? fallbackTargetDisplay ?? 0);
+  return Number.isFinite(value) && value >= 0 ? Math.round(value) : 0;
+}
+
 async function callProcessManager(
   socketPath: string,
   method: 'GET' | 'POST',
@@ -1628,7 +1645,6 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
       const platformPort = publicGatewayPort(config, system);
       const widgetMetadataMap = await loadWidgetMetadataMap(config.WIDGETS_DIR);
       const displays = await resolveOverlayDisplays(config);
-      const selectedDisplay = selectOverlayDisplay(displays, payload.targetDisplay ?? 0);
       const token = bearerToken(request);
       if (!token) {
         return fail(reply, 401, 'UNAUTHORIZED', 'Overlay configuration requires an authenticated token');
@@ -1649,6 +1665,7 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
         ORDER BY "order" ASC
       `, [payload.layoutId]);
       const layoutConfig = (layout.layout_config as Record<string, unknown> | null) ?? {};
+      const widgetConfigById = layoutWidgetConfigMap(layoutConfig);
       const defaultMode = layoutConfig.isTransparent === false ? 'browser_popup' : 'transparent_electron';
       const baseParams = new URLSearchParams({
         token,
@@ -1671,6 +1688,10 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
         if (mode === 'browser_popup') perWidgetParams.set('toolbar', '1');
         const relativeX = Number(widget.x ?? 0);
         const relativeY = Number(widget.y ?? 0);
+        const selectedDisplay = selectOverlayDisplay(
+          displays,
+          widgetTargetDisplay(widgetConfigById, widget.id, payload.targetDisplay ?? 0)
+        );
         return {
           instanceId: widget.id,
           widgetId: widget.widget_id,
@@ -1695,7 +1716,7 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
 
       return ok(await callProcessManager(config.PM_SOCKET_PATH, 'POST', '/overlay/configure', {
         mode: 'windows',
-        targetDisplay: selectedDisplay.index,
+        targetDisplay: payload.targetDisplay ?? 0,
         displays,
         windows,
         launcherUrl,
@@ -1760,7 +1781,11 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
       });
       const displays = await resolveOverlayDisplays(config);
       const rowTargetDisplay = Math.max(0, Number(row.target_display ?? 0) || 0);
-      const selectedDisplay = selectOverlayDisplay(displays, payload.targetDisplay ?? rowTargetDisplay);
+      const widgetConfigById = layoutWidgetConfigMap(layoutConfig);
+      const selectedDisplay = selectOverlayDisplay(
+        displays,
+        widgetTargetDisplay(widgetConfigById, row.id, payload.targetDisplay ?? rowTargetDisplay)
+      );
       const defaultMode = layoutConfig.isTransparent === false ? 'browser_popup' : 'transparent_electron';
       const mode = payload.mode
         ?? (row.window_mode === 'browser_popup' || row.window_mode === 'transparent_electron' ? row.window_mode : defaultMode);
@@ -1848,14 +1873,19 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
 
     try {
       const layout = await queryOne(pool, `
-        SELECT target_display
+        SELECT target_display, layout_config
         FROM view_layouts
         WHERE study_id = $1 AND id = $2
       `, [payload.studyId, payload.layoutId]);
       const displays = await resolveOverlayDisplays(config);
-      const selectedDisplay = selectOverlayDisplay(displays, Math.max(0, Number(layout?.target_display ?? 0) || 0));
+      const layoutConfig = (layout?.layout_config as Record<string, unknown> | null) ?? {};
+      const widgetConfigById = layoutWidgetConfigMap(layoutConfig);
       const updates: Array<Record<string, unknown>> = [];
       for (const windowUpdate of payload.windows) {
+        const selectedDisplay = selectOverlayDisplay(
+          displays,
+          widgetTargetDisplay(widgetConfigById, windowUpdate.instanceId, layout?.target_display ?? 0)
+        );
         const inputX = Number(windowUpdate.x);
         const inputY = Number(windowUpdate.y);
         const relativeX = inputX >= selectedDisplay.bounds.x

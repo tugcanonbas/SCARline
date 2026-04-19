@@ -6,6 +6,7 @@
     displayY,
     displayW,
     displayH,
+    displays = [],
     bindingsDraft,
     triggerRulesDraft,
     styleOverridesDraft,
@@ -14,6 +15,7 @@
     styleOverridesError = null,
     onPositionInput,
     onSizeInput,
+    onDisplayChange,
     onModeChange,
     onBindingsInput,
     onTriggerRulesInput,
@@ -27,6 +29,7 @@
     displayY: number;
     displayW: number;
     displayH: number;
+    displays?: Array<Record<string, unknown>>;
     bindingsDraft: string;
     triggerRulesDraft: string;
     styleOverridesDraft: string;
@@ -35,6 +38,7 @@
     styleOverridesError?: string | null;
     onPositionInput: (axis: 'x' | 'y', value: number) => void;
     onSizeInput: (axis: 'w' | 'h', value: number) => void;
+    onDisplayChange: (displayIndex: string) => void;
     onModeChange: (mode: 'transparent_electron' | 'browser_popup') => void;
     onBindingsInput: (value: string) => void;
     onTriggerRulesInput: (value: string) => void;
@@ -42,6 +46,16 @@
     onOpenSelectedWidgetWindow: () => void;
     onCloseSelectedWidgetWindow: () => void;
   }>();
+
+  function displayBounds(display: Record<string, unknown>) {
+    const bounds = display.bounds && typeof display.bounds === 'object'
+      ? display.bounds as Record<string, unknown>
+      : {};
+    return {
+      width: Math.max(1, Number(bounds.width ?? 1920)),
+      height: Math.max(1, Number(bounds.height ?? 1080))
+    };
+  }
 </script>
 
 <aside class="layout-properties">
@@ -92,6 +106,21 @@
           />
         </label>
       </div>
+    </div>
+    <div class="layout-properties__section">
+      <p class="layout-properties__label">Assigned Display</p>
+      <select
+        class="layout-properties__select"
+        value={String(selectedWidget.targetDisplay ?? '0')}
+        onchange={(event) => onDisplayChange((event.currentTarget as HTMLSelectElement).value)}
+      >
+        {#each displays as display}
+          {@const bounds = displayBounds(display)}
+          <option value={String(display.index ?? 0)}>
+            Display #{String(display.index ?? 0)} · {bounds.width}×{bounds.height}
+          </option>
+        {/each}
+      </select>
     </div>
     <div class="layout-properties__section">
       <p class="layout-properties__label">Render Mode</p>

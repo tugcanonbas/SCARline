@@ -37,6 +37,7 @@ test('shared websocket contract preserves sim-bridge bridge compatibility and ex
 
 test('shared API contract exports full PRD DTO schemas', async () => {
   const source = await readFile(path.join(root, 'packages/contracts/src/api.ts'), 'utf8');
+  const layout = await readFile(path.join(root, 'packages/contracts/src/layout.ts'), 'utf8');
   for (const schema of [
     'researcherSchema',
     'userAdminSchema',
@@ -48,6 +49,7 @@ test('shared API contract exports full PRD DTO schemas', async () => {
   ]) {
     assert.match(source, new RegExp(`export const ${schema}`));
   }
+  assert.match(layout, /targetDisplay:\s*z\.string\(\)\.default\('0'\)/);
 });
 
 test('widget catalogue directories contain widget.json and index.html', async () => {
@@ -141,6 +143,11 @@ test('overlay runtime implements PRD widget lifecycle controls', async () => {
   assert.match(source, /\/windows\/update/);
   assert.match(source, /persistCurrentWindowBounds/);
   assert.match(source, /\/api\/system\/overlay\/windows\/update/);
+  assert.match(source, /\/api\/system\/overlay\/displays/);
+  assert.match(source, /resolvePopupDisplay/);
+  assert.match(source, /popupDisplayForWidget/);
+  assert.match(source, /requestedBrowserWindowBounds/);
+  assert.match(source, /applyRequestedBrowserWindowBounds/);
   assert.match(source, /data-scarline-runtime/);
   assert.match(source, /frame\.setAttribute\(["']allowtransparency["'], ["']true["']\)/);
   assert.doesNotMatch(source, /dragHandle\.textContent = 'Move'/);

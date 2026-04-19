@@ -184,6 +184,7 @@ test('core api hardens realtime scoping, component status, triggers, and outbox'
   assert.match(prd, /\/api\/system\/overlay\/windows\/close/);
   assert.match(prd, /\/api\/system\/overlay\/displays/);
   assert.match(prd, /selectOverlayDisplay/);
+  assert.match(prd, /widgetTargetDisplay/);
   assert.match(prd, /selectedDisplay\.bounds\.x \+/);
   assert.match(prd, /loadWidgetMetadataMap/);
   assert.match(prd, /preferredWidth/);

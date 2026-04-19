@@ -194,6 +194,7 @@
     instanceId: string;
     widgetId: string;
     mode: 'transparent_electron' | 'browser_popup';
+    targetDisplay: string;
     order: number;
     x: number;
     y: number;
@@ -211,6 +212,7 @@
       instanceId: String(widget.id),
       widgetId: String(widget.widgetId),
       mode: (widget.windowMode === 'browser_popup' ? 'browser_popup' : 'transparent_electron') as WindowDraft['mode'],
+      targetDisplay: String(widget.targetDisplay ?? (data.layoutDetail as Record<string, unknown> | null)?.targetDisplay ?? '0'),
       order: Number(widget.order ?? 0),
       x: Number(widget.x ?? 0),
       y: Number(widget.y ?? 0),
@@ -276,7 +278,7 @@
     const meta = getWidgetMeta(widget.widgetId);
     const widgetUi = (meta?.ui as Record<string, unknown> | undefined) ?? {};
     const bounds = canonicalBounds(widget);
-    const targetDisplayValue = Math.max(0, Number((data.layoutDetail as Record<string, unknown> | null)?.targetDisplay ?? 0) || 0);
+    const targetDisplayValue = Math.max(0, Number(widget.targetDisplay ?? (data.layoutDetail as Record<string, unknown> | null)?.targetDisplay ?? 0) || 0);
     const response = await fetch('/api/system/overlay/windows/open', {
       method: 'POST',
       headers: {

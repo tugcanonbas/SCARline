@@ -9,7 +9,7 @@
 
   // Route-level regression markers preserved for source-inspection tests:
   // Bindings Config, Trigger Rules, Style Overrides, Launch Selected Mode,
-  // Close All Widgets, Target display, layout-widget-preview__frame, sandbox="allow-scripts"
+  // Close All Widgets, Assigned Display, Target display, layout-widget-preview__frame, sandbox="allow-scripts"
 
   let { data } = $props();
   const apiBase = '/api';
@@ -45,6 +45,7 @@
     id: string;
     widgetId: string;
     windowMode: 'transparent_electron' | 'browser_popup';
+    targetDisplay: string;
     order: number;
     x: number;
     y: number;
@@ -158,6 +159,31 @@
     };
   }
 
+  function displayForIndex(index: string | number) {
+    return detectedDisplays.find((display) => display.index === Number(index))
+      ?? selectedDisplay
+      ?? FALLBACK_DISPLAY;
+  }
+
+  function displayBoundsForWidget(widget: PlacedWidget) {
+    return displayForIndex(widget.targetDisplay).bounds;
+  }
+
+  function clampWidgetToDisplay(widget: PlacedWidget, displayIndex = widget.targetDisplay): PlacedWidget {
+    const bounds = displayForIndex(displayIndex).bounds;
+    const minSize = widgetMinimumSize(widget.widgetId);
+    const width = clamp(Math.round(widget.w), minSize.width, Math.max(minSize.width, bounds.width));
+    const height = clamp(Math.round(widget.h), minSize.height, Math.max(minSize.height, bounds.height));
+    return {
+      ...widget,
+      targetDisplay: String(displayIndex),
+      x: clamp(Math.round(widget.x), 0, Math.max(0, bounds.width - width)),
+      y: clamp(Math.round(widget.y), 0, Math.max(0, bounds.height - height)),
+      w: width,
+      h: height
+    };
+  }
+
   function placedForCanvas(widget: PlacedWidget) {
     return {
       ...widget,
@@ -168,7 +194,10 @@
     };
   }
 
-  const placedCanvas = $derived(placed.map((widget) => placedForCanvas(widget)));
+  const placedOnSelectedDisplay = $derived(
+    placed.filter((widget) => Number(widget.targetDisplay) === selectedDisplay.index)
+  );
+  const placedCanvas = $derived(placedOnSelectedDisplay.map((widget) => placedForCanvas(widget)));
 
   function getWidgetOverlayUrl(layoutId: string, instanceId: string, mode: 'transparent_electron' | 'browser_popup') {
     const url = new URL(`${window.location.origin}/overlay/${layoutId}`);
@@ -196,10 +225,11 @@
 
   function absoluteBounds(widget: PlacedWidget) {
     const relative = relativeBounds(widget);
+    const display = displayForIndex(widget.targetDisplay);
     return {
       ...relative,
-      x: selectedDisplay.bounds.x + relative.x,
-      y: selectedDisplay.bounds.y + relative.y
+      x: display.bounds.x + relative.x,
+      y: display.bounds.y + relative.y
     };
   }
 
@@ -213,7 +243,7 @@
     mode: 'transparent_electron' | 'browser_popup' = widget.windowMode
   ) {
     const meta = getWidgetMeta(widget.widgetId);
-    const targetDisplayValue = selectedDisplay.index;
+    const targetDisplayValue = displayForIndex(widget.targetDisplay).index;
     const bounds = absoluteBounds(widget);
     const response = await fetch(`${apiBase}/system/overlay/windows/open`, {
       method: 'POST',
@@ -335,6 +365,7 @@
       id: String(w.id ?? crypto.randomUUID()),
       widgetId: String(w.widgetId ?? ''),
       windowMode: (w.windowMode === 'browser_popup' ? 'browser_popup' : 'transparent_electron'),
+      targetDisplay: String(w.targetDisplay ?? layout.targetDisplay ?? currentLayout?.targetDisplay ?? '0'),
       order: Number(w.order ?? i),
       x: Math.round(Number(w.x ?? 40 + i * 200)),
       y: Math.round(Number(w.y ?? 40)),
@@ -448,6 +479,7 @@
       id: crypto.randomUUID(),
       widgetId: draggingWidgetId,
       windowMode: 'transparent_electron',
+      targetDisplay: String(selectedDisplay.index),
       order: placed.length,
       x,
       y,
@@ -542,6 +574,7 @@
         id: p.id,
         widgetId: p.widgetId,
         windowMode: p.windowMode,
+        targetDisplay: p.targetDisplay,
         order: i,
         x: Math.round(p.x),
         y: Math.round(p.y),
@@ -737,7 +770,7 @@
       [axis]: clamp(
         Math.round(value),
         0,
-        Math.max(0, (axis === 'x' ? selectedDisplay.bounds.width - widget.w : selectedDisplay.bounds.height - widget.h)),
+        Math.max(0, (axis === 'x' ? displayBoundsForWidget(widget).width - widget.w : displayBoundsForWidget(widget).height - widget.h)),
       ),
     }));
   }
@@ -748,9 +781,14 @@
       [axis]: clamp(
         Math.round(value),
         axis === 'w' ? widgetMinimumSize(widget.widgetId).width : widgetMinimumSize(widget.widgetId).height,
-        axis === 'w' ? selectedDisplay.bounds.width - widget.x : selectedDisplay.bounds.height - widget.y,
+        axis === 'w' ? displayBoundsForWidget(widget).width - widget.x : displayBoundsForWidget(widget).height - widget.y,
       ),
     }));
+  }
+
+  function handleWidgetDisplayChange(displayIndex: string) {
+    updateSelectedWidget((widget) => clampWidgetToDisplay(widget, displayIndex));
+    targetDisplay = String(displayIndex);
   }
 
   function handleBindingsInput(value: string) {
@@ -804,7 +842,7 @@
 <StudyTabs studyId={data.studyId} current={`/user-studies/${data.studyId}/participant-view`} />
 
 <div class="metric-grid">
-  <MetricCard label="Placed Widgets" value={placed.length} hint="In current canvas layout" accent />
+  <MetricCard label="Placed Widgets" value={placed.length} hint={`${placedOnSelectedDisplay.length} on selected display`} accent />
   <MetricCard label="Catalogue" value={data.widgets.length} hint="Available widgets" />
   <MetricCard label="Saved Layouts" value={data.layouts.length} hint="Persisted layout records" />
   <MetricCard label="Display" value={`#${selectedDisplay.index}`} hint={usingFallbackDisplay ? 'Fallback display · 1920×1080' : displayHint} />
@@ -871,6 +909,7 @@
   <ParticipantLayoutInspector
     {selectedWidget}
     {getWidgetMeta}
+    displays={detectedDisplays}
     displayX={selectedWidget ? Math.round(selectedWidget.x) : 0}
     displayY={selectedWidget ? Math.round(selectedWidget.y) : 0}
     displayW={selectedWidget ? Math.round(selectedWidget.w) : 0}
@@ -883,6 +922,7 @@
     {styleOverridesError}
     onPositionInput={handleInspectorPosition}
     onSizeInput={handleInspectorSize}
+    onDisplayChange={handleWidgetDisplayChange}
     onModeChange={(mode) => updateSelectedWidget((widget) => ({ ...widget, windowMode: mode }))}
     onBindingsInput={handleBindingsInput}
     onTriggerRulesInput={handleTriggerRulesInput}

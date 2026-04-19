@@ -81,6 +81,13 @@ function getActorUserId(request: FastifyRequest, config: CoreApiConfig): string 
   }
 }
 
+function layoutWidgetConfigMap(layoutConfig: Record<string, unknown> | null | undefined): Map<string, Record<string, unknown>> {
+  const widgets = Array.isArray(layoutConfig?.widgets)
+    ? layoutConfig.widgets as Array<Record<string, unknown>>
+    : [];
+  return new Map(widgets.map((widget) => [String(widget.id ?? ''), widget]));
+}
+
 function apiError(code: string, message: string): {
   success: false;
   data: null;
@@ -1660,6 +1667,7 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     `, [params.studyId, params.id]);
     const widgets = await queryMany(pool, `SELECT * FROM widget_instances WHERE layout_id = $1 ORDER BY "order" ASC`, [params.id]);
     const rawLayoutConfig = (row?.layout_config as Record<string, unknown> | undefined) ?? {};
+    const widgetConfigById = layoutWidgetConfigMap(rawLayoutConfig);
     const data = layoutConfigSchema.parse({
       id: row?.id,
       studyId: row?.study_id,
@@ -1671,6 +1679,7 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
         id: widget.id,
         widgetId: widget.widget_id,
         windowMode: resolveWidgetWindowMode(widget as Record<string, unknown>),
+        targetDisplay: String(widgetConfigById.get(String(widget.id))?.targetDisplay ?? row?.target_display ?? '0'),
         order: widget.order,
         x: widget.x,
         y: widget.y,

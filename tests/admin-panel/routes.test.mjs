@@ -136,6 +136,8 @@ test('participant view editor exposes widget bindings, triggers, and style overr
   assert.match(source, /launchMode/);
   assert.match(source, /Launch Selected Mode/);
   assert.match(source, /Close All Widgets/);
+  assert.match(source, /Assigned Display/);
+  assert.match(source, /placedOnSelectedDisplay/);
   assert.match(source, /Target display/);
   assert.match(source, /overlayDisplays/);
   assert.match(source, /selectedDisplay\.bounds/);
