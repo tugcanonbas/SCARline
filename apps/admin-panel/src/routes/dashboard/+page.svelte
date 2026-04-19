@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { appPath } from '$lib/paths';
-  import PageHeader from '$lib/components/PageHeader.svelte';
-  import StatusBadge from '$lib/components/StatusBadge.svelte';
-  import SurfaceCard from '$lib/components/SurfaceCard.svelte';
-  import { createRealtimeStore } from '$lib/stores/realtime';
+  import { appPath } from "$lib/paths";
+  import PageHeader from "$lib/components/PageHeader.svelte";
+  import StatusBadge from "$lib/components/StatusBadge.svelte";
+  import SurfaceCard from "$lib/components/SurfaceCard.svelte";
+  import { createRealtimeStore } from "$lib/stores/realtime";
 
   type RecentSession = {
     id: string;
@@ -28,7 +28,9 @@
     message?: string;
   };
 
-  let { data }: {
+  let {
+    data,
+  }: {
     data: {
       dashboard: {
         activeStudies: number;
@@ -54,7 +56,7 @@
   });
 
   $effect(() => {
-    connect(data.token, ['session.events', 'system.health']);
+    connect(data.token, ["session.events", "system.health"]);
     return () => disconnect();
   });
 
@@ -65,31 +67,50 @@
     }
 
     const sessionId = String(latest.sessionId);
-    const timestamp = typeof latest.timestamp === 'string'
-      ? latest.timestamp
-      : typeof latest.startedAt === 'string'
-        ? latest.startedAt
-        : new Date().toISOString();
+    const timestamp =
+      typeof latest.timestamp === "string"
+        ? latest.timestamp
+        : typeof latest.startedAt === "string"
+          ? latest.startedAt
+          : new Date().toISOString();
     const normalized: RecentSession = {
       id: sessionId,
-      studyId: String(latest.studyId ?? ''),
-      participantId: typeof latest.participantId === 'string' ? latest.participantId : null,
-      conditionId: typeof latest.conditionId === 'string' ? latest.conditionId : null,
-      name: typeof latest.name === 'string' ? latest.name : null,
-      status: String(latest.status ?? 'running'),
-      startedAt: typeof latest.startedAt === 'string' ? latest.startedAt : (latest.status === 'running' ? timestamp : null),
-      pausedAt: latest.status === 'paused' ? timestamp : null,
-      completedAt: ['completed', 'cancelled'].includes(String(latest.status ?? '')) ? timestamp : null,
-      durationSeconds: typeof latest.durationSeconds === 'number' ? latest.durationSeconds : null,
-      runtimeMetadata: typeof latest.runtimeMetadata === 'object' && latest.runtimeMetadata !== null
-        ? latest.runtimeMetadata as Record<string, unknown>
-        : {},
-      notes: null
+      studyId: String(latest.studyId ?? ""),
+      participantId:
+        typeof latest.participantId === "string" ? latest.participantId : null,
+      conditionId:
+        typeof latest.conditionId === "string" ? latest.conditionId : null,
+      name: typeof latest.name === "string" ? latest.name : null,
+      status: String(latest.status ?? "running"),
+      startedAt:
+        typeof latest.startedAt === "string"
+          ? latest.startedAt
+          : latest.status === "running"
+            ? timestamp
+            : null,
+      pausedAt: latest.status === "paused" ? timestamp : null,
+      completedAt: ["completed", "cancelled"].includes(
+        String(latest.status ?? ""),
+      )
+        ? timestamp
+        : null,
+      durationSeconds:
+        typeof latest.durationSeconds === "number"
+          ? latest.durationSeconds
+          : null,
+      runtimeMetadata:
+        typeof latest.runtimeMetadata === "object" &&
+        latest.runtimeMetadata !== null
+          ? (latest.runtimeMetadata as Record<string, unknown>)
+          : {},
+      notes: null,
     };
 
     recentSessions = [
       normalized,
-      ...recentSessions.filter((session: RecentSession) => session.id !== sessionId)
+      ...recentSessions.filter(
+        (session: RecentSession) => session.id !== sessionId,
+      ),
     ].slice(0, 5);
   });
 
@@ -101,20 +122,29 @@
 
     const normalized: ComponentHealth = {
       componentId: String(latest.componentId),
-      componentName: typeof latest.componentName === 'string' ? latest.componentName : undefined,
-      status: String(latest.status ?? 'unknown'),
-      checkedAt: typeof latest.checkedAt === 'string' ? latest.checkedAt : new Date().toISOString(),
-      message: typeof latest.message === 'string' ? latest.message : undefined
+      componentName:
+        typeof latest.componentName === "string"
+          ? latest.componentName
+          : undefined,
+      status: String(latest.status ?? "unknown"),
+      checkedAt:
+        typeof latest.checkedAt === "string"
+          ? latest.checkedAt
+          : new Date().toISOString(),
+      message: typeof latest.message === "string" ? latest.message : undefined,
     };
 
     componentHealth = [
       normalized,
-      ...componentHealth.filter((component: ComponentHealth) => component.componentId !== normalized.componentId)
+      ...componentHealth.filter(
+        (component: ComponentHealth) =>
+          component.componentId !== normalized.componentId,
+      ),
     ];
   });
 
   function formatDate(value: string | null) {
-    if (!value) return 'Not recorded';
+    if (!value) return "Not recorded";
     return new Date(value).toLocaleString();
   }
 
@@ -122,8 +152,27 @@
     return session.completedAt ?? session.pausedAt ?? session.startedAt;
   }
 
-  const runningSessions = $derived(recentSessions.filter((session) => session.status === 'running'));
-  const healthyComponents = $derived(componentHealth.filter((component) => ['healthy', 'running', 'ready'].includes(component.status)).length);
+  function shortId(value: string | null | undefined) {
+    const raw = String(value ?? "").trim();
+    if (!raw) return "—";
+    return raw.length > 10 ? raw.slice(0, 8) : raw;
+  }
+
+  const runningSessions = $derived(
+    recentSessions.filter((session) => session.status === "running"),
+  );
+  const healthyComponents = $derived(
+    componentHealth.filter((component) =>
+      ["healthy", "running", "ready"].includes(component.status),
+    ).length,
+  );
+  const componentsNeedingAttention = $derived(
+    componentHealth.filter(
+      (component) =>
+        !["healthy", "running", "ready"].includes(component.status),
+    ),
+  );
+  const latestSession = $derived(recentSessions[0] ?? null);
 </script>
 
 <PageHeader
@@ -133,10 +182,10 @@
 >
   {#snippet actions()}
     <div class="action-strip">
-      <a href={appPath('/user-studies/new')}>Create study</a>
-      <a href={appPath('/session-logs')}>Review logs</a>
-      <a href={appPath('/settings/components')}>Component health</a>
-      <a href={appPath('/startup')}>Startup view</a>
+      <a href={appPath("/user-studies/new")}>Create study</a>
+      <a href={appPath("/session-logs")}>Review logs</a>
+      <a href={appPath("/settings/components")}>Component health</a>
+      <a href={appPath("/startup")}>Startup view</a>
     </div>
   {/snippet}
 </PageHeader>
@@ -165,26 +214,57 @@
 </div>
 
 <div class="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-  <SurfaceCard title="Active Study Operations" subtitle="Start from the latest running sessions or move into setup when no session is live.">
+  <SurfaceCard
+    title="Active Study Operations"
+    subtitle="Start from the latest running sessions or move into setup when no session is live."
+  >
     <div class="space-y-3">
       {#each runningSessions as session}
-        <a class="scarline-list-item block" href={appPath(`/user-studies/${session.studyId}/active-study`)}>
-          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p class="font-semibold">{session.name ?? session.id}</p>
-              <p class="mt-1 text-sm text-slate-400">
-                Participant {session.participantId ?? 'unassigned'} · Condition {session.conditionId ?? 'none'}
+        <a
+          class="scarline-list-item block no-underline"
+          href={appPath(`/user-studies/${session.studyId}/active-study`)}
+        >
+          <div
+            class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"
+          >
+            <div class="min-w-0">
+              <p class="truncate text-base font-bold leading-snug">
+                {session.name ?? `Session ${shortId(session.id)}`}
               </p>
+              <div
+                class="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500"
+              >
+                <span class="status-badge status-badge--soft"
+                  >Study {shortId(session.studyId)}</span
+                >
+                <span class="status-badge status-badge--soft"
+                  >Participant {shortId(session.participantId) === "—"
+                    ? "unassigned"
+                    : shortId(session.participantId)}</span
+                >
+                <span class="status-badge status-badge--soft"
+                  >Condition {shortId(session.conditionId) === "—"
+                    ? "none"
+                    : shortId(session.conditionId)}</span
+                >
+              </div>
             </div>
-            <StatusBadge status={session.status} />
+
+            <div class="flex flex-wrap items-center gap-2">
+              <StatusBadge status={session.status} />
+              <span class="status-badge status-badge--soft">Open controls</span>
+            </div>
           </div>
         </a>
       {:else}
         <div class="technical-panel">
           <p class="technical-label">No live session</p>
-          <p class="technical-value">Use Study Setup to create a session, then start it from the session queue.</p>
+          <p class="technical-value">
+            Use Study Setup to create a session, then start it from the session
+            queue.
+          </p>
           <div class="action-strip mt-4">
-            <a href={appPath('/user-studies')}>Open studies</a>
+            <a href={appPath("/user-studies")}>Open studies</a>
           </div>
         </div>
       {/each}
@@ -204,40 +284,116 @@
     </div>
     <div class="space-y-3">
       {#each componentHealth as component}
-        <div class="flex items-center justify-between rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm">
+        <div
+          class="flex items-center justify-between rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm"
+        >
           <div>
-            <p class="font-semibold text-white">{component.componentName ?? component.componentId}</p>
-            <p class="text-xs text-slate-500">{formatDate(component.checkedAt)}</p>
+            <p class="font-semibold text-white">
+              {component.componentName ?? component.componentId}
+            </p>
+            <p class="text-xs text-slate-500">
+              {formatDate(component.checkedAt)}
+            </p>
           </div>
           <StatusBadge status={component.status} />
         </div>
       {:else}
-        <p class="rounded-2xl border border-dashed border-[--color-line] px-4 py-6 text-sm text-slate-400">No component health events have been received yet.</p>
+        <p
+          class="rounded-2xl border border-dashed border-[--color-line] px-4 py-6 text-sm text-slate-400"
+        >
+          No component health events have been received yet.
+        </p>
       {/each}
     </div>
   </SurfaceCard>
 </div>
 
-<div class="mt-4">
+<div class="mt-4 grid gap-4 xl:grid-cols-[0.7fr_1.3fr]">
+  <SurfaceCard
+    title="Operational Summary"
+    subtitle="Use the current study runtime and component state to decide the next operator action."
+  >
+    <div class="grid gap-3">
+      <div class="technical-panel">
+        <p class="technical-label">Current session focus</p>
+        {#if latestSession}
+          <p class="technical-value">
+            {latestSession.name ?? `Session ${shortId(latestSession.id)}`}
+          </p>
+          <p class="mt-2 text-sm text-slate-500">
+            Study {shortId(latestSession.studyId)} · Last update
+            {formatDate(sessionTimestamp(latestSession))}
+          </p>
+        {:else}
+          <p class="technical-value">No sessions have been created yet.</p>
+        {/if}
+      </div>
+
+      <div class="technical-panel">
+        <p class="technical-label">Attention needed</p>
+        <p class="technical-value">
+          {componentsNeedingAttention.length === 0
+            ? "No components currently need attention."
+            : `${componentsNeedingAttention.length} component${componentsNeedingAttention.length === 1 ? "" : "s"} require review.`}
+        </p>
+        {#if componentsNeedingAttention.length > 0}
+          <div class="mt-3 flex flex-wrap gap-2">
+            {#each componentsNeedingAttention.slice(0, 4) as component}
+              <span class="status-badge status-badge--soft">
+                {component.componentName ?? component.componentId}
+              </span>
+            {/each}
+          </div>
+        {/if}
+      </div>
+
+      <div class="action-strip">
+        <a href={appPath("/user-studies")}>Open studies</a>
+        <a href={appPath("/session-logs")}>Inspect events</a>
+      </div>
+    </div>
+  </SurfaceCard>
+
   <SurfaceCard title="Recent Sessions">
     <div class="space-y-3">
       {#each recentSessions as session}
-        <a class="block rounded-2xl border border-[--color-line] bg-[--color-panel-soft] p-4 transition hover:border-[--color-accent]/40" href={appPath(`/user-studies/${session.studyId}/sessions`)}>
-          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p class="font-semibold text-white">{session.name ?? session.id}</p>
-              <p class="mt-1 text-sm text-slate-400">
-                Participant {session.participantId ?? 'unassigned'} · Condition {session.conditionId ?? 'none'}
+        <a
+          class="scarline-list-item block no-underline"
+          href={appPath(`/user-studies/${session.studyId}/sessions`)}
+        >
+          <div
+            class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"
+          >
+            <div class="min-w-0">
+              <p class="truncate text-base font-bold leading-snug">
+                {session.name ?? `Session ${shortId(session.id)}`}
+              </p>
+              <div
+                class="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500"
+              >
+                <span class="status-badge status-badge--soft">Study {shortId(session.studyId)}</span>
+                <span class="status-badge status-badge--soft">Participant {shortId(session.participantId) === "—" ? "unassigned" : shortId(session.participantId)}</span>
+                <span class="status-badge status-badge--soft">Condition {shortId(session.conditionId) === "—" ? "none" : shortId(session.conditionId)}</span>
+              </div>
+              <p class="mt-2 text-sm text-slate-500">
+                Review queue, session controls, and recorded notes from the study workspace.
               </p>
             </div>
-            <div class="text-left md:text-right">
+
+            <div class="flex flex-col items-start gap-2 md:items-end">
               <StatusBadge status={session.status} />
-              <p class="mt-2 text-xs text-slate-500">{formatDate(sessionTimestamp(session))}</p>
+              <p class="text-xs text-slate-500">
+                {formatDate(sessionTimestamp(session))}
+              </p>
             </div>
           </div>
         </a>
       {:else}
-        <p class="rounded-2xl border border-dashed border-[--color-line] px-4 py-6 text-sm text-slate-400">No sessions have been created yet.</p>
+        <p
+          class="rounded-2xl border border-dashed border-[--color-line] px-4 py-6 text-sm text-slate-400"
+        >
+          No sessions have been created yet.
+        </p>
       {/each}
     </div>
   </SurfaceCard>

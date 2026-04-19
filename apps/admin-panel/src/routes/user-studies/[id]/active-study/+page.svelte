@@ -429,7 +429,7 @@
         <span>Realtime socket state</span>
         <StatusBadge status={$socketState} />
       </div>
-      <p>Layouts configured: <strong class="text-white">{data.layouts.length}</strong></p>
+      <p>Layouts configured: <strong>{data.layouts.length}</strong></p>
     </div>
     {#if data.canOperate}
       <div class="mt-4 control-rail">
@@ -456,7 +456,7 @@
         </form>
       </div>
       <button
-        class="mt-4 rounded-xl border border-[--color-line] px-4 py-2 text-sm text-slate-200 hover:bg-[--color-panel-hover] disabled:cursor-not-allowed disabled:opacity-50"
+        class="mt-4 rounded-xl border border-[--color-line] px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
         type="button"
         disabled={!selectedSession || !layoutId || windowDrafts.length === 0}
         onclick={launchBrowserWidgetWindows}
@@ -527,7 +527,7 @@
       {#each $sessionEvents as event}
         <div class="timeline-entry text-sm">
           <div class="flex items-center justify-between gap-3">
-            <p class="font-semibold text-white">{eventTitle(event)}</p>
+            <p class="font-semibold">{eventTitle(event)}</p>
             <span class="text-xs text-slate-500">{eventTime(event)}</span>
           </div>
           <p class="mt-1 text-slate-400">Session {event.sessionId ?? selectedSession ?? 'unknown'}</p>
@@ -560,7 +560,7 @@
     <div class="space-y-3">
       {#each $widgetUpdates as update}
         <div class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm">
-          <p class="font-semibold text-white">{widgetTitle(update)}</p>
+          <p class="font-semibold">{widgetTitle(update)}</p>
           <p class="mt-1 text-slate-400">{update.action ?? update.triggerType ?? 'binding update'}</p>
         </div>
       {:else}
@@ -581,8 +581,8 @@
       {#each windowDrafts as entry}
         <div class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3">
           <div class="mb-2 flex items-center justify-between gap-2">
-            <p class="font-semibold text-white">{entry.widgetId}</p>
-            <span class="rounded-full border border-[--color-line] px-2 py-0.5 text-xs text-slate-300">{entry.mode === 'browser_popup' ? 'Browser window' : 'Electron transparent'}</span>
+            <p class="font-semibold">{entry.widgetId}</p>
+            <span class="rounded-full border border-[--color-line] px-2 py-0.5 text-xs">{entry.mode === 'browser_popup' ? 'Browser window' : 'Electron transparent'}</span>
           </div>
           <div class="grid gap-2 md:grid-cols-4">
             <label class="text-xs text-slate-400">X
@@ -599,14 +599,14 @@
             </label>
           </div>
           <div class="mt-3 flex flex-wrap gap-2">
-            <button type="button" class="rounded-lg border border-[--color-line] px-2 py-1 text-xs text-slate-300" onclick={() => nudgeWindow(entry, -10, 0)}>←10</button>
-            <button type="button" class="rounded-lg border border-[--color-line] px-2 py-1 text-xs text-slate-300" onclick={() => nudgeWindow(entry, 10, 0)}>10→</button>
-            <button type="button" class="rounded-lg border border-[--color-line] px-2 py-1 text-xs text-slate-300" onclick={() => nudgeWindow(entry, 0, -10)}>↑10</button>
-            <button type="button" class="rounded-lg border border-[--color-line] px-2 py-1 text-xs text-slate-300" onclick={() => nudgeWindow(entry, 0, 10)}>↓10</button>
-            <button type="button" class="rounded-lg border border-[--color-line] px-2 py-1 text-xs text-slate-300" onclick={() => resizeWindow(entry, 20, 20)}>+20 size</button>
-            <button type="button" class="rounded-lg border border-[--color-line] px-2 py-1 text-xs text-slate-300" onclick={() => resizeWindow(entry, -20, -20)}>-20 size</button>
+            <button type="button" class="rounded-lg border border-[--color-line] px-2 py-1 text-xs" onclick={() => nudgeWindow(entry, -10, 0)}>←10</button>
+            <button type="button" class="rounded-lg border border-[--color-line] px-2 py-1 text-xs" onclick={() => nudgeWindow(entry, 10, 0)}>10→</button>
+            <button type="button" class="rounded-lg border border-[--color-line] px-2 py-1 text-xs" onclick={() => nudgeWindow(entry, 0, -10)}>↑10</button>
+            <button type="button" class="rounded-lg border border-[--color-line] px-2 py-1 text-xs" onclick={() => nudgeWindow(entry, 0, 10)}>↓10</button>
+            <button type="button" class="rounded-lg border border-[--color-line] px-2 py-1 text-xs" onclick={() => resizeWindow(entry, 20, 20)}>+20 size</button>
+            <button type="button" class="rounded-lg border border-[--color-line] px-2 py-1 text-xs" onclick={() => resizeWindow(entry, -20, -20)}>-20 size</button>
             {#if data.canOperate}
-              <button type="button" class="rounded-lg border border-indigo-500/50 bg-indigo-500/15 px-3 py-1 text-xs font-semibold text-indigo-200" onclick={() => applyWindowUpdate(entry.instanceId)}>Apply</button>
+              <button type="button" class="rounded-lg border border-[--color-line] bg-[--color-panel-soft] px-3 py-1 text-xs font-semibold" onclick={() => applyWindowUpdate(entry.instanceId)}>Apply</button>
             {/if}
           </div>
         </div>
@@ -657,7 +657,7 @@
         <div class="space-y-2">
           {#each noteEntries as note}
             <div class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm">
-              <p class="font-medium text-white">{note.text}</p>
+              <p class="font-medium">{note.text}</p>
               <p class="mt-1 text-xs text-slate-500">{note.timestamp}</p>
             </div>
           {/each}
@@ -670,14 +670,14 @@
 <style>
   .telemetry-chart-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.625rem;
   }
   .telemetry-tile {
-    border: 1px solid var(--color-line);
+    border: 1px solid var(--scarline-border);
     border-radius: 0.875rem;
-    background: rgba(0,0,0,0.15);
-    padding: 0.625rem 0.75rem;
+    background: linear-gradient(180deg, #ffffff 0%, #f7f7f7 100%);
+    padding: 0.75rem;
     display: flex;
     flex-direction: column;
     gap: 0.375rem;
@@ -692,12 +692,12 @@
     font-size: 0.5625rem;
     text-transform: uppercase;
     letter-spacing: 0.12em;
-    color: #64748b;
+    color: var(--scarline-black-60);
   }
   .telemetry-tile__value {
     font-size: 0.9375rem;
     font-weight: 700;
-    color: #e2e8f0;
+    color: var(--scarline-black);
     font-variant-numeric: tabular-nums;
   }
   .telemetry-tile__value small { font-size: 0.5em; font-weight: 400; opacity: 0.6; }
@@ -710,7 +710,13 @@
   }
   .telemetry-tile__chart--empty {
     font-size: 0.625rem;
-    color: #334155;
+    color: var(--scarline-black-60);
     justify-content: center;
+  }
+
+  @media (max-width: 767px) {
+    .telemetry-chart-grid {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

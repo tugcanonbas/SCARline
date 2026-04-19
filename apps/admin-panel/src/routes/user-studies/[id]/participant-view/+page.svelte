@@ -654,76 +654,77 @@
         </select>
       </label>
       <button
-        class="px-3 py-1.5 border border-line rounded-lg text-xs font-semibold bg-panel-soft hover:bg-panel-hover transition-colors whitespace-nowrap"
+        class="layout-secondary-btn"
         onclick={launchSelectedMode}
         type="button"
       >
         Launch Selected Mode
       </button>
       <button
-        class="btn-primary"
+        class="layout-primary-btn"
         disabled={saving}
         onclick={saveLayout}
         type="button"
       >{saving ? 'Saving…' : 'Save Layout'}</button>
     </div>
-    <div
-      bind:this={canvasEl}
-      class="layout-canvas"
-      ondragover={onCanvasDragOver}
-      ondrop={onCanvasDrop}
-      role="application"
-      aria-label="Layout canvas — drag widgets to position them"
-      style="width:{CANVAS_W}px;height:{CANVAS_H}px"
-    >
-      <!-- Zone outline -->
-      <div class="layout-zone-outline" style="inset:0"></div>
+    <div class="layout-canvas-scroll">
+      <div
+        bind:this={canvasEl}
+        class="layout-canvas"
+        ondragover={onCanvasDragOver}
+        ondrop={onCanvasDrop}
+        role="application"
+        aria-label="Layout canvas — drag widgets to position them"
+        style="width:{CANVAS_W}px;height:{CANVAS_H}px"
+      >
+        <div class="layout-zone-outline" style="inset:0"></div>
 
-      {#each placed as pw}
-        {@const meta = getWidgetMeta(pw.widgetId)}
-        {@const preview = getPreviewMetrics(pw.widgetId, pw.w - 10, pw.h - 10)}
-        <div
-          class="layout-placed-widget {selectedId === pw.id ? 'layout-placed-widget--selected' : ''}"
-          onmousedown={(e) => onPlacedMouseDown(e, pw.id)}
-          role="button"
-          style="left:{pw.x}px;top:{pw.y}px;width:{pw.w}px;height:{pw.h}px"
-          tabindex="0"
-          title={meta?.name ?? pw.widgetId}
-        >
-          <div class="layout-placed-widget__preview">
-            <div class="layout-widget-preview" style={`width:${preview.width}px;height:${preview.height}px;`}>
-              <iframe
-                class="layout-widget-preview__frame"
-                loading="lazy"
-                sandbox="allow-scripts"
-                scrolling="no"
-                src={getWidgetPreviewUrl(pw.widgetId)}
-                style={`width:${preview.frameWidth}px;height:${preview.frameHeight}px;transform:scale(${preview.scale});`}
-                title={`${meta?.name ?? pw.widgetId} placement preview`}
-              ></iframe>
+        {#each placed as pw}
+          {@const meta = getWidgetMeta(pw.widgetId)}
+          {@const preview = getPreviewMetrics(pw.widgetId, pw.w - 10, pw.h - 10)}
+          <div
+            class="layout-placed-widget {selectedId === pw.id ? 'layout-placed-widget--selected' : ''}"
+            onmousedown={(e) => onPlacedMouseDown(e, pw.id)}
+            role="button"
+            style="left:{pw.x}px;top:{pw.y}px;width:{pw.w}px;height:{pw.h}px"
+            tabindex="0"
+            title={meta?.name ?? pw.widgetId}
+          >
+            <div class="layout-placed-widget__preview">
+              <div class="layout-widget-preview" style={`width:${preview.width}px;height:${preview.height}px;`}>
+                <iframe
+                  class="layout-widget-preview__frame"
+                  loading="lazy"
+                  sandbox="allow-scripts"
+                  scrolling="no"
+                  src={getWidgetPreviewUrl(pw.widgetId)}
+                  style={`width:${preview.frameWidth}px;height:${preview.frameHeight}px;transform:scale(${preview.scale});`}
+                  title={`${meta?.name ?? pw.widgetId} placement preview`}
+                ></iframe>
+              </div>
             </div>
+            <span class="layout-placed-widget__label">{meta?.name ?? pw.widgetId}</span>
+            <button
+              class="layout-placed-widget__remove"
+              onclick={(e) => { e.stopPropagation(); removePlaced(pw.id); }}
+              type="button"
+              title="Remove"
+            >×</button>
+            <button
+              class="layout-placed-widget__resize"
+              type="button"
+              title="Resize"
+              onmousedown={(e) => onResizeHandleMouseDown(e, pw.id)}
+            >↘</button>
           </div>
-          <span class="layout-placed-widget__label">{meta?.name ?? pw.widgetId}</span>
-          <button
-            class="layout-placed-widget__remove"
-            onclick={(e) => { e.stopPropagation(); removePlaced(pw.id); }}
-            type="button"
-            title="Remove"
-          >×</button>
-          <button
-            class="layout-placed-widget__resize"
-            type="button"
-            title="Resize"
-            onmousedown={(e) => onResizeHandleMouseDown(e, pw.id)}
-          >↘</button>
-        </div>
-      {/each}
+        {/each}
 
-      {#if placed.length === 0}
-        <div class="layout-canvas-empty">
-          <p>Drag widgets from the catalogue onto the canvas</p>
-        </div>
-      {/if}
+        {#if placed.length === 0}
+          <div class="layout-canvas-empty">
+            <p>Drag widgets from the catalogue onto the canvas</p>
+          </div>
+        {/if}
+      </div>
     </div>
     <p class="layout-canvas-hint">1920×1080 canvas scaled to {CANVAS_W}×{CANVAS_H}px · Drag to reposition · Click to select</p>
   </div>
@@ -869,7 +870,7 @@
       </div>
       <div class="layout-properties__section">
         <button
-          class="px-3 py-1.5 border border-line rounded-lg text-xs font-semibold bg-panel-soft hover:bg-panel-hover transition-colors"
+          class="layout-secondary-btn layout-secondary-btn--full"
           type="button"
           onclick={openSelectedWidgetWindow}
         >
@@ -899,19 +900,25 @@
 <style>
   .layout-editor-shell {
     display: grid;
-    grid-template-columns: 220px 1fr 200px;
+    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(240px, 300px);
     gap: 1rem;
     margin-top: 1.25rem;
     align-items: start;
   }
 
+  @media (max-width: 1279px) {
+    .layout-editor-shell {
+      grid-template-columns: 1fr;
+    }
+  }
+
   /* ── Catalogue ── */
   .layout-catalogue {
-    border: 1px solid var(--color-line);
+    border: 1px solid var(--scarline-border);
     border-radius: 1rem;
-    background: var(--color-panel-soft);
+    background: linear-gradient(180deg, #ffffff 0%, #f7f7f7 100%);
     padding: 0.75rem;
-    max-height: 600px;
+    max-height: 680px;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
@@ -919,12 +926,12 @@
   .layout-catalogue__header { display: flex; flex-direction: column; gap: 0.5rem; }
   .layout-catalogue__search {
     width: 100%;
-    border: 1px solid var(--color-line);
+    border: 1px solid var(--scarline-border);
     border-radius: 999px;
-    background: transparent;
-    padding: 0.35rem 0.75rem;
-    font-size: 0.75rem;
-    color: inherit;
+    background: var(--scarline-white);
+    padding: 0.55rem 0.9rem;
+    font-size: 0.8rem;
+    color: var(--scarline-black);
     outline: none;
   }
   .layout-catalogue__cats {
@@ -933,20 +940,20 @@
     gap: 0.25rem;
   }
   .layout-cat-btn {
-    font-size: 0.625rem;
+    font-size: 0.6875rem;
     text-transform: uppercase;
     letter-spacing: 0.12em;
-    padding: 0.2rem 0.5rem;
+    padding: 0.35rem 0.7rem;
     border-radius: 999px;
-    border: 1px solid var(--color-line);
-    background: transparent;
-    color: var(--color-text-secondary, #94a3b8);
+    border: 1px solid var(--scarline-border);
+    background: var(--scarline-white);
+    color: var(--scarline-black-60);
     cursor: pointer;
   }
   .layout-cat-btn--active {
-    background: var(--color-accent-strong, #6366f1);
-    color: white;
-    border-color: transparent;
+    background: var(--scarline-black);
+    color: var(--scarline-white);
+    border-color: var(--scarline-border);
   }
   .layout-catalogue__list {
     overflow-y: auto;
@@ -956,27 +963,35 @@
     gap: 0.375rem;
     padding-right: 0.25rem;
   }
-  .layout-catalogue__empty { font-size: 0.75rem; color: #64748b; text-align: center; padding: 1rem 0; }
+  .layout-catalogue__empty { font-size: 0.75rem; color: var(--scarline-black-60); text-align: center; padding: 1rem 0; }
   .layout-widget-card {
-    border: 1px solid var(--color-line);
+    border: 1px solid var(--scarline-border);
     border-radius: 0.75rem;
-    padding: 0.5rem;
+    padding: 0.625rem;
     display: flex;
     flex-direction: column;
     gap: 0.45rem;
     cursor: grab;
-    background: transparent;
-    transition: background 0.12s, border-color 0.12s;
+    background: var(--scarline-white);
+    transition: background 0.12s, border-color 0.12s, transform 0.12s;
     user-select: none;
   }
-  .layout-widget-card:hover { background: var(--color-panel-hover, rgba(255,255,255,0.04)); border-color: var(--color-accent-strong, #6366f1); }
+  .layout-widget-card:hover {
+    background: var(--scarline-grey-16);
+    border-color: var(--scarline-border);
+    transform: translateY(-1px);
+  }
   .layout-widget-card__preview {
     min-height: 110px;
     display: grid;
     place-items: center;
-    border: 1px solid rgba(148, 163, 184, 0.12);
+    border: 1px solid var(--scarline-grey);
     border-radius: 0.625rem;
-    background: #050816;
+    background:
+      linear-gradient(var(--scarline-grey-16) 1px, transparent 1px),
+      linear-gradient(90deg, var(--scarline-grey-16) 1px, transparent 1px),
+      #fafafa;
+    background-size: 20px 20px;
     overflow: hidden;
     pointer-events: none;
   }
@@ -985,8 +1000,8 @@
     flex-direction: column;
     gap: 0.15rem;
   }
-  .layout-widget-card__name { font-size: 0.75rem; font-weight: 600; color: #e2e8f0; }
-  .layout-widget-card__cat { font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; }
+  .layout-widget-card__name { font-size: 0.8rem; font-weight: 700; color: var(--scarline-black); }
+  .layout-widget-card__cat { font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--scarline-black-60); }
   .layout-widget-preview {
     position: relative;
     pointer-events: none;
@@ -1007,15 +1022,16 @@
     display: flex;
     gap: 0.75rem;
     align-items: center;
+    flex-wrap: wrap;
   }
   .layout-canvas-name {
     flex: 1;
-    border: 1px solid var(--color-line);
+    border: 1px solid var(--scarline-border);
     border-radius: 0.75rem;
-    background: var(--color-panel-soft);
-    padding: 0.45rem 0.875rem;
-    font-size: 0.8125rem;
-    color: inherit;
+    background: var(--scarline-white);
+    padding: 0.7rem 0.95rem;
+    font-size: 0.875rem;
+    color: var(--scarline-black);
     outline: none;
   }
   .layout-canvas-display {
@@ -1023,44 +1039,61 @@
     align-items: center;
     gap: 0.45rem;
     font-size: 0.75rem;
-    color: #94a3b8;
+    color: var(--scarline-black-60);
     white-space: nowrap;
   }
   .layout-canvas-display input {
     width: 3.5rem;
-    border: 1px solid var(--color-line);
+    border: 1px solid var(--scarline-border);
     border-radius: 0.55rem;
-    background: var(--color-panel-soft);
-    color: #e2e8f0;
+    background: var(--scarline-white);
+    color: var(--scarline-black);
     padding: 0.35rem 0.5rem;
     font-size: 0.75rem;
     text-align: center;
     outline: none;
   }
-  .btn-primary {
-    background: var(--color-accent-strong, #6366f1);
-    color: white;
-    border: none;
+  .layout-primary-btn,
+  .layout-secondary-btn {
     border-radius: 0.75rem;
-    padding: 0.45rem 1.1rem;
+    padding: 0.7rem 1rem;
     font-size: 0.8125rem;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
     white-space: nowrap;
   }
-  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .layout-primary-btn:disabled,
+  .layout-secondary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .layout-secondary-btn--full { width: 100%; }
+  .layout-primary-btn {
+    background: var(--scarline-black) !important;
+    color: var(--scarline-white) !important;
+  }
+  .layout-primary-btn:hover {
+    background: var(--scarline-white) !important;
+    color: var(--scarline-black) !important;
+  }
+
+  .layout-canvas-scroll {
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+  }
 
   .layout-canvas {
     position: relative;
-    background: #0a0a10;
-    border: 1px solid var(--color-line);
-    border-radius: 0.75rem;
+    background:
+      linear-gradient(var(--scarline-grey-16) 1px, transparent 1px),
+      linear-gradient(90deg, var(--scarline-grey-16) 1px, transparent 1px),
+      #f8f8f8;
+    background-size: 32px 32px;
+    border: 1px solid var(--scarline-border);
+    border-radius: 1rem;
     overflow: hidden;
     flex-shrink: 0;
   }
   .layout-zone-outline {
     position: absolute;
-    border: 1px dashed rgba(99,102,241,0.25);
+    border: 1px dashed var(--scarline-black-60);
     border-radius: 0.5rem;
     pointer-events: none;
   }
@@ -1073,32 +1106,33 @@
     pointer-events: none;
   }
   .layout-canvas-empty p {
-    font-size: 0.8125rem;
-    color: #334155;
+    font-size: 0.875rem;
+    color: var(--scarline-black-60);
     text-align: center;
   }
   .layout-canvas-hint {
-    font-size: 0.6875rem;
-    color: #475569;
+    font-size: 0.75rem;
+    color: var(--scarline-black-60);
     text-align: center;
   }
 
   .layout-placed-widget {
     position: absolute;
-    border: 1px solid rgba(99,102,241,0.4);
+    border: 1px solid var(--scarline-border);
     border-radius: 0.5rem;
-    background: rgba(15, 23, 42, 0.45);
+    background: rgba(255, 255, 255, 0.92);
     cursor: move;
     overflow: hidden;
-    transition: border-color 0.1s, background 0.1s;
+    transition: border-color 0.1s, background 0.1s, box-shadow 0.1s;
     user-select: none;
   }
   .layout-placed-widget--selected {
-    border-color: var(--color-accent-strong, #6366f1);
-    background: rgba(30, 41, 59, 0.68);
+    border-color: var(--scarline-border);
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 0 0 2px rgba(8, 14, 16, 0.08);
     z-index: 10;
   }
-  .layout-placed-widget:hover { border-color: #818cf8; }
+  .layout-placed-widget:hover { border-color: var(--scarline-border); }
   .layout-placed-widget__preview {
     position: absolute;
     inset: 0;
@@ -1115,14 +1149,14 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: #e2e8f0;
+    color: var(--scarline-black);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     padding: 0.18rem 0.4rem;
     border-radius: 999px;
-    background: rgba(15, 23, 42, 0.84);
-    border: 1px solid rgba(148, 163, 184, 0.16);
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid var(--scarline-grey);
     max-width: calc(100% - 2rem);
     z-index: 1;
   }
@@ -1130,71 +1164,71 @@
     position: absolute;
     top: 2px;
     right: 3px;
-    background: transparent;
+    background: var(--scarline-white);
     border: none;
-    color: #64748b;
+    color: var(--scarline-black-60);
     font-size: 0.75rem;
     cursor: pointer;
     line-height: 1;
     padding: 0 2px;
     z-index: 1;
   }
-  .layout-placed-widget__remove:hover { color: #f87171; }
+  .layout-placed-widget__remove:hover { color: var(--scarline-black); }
   .layout-placed-widget__resize {
     position: absolute;
     right: 2px;
     bottom: 1px;
-    background: transparent;
+    background: var(--scarline-white);
     border: none;
-    color: #94a3b8;
+    color: var(--scarline-black-60);
     font-size: 0.7rem;
     cursor: nwse-resize;
     line-height: 1;
     padding: 0 2px;
     z-index: 1;
   }
-  .layout-placed-widget__resize:hover { color: #cbd5e1; }
+  .layout-placed-widget__resize:hover { color: var(--scarline-black); }
 
   /* ── Properties ── */
   .layout-properties {
-    border: 1px solid var(--color-line);
+    border: 1px solid var(--scarline-border);
     border-radius: 1rem;
-    background: var(--color-panel-soft);
+    background: linear-gradient(180deg, #ffffff 0%, #f7f7f7 100%);
     padding: 0.875rem;
-    max-height: 600px;
+    max-height: 680px;
     overflow-y: auto;
   }
-  .layout-properties__header { margin-bottom: 0.75rem; border-bottom: 1px solid var(--color-line); padding-bottom: 0.625rem; }
-  .layout-properties__title { font-size: 0.8125rem; font-weight: 700; color: #e2e8f0; }
-  .layout-properties__sub { font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.12em; color: #64748b; margin-top: 0.125rem; }
+  .layout-properties__header { margin-bottom: 0.75rem; border-bottom: 1px solid var(--scarline-grey); padding-bottom: 0.625rem; }
+  .layout-properties__title { font-size: 0.95rem; font-weight: 700; color: var(--scarline-black); }
+  .layout-properties__sub { font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--scarline-black-60); margin-top: 0.125rem; }
   .layout-properties__section { margin-bottom: 0.625rem; }
-  .layout-properties__label { font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.12em; color: #64748b; margin-bottom: 0.2rem; }
-  .layout-properties__row { display: flex; gap: 0.5rem; font-size: 0.75rem; color: #cbd5e1; }
+  .layout-properties__label { font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--scarline-black-60); margin-bottom: 0.2rem; }
+  .layout-properties__row { display: flex; gap: 0.5rem; font-size: 0.75rem; color: var(--scarline-black); }
   .layout-properties__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
-  .layout-properties__grid label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.65rem; color: #94a3b8; }
+  .layout-properties__grid label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.65rem; color: var(--scarline-black-60); }
   .layout-properties__grid input {
-    border: 1px solid var(--color-line);
+    border: 1px solid var(--scarline-border);
     border-radius: 0.45rem;
-    background: transparent;
-    color: #e2e8f0;
+    background: var(--scarline-white);
+    color: var(--scarline-black);
     padding: 0.25rem 0.4rem;
     font-size: 0.75rem;
   }
   .layout-properties__select {
     width: 100%;
-    border: 1px solid var(--color-line);
+    border: 1px solid var(--scarline-border);
     border-radius: 0.55rem;
-    background: transparent;
-    color: #e2e8f0;
+    background: var(--scarline-white);
+    color: var(--scarline-black);
     padding: 0.35rem 0.5rem;
     font-size: 0.75rem;
   }
   .layout-properties__textarea {
     width: 100%;
-    border: 1px solid var(--color-line);
+    border: 1px solid var(--scarline-border);
     border-radius: 0.55rem;
-    background: rgba(15, 23, 42, 0.45);
-    color: #e2e8f0;
+    background: var(--scarline-white);
+    color: var(--scarline-black);
     padding: 0.5rem 0.625rem;
     font-size: 0.6875rem;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace;
@@ -1205,8 +1239,22 @@
   .layout-properties__error {
     margin-top: 0.35rem;
     font-size: 0.6875rem;
-    color: #f87171;
+    color: var(--scarline-black);
   }
-  .layout-properties__desc { font-size: 0.71875rem; color: #94a3b8; line-height: 1.4; }
-  .layout-properties__empty { padding: 1.5rem 0; text-align: center; font-size: 0.75rem; color: #475569; }
+  .layout-properties__desc { font-size: 0.71875rem; color: var(--scarline-black-60); line-height: 1.4; }
+  .layout-properties__empty { padding: 1.5rem 0; text-align: center; font-size: 0.75rem; color: var(--scarline-black-60); }
+
+  @media (max-width: 767px) {
+    .layout-canvas-toolbar > * {
+      width: 100%;
+    }
+
+    .layout-canvas-display {
+      justify-content: space-between;
+    }
+
+    .layout-properties__grid {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>

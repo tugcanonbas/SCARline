@@ -422,89 +422,109 @@
 </div>
 
 <style>
-  .condition-section { border-top: 1px solid var(--color-line); padding-top: 0.875rem; display: grid; gap: 0.625rem; }
-  .condition-section__title { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.12em; color: #64748b; font-weight: 600; }
-  .condition-section__row { display: flex; align-items: center; justify-content: space-between; }
+  .condition-section { border-top: 1px solid var(--scarline-grey); padding-top: 0.875rem; display: grid; gap: 0.625rem; }
+  .condition-section__title { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--scarline-black-60); font-weight: 700; }
+  .condition-section__row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
   .condition-add-rule-btn {
-    font-size: 0.6875rem; color: var(--color-accent-strong, #6366f1);
-    border: 1px solid var(--color-accent-strong, #6366f1); border-radius: 999px;
-    padding: 0.2rem 0.625rem; cursor: pointer; background: transparent;
+    font-size: 0.6875rem; color: var(--scarline-black);
+    border: 1px solid var(--scarline-border); border-radius: 999px;
+    padding: 0.35rem 0.75rem; cursor: pointer; background: var(--scarline-white);
   }
-  .condition-add-rule-btn:hover { background: rgba(99,102,241,0.08); }
+  .condition-add-rule-btn:hover { background: var(--scarline-grey-16); }
 
   .trigger-rule-row {
     display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;
-    border: 1px solid var(--color-line); border-radius: 0.75rem;
-    padding: 0.5rem 0.75rem; background: rgba(0,0,0,0.12);
+    border: 1px solid var(--scarline-border); border-radius: 0.75rem;
+    padding: 0.625rem 0.75rem; background: var(--scarline-grey-16);
   }
   .trigger-input {
-    border: 1px solid var(--color-line); border-radius: 0.5rem;
-    background: transparent; padding: 0.3rem 0.5rem; font-size: 0.75rem;
+    border: 1px solid var(--scarline-border); border-radius: 0.5rem;
+    background: var(--scarline-white); padding: 0.45rem 0.6rem; font-size: 0.75rem;
     color: inherit; outline: none; min-width: 80px; flex: 1;
   }
   .trigger-input--wide { flex: 2; }
   .trigger-select {
-    border: 1px solid var(--color-line); border-radius: 0.5rem;
-    background: var(--color-panel-soft); padding: 0.3rem 0.5rem;
+    border: 1px solid var(--scarline-border); border-radius: 0.5rem;
+    background: var(--scarline-white); padding: 0.45rem 0.6rem;
     font-size: 0.75rem; color: inherit; min-width: 80px;
   }
   .trigger-remove-btn {
-    color: #64748b; border: none; background: none; cursor: pointer;
+    color: var(--scarline-black-60); border: none; background: none; cursor: pointer;
     font-size: 0.875rem; padding: 0 4px;
   }
-  .trigger-remove-btn:hover { color: #f87171; }
+  .trigger-remove-btn:hover { color: var(--scarline-black); }
 
   .condition-card {
-    border: 1px solid var(--color-line); border-radius: 1rem;
-    background: var(--color-panel-soft); padding: 1rem;
+    border: 1px solid var(--scarline-border); border-radius: 1rem;
+    background: linear-gradient(180deg, #ffffff 0%, #f7f7f7 100%); padding: 1rem;
     display: grid; gap: 0.75rem;
   }
-  .condition-card__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
-  .condition-card__name { font-size: 0.875rem; font-weight: 700; color: #e2e8f0; }
-  .condition-card__desc { font-size: 0.75rem; color: #64748b; margin-top: 0.2rem; }
-  .condition-card__actions { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+  .condition-card__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .condition-card__name { font-size: 0.95rem; font-weight: 700; color: var(--scarline-black); }
+  .condition-card__desc { font-size: 0.75rem; color: var(--scarline-black-60); margin-top: 0.2rem; }
+  .condition-card__actions { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; flex-wrap: wrap; }
   .condition-order-badge {
-    border: 1px solid var(--color-line); border-radius: 999px;
-    padding: 0.15rem 0.6rem; font-size: 0.625rem; color: #94a3b8;
+    border: 1px solid var(--scarline-border); border-radius: 999px;
+    padding: 0.2rem 0.6rem; font-size: 0.625rem; color: var(--scarline-black-60);
     white-space: nowrap;
+    background: var(--scarline-white);
   }
   .condition-action-btn {
-    border: 1px solid var(--color-line); border-radius: 0.5rem;
+    border: 1px solid var(--scarline-border); border-radius: 0.5rem;
     padding: 0.2rem 0.6rem; font-size: 0.6875rem; cursor: pointer;
-    background: transparent; color: #94a3b8;
+    background: var(--scarline-white); color: var(--scarline-black);
   }
-  .condition-action-btn:hover { background: rgba(255,255,255,0.04); }
-  .condition-action-btn--cancel { color: #94a3b8; }
-  .condition-action-btn--danger { color: #f87171; border-color: rgba(248,113,113,0.3); }
-  .condition-action-btn--danger:hover { background: rgba(248,113,113,0.08); }
+  .condition-action-btn:hover { background: var(--scarline-grey-16); }
+  .condition-action-btn--cancel { color: var(--scarline-black-60); }
+  .condition-action-btn--danger { color: var(--scarline-black); border-color: var(--scarline-border); }
+  .condition-action-btn--danger:hover { background: var(--scarline-grey-16); }
 
-  .condition-read-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+  .condition-read-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
   .condition-kv {
-    border: 1px solid var(--color-line); border-radius: 0.75rem;
-    background: rgba(0,0,0,0.15); padding: 0.5rem 0.75rem;
+    border: 1px solid var(--scarline-grey); border-radius: 0.75rem;
+    background: var(--scarline-white); padding: 0.65rem 0.75rem;
     display: grid; gap: 0.2rem;
   }
-  .condition-kv__label { font-size: 0.5625rem; text-transform: uppercase; letter-spacing: 0.12em; color: #64748b; }
-  .condition-kv__value { font-size: 0.8125rem; color: #cbd5e1; }
+  .condition-kv__label { font-size: 0.5625rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--scarline-black-60); }
+  .condition-kv__value { font-size: 0.8125rem; color: var(--scarline-black); }
 
   .trigger-rules-summary { display: grid; gap: 0.375rem; }
   .trigger-rule-badge {
     display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;
-    border: 1px solid rgba(99,102,241,0.2); border-radius: 0.625rem;
-    background: rgba(99,102,241,0.05); padding: 0.375rem 0.625rem;
+    border: 1px solid var(--scarline-grey); border-radius: 0.625rem;
+    background: var(--scarline-white); padding: 0.45rem 0.625rem;
   }
-  .trigger-rule-badge__name { font-size: 0.6875rem; font-weight: 600; color: #a5b4fc; flex-shrink: 0; }
-  .trigger-rule-badge__condition { font-size: 0.6875rem; color: #94a3b8; font-family: monospace; flex: 1; }
+  .trigger-rule-badge__name { font-size: 0.6875rem; font-weight: 700; color: var(--scarline-black); flex-shrink: 0; }
+  .trigger-rule-badge__condition { font-size: 0.6875rem; color: var(--scarline-black-60); font-family: monospace; flex: 1; }
   .trigger-rule-badge__action {
     font-size: 0.5625rem; text-transform: uppercase; letter-spacing: 0.1em;
-    border: 1px solid rgba(99,102,241,0.3); border-radius: 999px;
-    padding: 0.1rem 0.4rem; color: #818cf8; white-space: nowrap;
+    border: 1px solid var(--scarline-border); border-radius: 999px;
+    padding: 0.1rem 0.4rem; color: var(--scarline-black); white-space: nowrap;
+    background: var(--scarline-grey-16);
   }
 
-  .condition-edit-form { border-top: 1px solid var(--color-line); padding-top: 0.75rem; }
+  .condition-edit-form { border-top: 1px solid var(--scarline-grey); padding-top: 0.75rem; }
   .condition-edit-input {
-    border: 1px solid var(--color-line); border-radius: 0.75rem;
-    background: rgba(0,0,0,0.2); padding: 0.45rem 0.75rem;
+    border: 1px solid var(--scarline-border); border-radius: 0.75rem;
+    background: var(--scarline-white); padding: 0.55rem 0.75rem;
     font-size: 0.8125rem; color: inherit; outline: none; width: 100%;
+  }
+
+  @media (max-width: 767px) {
+    .condition-read-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .trigger-rule-row {
+      align-items: stretch;
+    }
+
+    .trigger-input,
+    .trigger-input--wide,
+    .trigger-select,
+    .trigger-remove-btn {
+      width: 100%;
+      flex: 1 1 100%;
+    }
   }
 </style>
