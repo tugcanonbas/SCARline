@@ -99,6 +99,8 @@ test('participant view editor exposes widget bindings, triggers, and style overr
   assert.match(source, /Trigger Rules/);
   assert.match(source, /Style Overrides/);
   assert.match(source, /targetDisplay/);
+  assert.match(source, /launchMode/);
+  assert.match(source, /Launch Selected Mode/);
   assert.match(source, /Target display/);
   assert.match(source, /Must be a JSON object/);
   assert.match(source, /Must be a JSON array/);

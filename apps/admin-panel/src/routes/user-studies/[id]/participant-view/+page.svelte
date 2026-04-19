@@ -53,6 +53,7 @@
   let saving = $state(false);
   let saveResult = $state<{ ok: boolean; message: string } | null>(null);
   let targetDisplay = $state('0');
+  let launchMode = $state<'transparent_electron' | 'browser_popup'>('transparent_electron');
   let selectedEditorId = $state<string | null>(null);
   let bindingsDraft = $state('{}');
   let triggerRulesDraft = $state('[]');
@@ -60,17 +61,6 @@
   let bindingsError = $state<string | null>(null);
   let triggerRulesError = $state<string | null>(null);
   let styleOverridesError = $state<string | null>(null);
-
-  function getOverlayUrl(layoutId: string) {
-    const url = new URL(`${window.location.origin}/overlay/launcher/${layoutId}`);
-    url.searchParams.set('studyId', data.studyId as string);
-    url.searchParams.set('layoutId', layoutId);
-    url.searchParams.set('popupMode', 'browser');
-    url.searchParams.set('chrome', 'web');
-    url.searchParams.set('toolbar', '0');
-    if (data.accessToken) url.searchParams.set('token', data.accessToken as string);
-    return url.toString();
-  }
 
   function getWidgetOverlayUrl(layoutId: string, instanceId: string, mode: 'transparent_electron' | 'browser_popup') {
     const url = new URL(`${window.location.origin}/overlay/${layoutId}`);
@@ -96,32 +86,15 @@
     };
   }
 
-  function popupFeatures(widget: PlacedWidget) {
-    const bounds = canonicalBounds(widget);
-    return [
-      'popup=yes',
-      'resizable=yes',
-      'scrollbars=no',
-      'toolbar=yes',
-      'location=yes',
-      'menubar=yes',
-      'status=yes',
-      `left=${Math.max(0, bounds.x)}`,
-      `top=${Math.max(0, bounds.y)}`,
-      `width=${Math.max(120, bounds.width)}`,
-      `height=${Math.max(100, bounds.height)}`
-    ].join(',');
-  }
-
-  function openBrowserWidgetShell(widget: PlacedWidget) {
-    return window.open('about:blank', `scarline_widget_${widget.id}`, popupFeatures(widget));
-  }
-
   function launchPriority(left: PlacedWidget, right: PlacedWidget) {
     return left.order - right.order || left.y - right.y || left.x - right.x;
   }
 
-  async function openElectronWidget(layoutId: string, widget: PlacedWidget) {
+  async function openOverlayWindow(
+    layoutId: string,
+    widget: PlacedWidget,
+    mode: 'transparent_electron' | 'browser_popup' = widget.windowMode
+  ) {
     const meta = getWidgetMeta(widget.widgetId);
     const targetDisplayValue = Math.max(0, Number(targetDisplay || '0') || 0);
     const response = await fetch(`${apiBase}/system/overlay/windows/open`, {
@@ -134,7 +107,7 @@
         studyId: data.studyId as string,
         layoutId,
         instanceId: widget.id,
-        mode: widget.windowMode
+        mode
       })
     });
     if (response.ok) {
@@ -153,14 +126,14 @@
         windows: [{
           instanceId: widget.id,
           widgetId: widget.widgetId,
-          mode: widget.windowMode,
+          mode,
           clickThrough: false,
           bounds: canonicalBounds(widget),
           minWidth: meta?.ui?.minWidth ?? canonicalBounds(widget).width,
           minHeight: meta?.ui?.minHeight ?? canonicalBounds(widget).height,
           preferredWidth: meta?.ui?.preferredWidth ?? canonicalBounds(widget).width,
           preferredHeight: meta?.ui?.preferredHeight ?? canonicalBounds(widget).height,
-          url: getWidgetOverlayUrl(layoutId, widget.id, widget.windowMode)
+          url: getWidgetOverlayUrl(layoutId, widget.id, mode)
         }],
         session: {
           studyId: data.studyId as string,
@@ -506,72 +479,40 @@
     return layoutId;
   }
 
-  async function launchBrowserView() {
+  async function launchSelectedMode() {
     const targets = [...placed].sort(launchPriority);
     if (targets.length === 0) {
-      saveResult = { ok: false, message: 'Add at least one widget before launching' };
+      saveResult = {
+        ok: false,
+        message: 'Add at least one widget before launching'
+      };
       return;
     }
 
-    // Distinguish between browser popups and electron windows
-    const popupTargets = targets.filter(w => w.windowMode === 'browser_popup');
-    const electronTargets = targets.filter(w => w.windowMode === 'transparent_electron');
-
-    // 1. Open browser shells immediately (synchronously) to capture user gesture
-    const launcherPopup = window.open('about:blank', 'scarline_launcher', 'popup=yes,width=400,height=300');
-    const widgetPopups = popupTargets.map((widget) => ({
-      widget,
-      popup: openBrowserWidgetShell(widget)
-    }));
-
     try {
       const layoutId = await persistLayout();
-      const launchAt = Date.now() + 800; // Give a slight buffer for sync
-      let popupsOpened = 0;
 
-      // 2. Redirect browser popups
-      for (const entry of widgetPopups) {
-        if (!entry.popup) continue;
-        const targetUrl = new URL(getWidgetOverlayUrl(layoutId, entry.widget.id, 'browser_popup'));
-        targetUrl.searchParams.set('launchAt', String(launchAt));
-        entry.popup.location.replace(targetUrl.toString());
-        popupsOpened += 1;
-      }
-
-      // 3. Update launcher
-      if (launcherPopup) {
-        const launcherUrl = new URL(getOverlayUrl(layoutId));
-        launcherUrl.searchParams.set('launchAt', String(launchAt));
-        launcherPopup.location.replace(launcherUrl.toString());
-      }
-
-      // 4. Trigger Electron windows via API
-      let electronOpened = 0;
-      for (const widget of electronTargets) {
+      let opened = 0;
+      for (const widget of targets) {
         try {
-          await openElectronWidget(layoutId, widget);
-          electronOpened += 1;
-        } catch (e) {
-          console.error('Failed to launch electron widget', widget.id, e);
+          await openOverlayWindow(layoutId, widget, launchMode);
+          opened += 1;
+        } catch (error) {
+          console.error('Failed to launch overlay widget', widget.id, error);
         }
       }
 
-      const totalStarted = popupsOpened + electronOpened;
-      const blocked = popupTargets.length - popupsOpened;
+      if (launchMode === 'browser_popup') {
+        saveResult = opened > 0
+          ? { ok: true, message: `Opened ${opened} browser widget window(s)` }
+          : { ok: false, message: 'Failed to open browser widget windows' };
+        return;
+      }
 
-      if (totalStarted === 0 && targets.length > 0) {
-        saveResult = { ok: false, message: 'Browser blocked popups and Electron host unreachable.' };
-      } else {
-        saveResult = { 
-          ok: true, 
-          message: `Launched ${totalStarted} widget(s). ${blocked > 0 ? `(${blocked} browser popups blocked, use launcher)` : ''}`
-        };
-      }
+      saveResult = opened > 0
+        ? { ok: true, message: `Opened ${opened} transparent Electron widget window(s)` }
+        : { ok: false, message: 'Failed to open transparent Electron widget windows' };
     } catch (error) {
-      launcherPopup?.close();
-      for (const entry of widgetPopups) {
-        entry.popup?.close();
-      }
       saveResult = { ok: false, message: error instanceof Error ? error.message : 'Failed to launch layout' };
     }
   }
@@ -581,22 +522,16 @@
       return;
     }
     const widget = { ...selectedWidget };
-    const popup = widget.windowMode === 'browser_popup' ? openBrowserWidgetShell(widget) : null;
-    if (widget.windowMode === 'browser_popup' && !popup) {
-      saveResult = { ok: false, message: 'Browser blocked the widget popup. Allow popups for this site and try again.' };
-      return;
-    }
     try {
       const layoutId = await persistLayout();
-      if (widget.windowMode === 'browser_popup') {
-        popup!.location.href = getWidgetOverlayUrl(layoutId, widget.id, 'browser_popup');
-        saveResult = { ok: true, message: 'Browser widget window opened' };
-      } else {
-        await openElectronWidget(layoutId, widget);
-        saveResult = { ok: true, message: 'Electron widget window opened' };
-      }
+      await openOverlayWindow(layoutId, widget);
+      saveResult = {
+        ok: true,
+        message: widget.windowMode === 'browser_popup'
+          ? 'Browser widget window opened'
+          : 'Electron widget window opened'
+      };
     } catch (error) {
-      popup?.close();
       saveResult = { ok: false, message: error instanceof Error ? error.message : 'Failed to open widget window' };
     }
   }
@@ -708,12 +643,22 @@
           }}
         />
       </label>
+      <label class="layout-canvas-display">
+        <span>Launch Mode</span>
+        <select
+          bind:value={launchMode}
+          class="layout-properties__select"
+        >
+          <option value="transparent_electron">Transparent (Electron)</option>
+          <option value="browser_popup">Browser windows</option>
+        </select>
+      </label>
       <button
         class="px-3 py-1.5 border border-line rounded-lg text-xs font-semibold bg-panel-soft hover:bg-panel-hover transition-colors whitespace-nowrap"
-        onclick={launchBrowserView}
+        onclick={launchSelectedMode}
         type="button"
       >
-        Launch Browser View
+        Launch Selected Mode
       </button>
       <button
         class="btn-primary"

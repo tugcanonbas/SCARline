@@ -107,7 +107,6 @@ test('widget binding metadata stays aligned with index.html data-bind usage', as
 
 test('overlay runtime implements PRD widget lifecycle controls', async () => {
   const source = await readFile(path.join(root, 'apps/overlay-web/public/app.js'), 'utf8');
-  assert.match(source, /requestFullscreen/);
   assert.match(source, /reconnectAttempt/);
   assert.match(source, /widgetOverrides/);
   assert.match(source, /hidden_widgets/);

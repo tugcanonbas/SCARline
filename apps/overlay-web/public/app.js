@@ -57,7 +57,6 @@ const state = {
 };
 
 const rootShell = document.createElement("div");
-const toolbar = document.createElement("div");
 const stage = document.createElement("main");
 const statusNode = document.createElement("span");
 const sessionNode = document.createElement("span");
@@ -292,21 +291,12 @@ function setupChrome() {
     return;
   }
 
-  const showToolbar =
-    chromeMode !== "transparent" && query.get("toolbar") !== "0";
   const style = document.createElement("style");
   style.textContent = `
     :root { color-scheme: dark; width: 100%; height: 100%; background: transparent !important; background-color: transparent !important; }
     html, body { margin: 0; width: 100%; height: 100%; background: transparent !important; background-color: transparent !important; overflow: hidden; font-family: ui-sans-serif, system-ui, sans-serif; }
     .overlay-root { position: relative; width: 100vw; height: 100vh; overflow: hidden; background: ${chromeMode === "transparent" ? "transparent" : "#020617"}; background-color: ${chromeMode === "transparent" ? "transparent" : "#020617"}; }
     .overlay-root[data-chrome="web"] { background: #020617; }
-    .overlay-toolbar { position: fixed; top: 14px; left: 50%; z-index: 9999; display: flex; transform: translateX(-50%); align-items: center; gap: 12px; border: 1px solid rgba(148, 163, 184, 0.24); border-radius: 999px; background: rgba(2, 6, 23, 0.78); padding: 9px 12px; color: #e2e8f0; box-shadow: 0 20px 50px rgba(0,0,0,.32); backdrop-filter: blur(16px); }
-    .overlay-toolbar[hidden] { display: none; }
-    .overlay-toolbar span { font-size: 12px; line-height: 1; }
-    .overlay-toolbar [data-tone="ready"] { color: #86efac; }
-    .overlay-toolbar [data-tone="warn"] { color: #fde68a; }
-    .overlay-toolbar [data-tone="error"] { color: #fca5a5; }
-    .overlay-toolbar button { border: 0; border-radius: 999px; background: rgba(15, 23, 42, .9); color: #f8fafc; cursor: pointer; padding: 7px 10px; font-size: 12px; }
     .overlay-stage { position: absolute; inset: 0; width: 100vw; height: 100vh; overflow: hidden; background: transparent !important; background-color: transparent !important; }
     .overlay-shell { position: absolute; inset: 0; display: grid; place-content: center; gap: 10px; background: ${chromeMode === "transparent" ? "transparent" : "rgba(2, 6, 23, .92)"}; color: #f8fafc; text-align: center; }
     .overlay-shell strong { font-size: clamp(24px, 3vw, 44px); letter-spacing: -.04em; }
@@ -321,43 +311,11 @@ function setupChrome() {
 
   rootShell.className = "overlay-root";
   rootShell.dataset.chrome = chromeMode;
-  toolbar.className = "overlay-toolbar";
-  toolbar.hidden = !showToolbar;
   sessionNode.textContent = "No active session";
   layoutNode.textContent = "Layout pending";
   setExportIndicator();
-
-  const fullscreenButton = document.createElement("button");
-  fullscreenButton.type = "button";
-  fullscreenButton.textContent = "Fullscreen";
-  fullscreenButton.addEventListener("click", async () => {
-    if (document.fullscreenElement) {
-      await document.exitFullscreen();
-    } else {
-      await rootShell.requestFullscreen();
-    }
-  });
-
-  const exitButton = document.createElement("button");
-  exitButton.type = "button";
-  exitButton.textContent = "Exit";
-  exitButton.addEventListener("click", () => {
-    window.close();
-    stage.replaceChildren(
-      makeShell("Overlay closed", "Close this browser tab if it remains open."),
-    );
-  });
-
-  toolbar.append(
-    statusNode,
-    sessionNode,
-    layoutNode,
-    exportNode,
-    fullscreenButton,
-    exitButton,
-  );
   stage.className = "overlay-stage";
-  rootShell.append(toolbar, stage);
+  rootShell.append(stage);
   appRoot.replaceChildren(rootShell);
   setConnectionStatus("Disconnected", "warn");
 }
