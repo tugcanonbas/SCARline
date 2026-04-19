@@ -19,6 +19,7 @@ import type { WebSocketHub } from './websocket-hub.js';
 import type { ComponentRegistry } from './component-status.js';
 import { hashPassword, verifyAccessToken } from './auth.js';
 import { getSystemConfiguration, logActivity, queryMany, queryOne, refreshSessionSummary } from './data.js';
+import { loadWidgetMetadataMap } from './widget-catalogue.js';
 
 interface Dependencies {
   config: CoreApiConfig;
@@ -102,6 +103,19 @@ function publicGatewayPort(config: CoreApiConfig, system: Record<string, unknown
 
   const persisted = Number(system.scarline_port ?? system.platformPort ?? 8088);
   return Number.isFinite(persisted) && persisted > 0 ? persisted : 8088;
+}
+
+function widgetUiFor(
+  metadata: { ui?: { minWidth?: number; minHeight?: number; preferredWidth?: number; preferredHeight?: number } } | undefined,
+  currentBounds: { width?: number | null; height?: number | null }
+) {
+  const minWidth = Math.max(1, Number(metadata?.ui?.minWidth ?? 120));
+  const minHeight = Math.max(1, Number(metadata?.ui?.minHeight ?? 100));
+  const preferredWidth = Math.max(minWidth, Number(metadata?.ui?.preferredWidth ?? currentBounds.width ?? minWidth));
+  const preferredHeight = Math.max(minHeight, Number(metadata?.ui?.preferredHeight ?? currentBounds.height ?? minHeight));
+  const width = Math.max(minWidth, Number(currentBounds.width ?? preferredWidth));
+  const height = Math.max(minHeight, Number(currentBounds.height ?? preferredHeight));
+  return { minWidth, minHeight, preferredWidth, preferredHeight, width, height };
 }
 
 async function callProcessManager(
@@ -1527,6 +1541,7 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
     try {
       const system = await getSystemConfiguration(pool);
       const platformPort = publicGatewayPort(config, system);
+      const widgetMetadataMap = await loadWidgetMetadataMap(config.WIDGETS_DIR);
       const token = bearerToken(request);
       if (!token) {
         return fail(reply, 401, 'UNAUTHORIZED', 'Overlay configuration requires an authenticated token');
@@ -1556,6 +1571,10 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
       });
       if (payload.conditionId) baseParams.set('conditionId', payload.conditionId);
       const windows = widgets.map((widget) => {
+        const widgetUi = widgetUiFor(widgetMetadataMap.get(String(widget.widget_id)), {
+          width: Number(widget.width ?? 0),
+          height: Number(widget.height ?? 0)
+        });
         const mode = widget.window_mode === 'browser_popup' || widget.window_mode === 'transparent_electron'
           ? widget.window_mode
           : defaultMode;
@@ -1567,13 +1586,17 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
           instanceId: widget.id,
           widgetId: widget.widget_id,
           mode,
-          clickThrough: mode === 'transparent_electron' ? (payload.clickThrough ?? true) : false,
+          clickThrough: mode === 'transparent_electron' ? (payload.clickThrough ?? false) : false,
           bounds: {
             x: Number(widget.x ?? 0),
             y: Number(widget.y ?? 0),
-            width: Number(widget.width ?? 180),
-            height: Number(widget.height ?? 180)
+            width: widgetUi.width,
+            height: widgetUi.height
           },
+          minWidth: widgetUi.minWidth,
+          minHeight: widgetUi.minHeight,
+          preferredWidth: widgetUi.preferredWidth,
+          preferredHeight: widgetUi.preferredHeight,
           url: `http://127.0.0.1:${platformPort}/overlay/${payload.layoutId}?${perWidgetParams.toString()}`
         };
       });
@@ -1618,6 +1641,7 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
 
       const system = await getSystemConfiguration(pool);
       const platformPort = publicGatewayPort(config, system);
+      const widgetMetadataMap = await loadWidgetMetadataMap(config.WIDGETS_DIR);
       const row = await queryOne(pool, `
         SELECT view_layouts.layout_config,
                widget_instances.id,
@@ -1639,6 +1663,10 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
       }
 
       const layoutConfig = (row.layout_config as Record<string, unknown> | null) ?? {};
+      const widgetUi = widgetUiFor(widgetMetadataMap.get(String(row.widget_id)), {
+        width: Number(row.width ?? 0),
+        height: Number(row.height ?? 0)
+      });
       const defaultMode = layoutConfig.isTransparent === false ? 'browser_popup' : 'transparent_electron';
       const mode = payload.mode
         ?? (row.window_mode === 'browser_popup' || row.window_mode === 'transparent_electron' ? row.window_mode : defaultMode);
@@ -1657,13 +1685,17 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
         instanceId: row.id,
         widgetId: row.widget_id,
         mode,
-        clickThrough: mode === 'transparent_electron' ? (payload.clickThrough ?? true) : false,
+        clickThrough: mode === 'transparent_electron' ? (payload.clickThrough ?? false) : false,
         bounds: {
           x: Number(row.x ?? 0),
           y: Number(row.y ?? 0),
-          width: Number(row.width ?? 180),
-          height: Number(row.height ?? 180)
+          width: widgetUi.width,
+          height: widgetUi.height
         },
+        minWidth: widgetUi.minWidth,
+        minHeight: widgetUi.minHeight,
+        preferredWidth: widgetUi.preferredWidth,
+        preferredHeight: widgetUi.preferredHeight,
         url: `http://127.0.0.1:${platformPort}/overlay/${payload.layoutId}?${params.toString()}`
       };
 

@@ -21,14 +21,13 @@
     </style>
 </head>
 
-<body class="bg-gray-200 min-h-screen flex items-center justify-center p-4">
+<body class="bg-transparent min-h-screen flex items-center justify-center p-4">
 
     <!-- Card Container: 150x197 -->
     <div
-        class="bg-[#686d76] w-[150px] h-[197px] rounded-lg overflow-hidden shadow-md relative text-white flex flex-col items-center p-1 isolate">
+        class="bg-transparent w-[150px] h-[197px] rounded-lg overflow-hidden shadow-md relative text-white flex flex-col items-center p-1 isolate">
 
-        <!-- Grid Background Overlay -->
-        <div class="absolute inset-0 bg-grid pointer-events-none opacity-50 z-0"></div>
+
 
         <!-- Caller Info (Top) -->
         <div class="relative z-10 flex flex-col items-center mt-1 w-full">
@@ -48,6 +47,12 @@
             <div class="text-[8px] font-medium text-white/50 tracking-wide mt-1" data-bind="call.status_label">
                 Incoming Call...
             </div>
+            <div class="text-[7px] font-medium text-white/45 tracking-wide mt-0.5" data-bind="call.note_label">
+                Tap to answer
+            </div>
+            <div class="text-[8px] font-medium text-white/35 tracking-wide" data-bind="call.duration_label">
+                0:00
+            </div>
         </div>
 
         <!-- Accept / Decline Buttons -->
@@ -55,11 +60,11 @@
             <!-- Accept (green phone) -->
             <button type="button" data-action="call.accept"
                 class="w-9 h-9 rounded-full bg-green-500 hover:bg-green-600 flex items-center justify-center transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"
-                        class="text-white">
-                        <path
-                            d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-                    </svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"
+                    class="text-white">
+                    <path
+                        d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                </svg>
             </button>
             <!-- Decline (red phone, rotated) -->
             <button type="button" data-action="call.decline"
@@ -83,6 +88,138 @@
 
     </div>
 
+
+    <script>
+        (function initSCARlineWidget() {
+            const WIDGET_RUNTIME_MARKER = 'scarline-widget-runtime';
+
+            function formatValue(element, value) {
+                if (value === undefined || value === null) return null;
+                if (element?.dataset?.format === 'number') {
+                    const decimals = Number(element.dataset.decimals ?? '0');
+                    const numeric = Number(value);
+                    if (!Number.isNaN(numeric)) {
+                        return numeric.toFixed(decimals);
+                    }
+                }
+                return String(value);
+            }
+
+            function toggleClassTokens(element, classNames, enabled) {
+                const tokens = String(classNames ?? '')
+                    .split(/\s+/)
+                    .map((token) => token.trim())
+                    .filter(Boolean);
+                if (tokens.length === 0) return;
+                if (enabled) {
+                    element.classList.add(...tokens);
+                } else {
+                    element.classList.remove(...tokens);
+                }
+            }
+
+            function applyBinding(key, value) {
+                document.querySelectorAll('[data-bind]').forEach((element) => {
+                    if (element.dataset.bind !== key) return;
+
+                    if (element.dataset.bindClass) {
+                        const className = element.dataset.bindClass;
+                        const falseClassName = element.dataset.bindClassFalse;
+                        if (value) {
+                            toggleClassTokens(element, className, true);
+                            if (falseClassName) toggleClassTokens(element, falseClassName, false);
+                        } else {
+                            toggleClassTokens(element, className, false);
+                            if (falseClassName) toggleClassTokens(element, falseClassName, true);
+                        }
+                    }
+
+                    if (element.dataset.bindStyle) {
+                        const styleName = element.dataset.bindStyle;
+                        const unit = element.dataset.styleUnit ?? '';
+                        element.style.setProperty(styleName, `${value}${unit}`);
+                    }
+
+                    if (element.dataset.bindAttr) {
+                        const attrName = element.dataset.bindAttr;
+                        const formatted = formatValue(element, value);
+                        if (formatted !== null) element.setAttribute(attrName, formatted);
+                    }
+
+                    if (element.dataset.bindText !== 'false') {
+                        const formatted = formatValue(element, value);
+                        if (formatted !== null) element.textContent = formatted;
+                    }
+                });
+            }
+
+            function setVisualState(nextState) {
+                const root = document.body.firstElementChild;
+                if (!root) return;
+                root.dataset.state = nextState;
+                root.style.opacity = nextState === 'hidden' ? '0' : '1';
+                root.style.filter = nextState === 'highlighted' ? 'drop-shadow(0 0 24px rgba(56, 189, 248, 0.85))' : 'none';
+                root.style.transform = nextState === 'highlighted' ? 'scale(1.015)' : 'scale(1)';
+                root.style.transition = 'opacity 180ms ease, filter 180ms ease, transform 180ms ease';
+            }
+
+            function bindWidget() {
+                if (!window.SCARline || document.body.dataset[WIDGET_RUNTIME_MARKER] === 'ready') {
+                    return;
+                }
+                document.body.dataset[WIDGET_RUNTIME_MARKER] = 'ready';
+
+                const keys = [...new Set(
+                    Array.from(document.querySelectorAll('[data-bind]'))
+                        .map((element) => element.dataset.bind)
+                        .filter(Boolean)
+                )];
+
+                keys.forEach((key) => {
+                    window.SCARline.onBinding(key, (value) => applyBinding(key, value));
+                    const currentValue = window.SCARline.getBinding(key);
+                    if (typeof currentValue !== 'undefined') {
+                        applyBinding(key, currentValue);
+                    }
+                });
+
+                document.querySelectorAll('[data-action]').forEach((element) => {
+                    element.addEventListener('click', () => {
+                        const action = element.dataset.action;
+                        if (!action) return;
+                        window.SCARline.send(action, {
+                            action,
+                            label: element.textContent?.trim() || null
+                        });
+                    });
+                });
+
+                window.SCARline.onTrigger((event) => {
+                    const bindingValues = event?.bindingValues ?? event?.payload?.bindingValues ?? {};
+                    Object.entries(bindingValues).forEach(([key, value]) => applyBinding(key, value));
+                    if (event?.action === 'highlight') {
+                        setVisualState('highlighted');
+                    } else if (event?.action === 'hide') {
+                        setVisualState('hidden');
+                    } else if (event?.action === 'show' || event?.action === 'reset') {
+                        setVisualState('visible');
+                    }
+                });
+
+                window.SCARline.onStateChange((state) => {
+                    setVisualState(state);
+                });
+
+                window.SCARline.ready();
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', bindWidget, { once: true });
+            } else {
+                bindWidget();
+            }
+        })();
+    </script>
 </body>
 
 </html>

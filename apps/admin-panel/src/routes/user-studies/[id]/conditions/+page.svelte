@@ -35,6 +35,9 @@
   let newName = $state('');
   let newDescription = $state('');
   let newWeather = $state('');
+  let newTrafficDensity = $state('');
+  let newPedestrianDensity = $state('');
+  let newSpeedLimitOverride = $state('');
   let newHiddenWidgets = $state('');
   let newRules = $state<TriggerRule[]>([]);
 
@@ -153,6 +156,41 @@
             {/each}
           </select>
         </label>
+        <div class="grid gap-3 md:grid-cols-3">
+          <label class="grid gap-2 text-sm">
+            <span>Traffic Density</span>
+            <input
+              bind:value={newTrafficDensity}
+              class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3"
+              min="0"
+              name="trafficDensity"
+              placeholder="0-100"
+              type="number"
+            />
+          </label>
+          <label class="grid gap-2 text-sm">
+            <span>Pedestrian Density</span>
+            <input
+              bind:value={newPedestrianDensity}
+              class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3"
+              min="0"
+              name="pedestrianDensity"
+              placeholder="0-100"
+              type="number"
+            />
+          </label>
+          <label class="grid gap-2 text-sm">
+            <span>Speed Limit Override</span>
+            <input
+              bind:value={newSpeedLimitOverride}
+              class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3"
+              min="0"
+              name="speedLimitOverride"
+              placeholder="km/h"
+              type="number"
+            />
+          </label>
+        </div>
       </div>
 
       <!-- Widget overrides -->
@@ -286,6 +324,20 @@
                     {/each}
                   </select>
                 </label>
+                <div class="grid gap-3 md:grid-cols-3">
+                  <label class="grid gap-1.5 text-sm">
+                    <span>Traffic Density</span>
+                    <input class="condition-edit-input" min="0" name="trafficDensity" type="number" value={getCarlaOverrides(c).trafficDensity ?? ''} />
+                  </label>
+                  <label class="grid gap-1.5 text-sm">
+                    <span>Pedestrian Density</span>
+                    <input class="condition-edit-input" min="0" name="pedestrianDensity" type="number" value={getCarlaOverrides(c).pedestrianDensity ?? ''} />
+                  </label>
+                  <label class="grid gap-1.5 text-sm">
+                    <span>Speed Limit Override</span>
+                    <input class="condition-edit-input" min="0" name="speedLimitOverride" type="number" value={getCarlaOverrides(c).speedLimitOverride ?? ''} />
+                  </label>
+                </div>
                 <label class="grid gap-1.5 text-sm">
                   <span>Hidden Widgets</span>
                   <input
@@ -328,6 +380,18 @@
               <div class="condition-kv">
                 <span class="condition-kv__label">Weather</span>
                 <span class="condition-kv__value">{getCarlaOverrides(c).weather ?? 'Default'}</span>
+              </div>
+              <div class="condition-kv">
+                <span class="condition-kv__label">Traffic Density</span>
+                <span class="condition-kv__value">{getCarlaOverrides(c).trafficDensity ?? 'Default'}</span>
+              </div>
+              <div class="condition-kv">
+                <span class="condition-kv__label">Pedestrian Density</span>
+                <span class="condition-kv__value">{getCarlaOverrides(c).pedestrianDensity ?? 'Default'}</span>
+              </div>
+              <div class="condition-kv">
+                <span class="condition-kv__label">Speed Limit</span>
+                <span class="condition-kv__value">{getCarlaOverrides(c).speedLimitOverride ?? 'Default'}</span>
               </div>
               <div class="condition-kv">
                 <span class="condition-kv__label">Hidden Widgets</span>

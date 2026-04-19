@@ -1,10 +1,38 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { widgetMetadataSchema } from '@scarline/contracts';
+import type { WidgetMetadata } from '@scarline/contracts';
+
+async function widgetCatalogueBaseDir(widgetsDir: string): Promise<string> {
+  const candidateComponentsDir = path.join(widgetsDir, 'components');
+  return fs.access(candidateComponentsDir).then(() => candidateComponentsDir).catch(() => widgetsDir);
+}
+
+export async function loadWidgetMetadataMap(widgetsDir: string): Promise<Map<string, WidgetMetadata>> {
+  const baseDir = await widgetCatalogueBaseDir(widgetsDir);
+  const entries = await fs.readdir(baseDir, { withFileTypes: true });
+  const results = new Map<string, WidgetMetadata>();
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+
+    const metadataPath = path.join(baseDir, entry.name, 'widget.json');
+    try {
+      const raw = await fs.readFile(metadataPath, 'utf8');
+      const metadata = widgetMetadataSchema.parse(JSON.parse(raw));
+      results.set(metadata.id, metadata);
+    } catch {
+      continue;
+    }
+  }
+
+  return results;
+}
 
 export async function loadWidgetCatalogue(widgetsDir: string): Promise<Record<string, unknown>[]> {
-  const candidateComponentsDir = path.join(widgetsDir, 'components');
-  const baseDir = await fs.access(candidateComponentsDir).then(() => candidateComponentsDir).catch(() => widgetsDir);
+  const baseDir = await widgetCatalogueBaseDir(widgetsDir);
   const entries = await fs.readdir(baseDir, { withFileTypes: true });
   const results: Record<string, unknown>[] = [];
 

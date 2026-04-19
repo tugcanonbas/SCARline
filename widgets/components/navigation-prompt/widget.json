@@ -3,7 +3,7 @@
   "name": "Navigation Prompt",
   "description": "Displays the current driving instruction and next waypoint.",
   "version": "1.0.0",
-  "category": "participant",
+  "category": "driving",
   "entry": "index.html",
   "bindings": {
     "navigation.current_instruction": {

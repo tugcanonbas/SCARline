@@ -2,7 +2,7 @@ import { apiAction, apiRequest } from '$lib/server/api';
 import { requireRole } from '$lib/server/rbac';
 
 export const load = async ({ fetch, locals, params }) => {
-  const user = await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator', 'viewer']);
+  const user = await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
   return {
     conditions: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/conditions`, locals.accessToken),
     studyId: params.id,
@@ -17,6 +17,22 @@ function parseRules(formData: FormData): unknown[] {
   });
 }
 
+function numberOrNull(formData: FormData, key: string) {
+  const value = String(formData.get(key) ?? '').trim();
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function carlaOverridesFromForm(formData: FormData) {
+  return {
+    weather: formData.get('weather') || null,
+    trafficDensity: numberOrNull(formData, 'trafficDensity'),
+    pedestrianDensity: numberOrNull(formData, 'pedestrianDensity'),
+    speedLimitOverride: numberOrNull(formData, 'speedLimitOverride')
+  };
+}
+
 export const actions = {
   // Create new condition
   create: async ({ fetch, locals, params, request }) => {
@@ -29,9 +45,7 @@ export const actions = {
         name: formData.get('name'),
         description: formData.get('description') || null,
         order: Number(formData.get('order') || 0),
-        carlaOverrides: {
-          weather: formData.get('weather') || null
-        },
+        carlaOverrides: carlaOverridesFromForm(formData),
         widgetOverrides: {
           hidden_widgets: String(formData.get('hiddenWidgets') || '').split(',').map((s) => s.trim()).filter(Boolean),
           triggerRules: rules
@@ -53,9 +67,7 @@ export const actions = {
         name: formData.get('name'),
         description: formData.get('description') || null,
         order: Number(formData.get('order') || 0),
-        carlaOverrides: {
-          weather: formData.get('weather') || null
-        },
+        carlaOverrides: carlaOverridesFromForm(formData),
         widgetOverrides: {
           hidden_widgets: String(formData.get('hiddenWidgets') || '').split(',').map((s) => s.trim()).filter(Boolean),
           triggerRules: rules
@@ -87,9 +99,7 @@ export const actions = {
         name: formData.get('name'),
         description: formData.get('description') || null,
         order: Number(formData.get('order') || 0),
-        carlaOverrides: {
-          weather: formData.get('weather') || null
-        },
+        carlaOverrides: carlaOverridesFromForm(formData),
         widgetOverrides: {
           hidden_widgets: String(formData.get('hiddenWidgets') || '').split(',').map((s) => s.trim()).filter(Boolean),
           triggerRules: rules

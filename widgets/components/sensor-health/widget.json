@@ -3,7 +3,7 @@
   "name": "Sensor Health",
   "description": "Displays the current runtime status of attached sensors.",
   "version": "1.0.0",
-  "category": "researcher",
+  "category": "study",
   "entry": "index.html",
   "bindings": {
     "sensor.streaming_label": {

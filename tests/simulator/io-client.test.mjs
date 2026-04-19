@@ -14,12 +14,20 @@ test('io client discovers plugins and publishes degraded sensor health', async (
   assert.match(source, /publish_component_status/);
   assert.match(source, /publish_sensor_status/);
   assert.match(source, /publish_driver_status_event/);
+  assert.match(source, /refresh_health_sensors/);
+  assert.match(source, /health_sensor_entry/);
+  assert.match(source, /activeSession/);
+  assert.match(source, /"sensors": \[\]/);
   assert.match(source, /io\.driver_status/);
   assert.match(source, /configSchema/);
   assert.match(source, /degraded/);
   assert.match(source, /Driver initialized in degraded mode/);
   assert.match(source, /commands\.io\.\*/);
   assert.match(source, /message\.process\(requeue=False\)/);
+  assert.match(source, /IO_HEALTH_PORT/);
+  assert.match(source, /health_server/);
+  assert.match(source, /for configured_sensor in configured_sensors/);
+  assert.match(source, /driver\.initialize\(configured_sensor\)/);
 });
 
 test('io client includes baseline optional sensor interfaces', async () => {

@@ -767,6 +767,48 @@ Platform-level events not tied to a specific study session.
 
 ---
 
+### 3.5 I/O Client Commands
+
+#### `io.start-session`
+
+| Property | Value |
+|----------|-------|
+| **Routing Key** | `commands.io.start-session` |
+| **Producer** | CoreAPI |
+| **Consumer** | I/O Client |
+
+```json
+{
+  "studyId": "uuid",
+  "sessionId": "uuid",
+  "sensors": [
+    {
+      "type": "steering_wheel",
+      "driver": "logitech_g29",
+      "sample_rate": 100,
+      "metadata": {"force_feedback": true}
+    }
+  ]
+}
+```
+
+#### `io.stop-session`
+
+| Property | Value |
+|----------|-------|
+| **Routing Key** | `commands.io.stop-session` |
+| **Producer** | CoreAPI |
+| **Consumer** | I/O Client |
+
+```json
+{
+  "studyId": "uuid",
+  "sessionId": "uuid"
+}
+```
+
+---
+
 ## 4. Routing Key Quick Reference
 
 ### Events
@@ -790,3 +832,4 @@ Platform-level events not tied to a specific study session.
 | `commands.simulator.*` | Simulator control commands |
 | `commands.widget.*` | Widget interaction commands |
 | `commands.export.*` | Export job commands |
+| `commands.io.*` | I/O Client session sensor commands |

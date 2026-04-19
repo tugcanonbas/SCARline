@@ -3,7 +3,7 @@
   "name": "Respiration",
   "description": "Displays current respiration rate.",
   "version": "1.0.0",
-  "category": "biometrics",
+  "category": "health",
   "entry": "index.html",
   "bindings": {
     "vitals.respiration_rate": {

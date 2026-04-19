@@ -3,7 +3,7 @@
   "name": "Appointments",
   "description": "Displays the current study-day agenda.",
   "version": "1.0.0",
-  "category": "utility",
+  "category": "general",
   "entry": "index.html",
   "bindings": {
     "calendar.month_label": {
@@ -20,6 +20,11 @@
       "type": "string",
       "description": "Current day-of-month label.",
       "default": "11"
+    },
+    "calendar.today_label": {
+      "type": "string",
+      "description": "Current day context label.",
+      "default": "Today"
     },
     "calendar.weekday_label": {
       "type": "string",

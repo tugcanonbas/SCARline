@@ -3,7 +3,7 @@
   "name": "Heart Rate",
   "description": "Displays participant heart-rate data.",
   "version": "1.0.0",
-  "category": "biometrics",
+  "category": "health",
   "entry": "index.html",
   "bindings": {
     "vitals.heart_rate": {

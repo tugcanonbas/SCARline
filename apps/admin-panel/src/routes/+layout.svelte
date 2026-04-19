@@ -5,21 +5,37 @@
 
   let { data, children } = $props();
 
+  type Role = 'admin' | 'researcher' | 'operator' | 'viewer';
+  type NavigationItem = {
+    href: string;
+    label: string;
+    icon: typeof LayoutDashboard;
+    roles: Role[];
+  };
+
+  const allRoles: Role[] = ['admin', 'researcher', 'operator', 'viewer'];
+  const designRoles: Role[] = ['admin', 'researcher'];
+  const adminRoles: Role[] = ['admin'];
+  const currentRoles = $derived((data.user?.roles ?? []) as Role[]);
+
   const primaryNavigation = [
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/user-studies', label: 'User Studies', icon: Gauge },
-    { href: '/session-logs', label: 'Session Logs', icon: DatabaseBackup },
-    { href: '/exports', label: 'Exports', icon: DatabaseBackup },
-    { href: '/researchers', label: 'Researchers', icon: UsersRound }
-  ];
+    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: allRoles },
+    { href: '/user-studies', label: 'User Studies', icon: Gauge, roles: allRoles },
+    { href: '/session-logs', label: 'Session Logs', icon: DatabaseBackup, roles: allRoles },
+    { href: '/exports', label: 'Exports', icon: DatabaseBackup, roles: designRoles },
+    { href: '/researchers', label: 'Researchers', icon: UsersRound, roles: designRoles }
+  ] satisfies NavigationItem[];
 
   const utilityNavigation = [
-    { href: '/settings/system', label: 'System', icon: Settings2 },
-    { href: '/settings/users', label: 'Users', icon: UserRoundCog },
-    { href: '/settings/devices', label: 'Devices', icon: Settings2 },
-    { href: '/settings/components', label: 'Components', icon: MonitorCog },
-    { href: '/documentation', label: 'Documentation', icon: BookOpenText }
-  ];
+    { href: '/settings/system', label: 'System', icon: Settings2, roles: adminRoles },
+    { href: '/settings/users', label: 'Users', icon: UserRoundCog, roles: adminRoles },
+    { href: '/settings/devices', label: 'Devices', icon: Settings2, roles: designRoles },
+    { href: '/settings/components', label: 'Components', icon: MonitorCog, roles: designRoles },
+    { href: '/documentation', label: 'Documentation', icon: BookOpenText, roles: allRoles }
+  ] satisfies NavigationItem[];
+
+  const visiblePrimaryNavigation = $derived(primaryNavigation.filter((item) => item.roles.some((role) => currentRoles.includes(role))));
+  const visibleUtilityNavigation = $derived(utilityNavigation.filter((item) => item.roles.some((role) => currentRoles.includes(role))));
 </script>
 
 {#if data.isAuthenticated}
@@ -32,7 +48,7 @@
       </div>
 
       <nav class="scarline-nav" aria-label="Primary navigation">
-        {#each primaryNavigation as item}
+        {#each visiblePrimaryNavigation as item}
           <a
             class="scarline-nav-item"
             href={appPath(item.href)}
@@ -44,7 +60,7 @@
       </nav>
 
       <nav class="scarline-nav scarline-nav-utility" aria-label="Utility navigation">
-        {#each utilityNavigation as item}
+        {#each visibleUtilityNavigation as item}
           <a
             class="scarline-nav-item"
             href={appPath(item.href)}

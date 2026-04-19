@@ -3,7 +3,7 @@
   "name": "ECG",
   "description": "Displays ECG rhythm status and heart rate.",
   "version": "1.0.0",
-  "category": "biometrics",
+  "category": "health",
   "entry": "index.html",
   "bindings": {
     "vitals.heart_rate": {

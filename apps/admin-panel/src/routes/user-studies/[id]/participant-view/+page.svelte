@@ -35,10 +35,9 @@
   const SCALE_Y = CANVAS_H / 1080;
 
   // ─── State ──────────────────────────────────────────────────────────────────
-  let layoutName = $state(
-    (currentLayout?.name as string) ?? 'Primary Participant Layout'
-  );
-  let placed = $state<PlacedWidget[]>(buildInitialPlaced());
+  let initializedLayoutId = $state('');
+  let layoutName = $state('Primary Participant Layout');
+  let placed = $state<PlacedWidget[]>([]);
   let selectedId = $state<string | null>(null);
   let draggingWidgetId = $state<string | null>(null); // catalogue widget id being dragged in
   let canvasEl = $state<HTMLDivElement | null>(null);
@@ -46,6 +45,14 @@
   let activeCategory = $state('all');
   let saving = $state(false);
   let saveResult = $state<{ ok: boolean; message: string } | null>(null);
+  let targetDisplay = $state('0');
+  let selectedEditorId = $state<string | null>(null);
+  let bindingsDraft = $state('{}');
+  let triggerRulesDraft = $state('[]');
+  let styleOverridesDraft = $state('{}');
+  let bindingsError = $state<string | null>(null);
+  let triggerRulesError = $state<string | null>(null);
+  let styleOverridesError = $state<string | null>(null);
 
   function getOverlayUrl(layoutId: string) {
     const url = new URL(`${window.location.origin}/overlay/launcher/${layoutId}`);
@@ -104,6 +111,7 @@
   }
 
   async function openElectronWidget(layoutId: string, widget: PlacedWidget) {
+    const meta = getWidgetMeta(widget.widgetId);
     const response = await fetch(`${apiBase}/system/overlay/windows/open`, {
       method: 'POST',
       headers: {
@@ -134,8 +142,12 @@
           instanceId: widget.id,
           widgetId: widget.widgetId,
           mode: widget.windowMode,
-          clickThrough: widget.windowMode === 'transparent_electron',
+          clickThrough: false,
           bounds: canonicalBounds(widget),
+          minWidth: meta?.ui?.minWidth ?? canonicalBounds(widget).width,
+          minHeight: meta?.ui?.minHeight ?? canonicalBounds(widget).height,
+          preferredWidth: meta?.ui?.preferredWidth ?? canonicalBounds(widget).width,
+          preferredHeight: meta?.ui?.preferredHeight ?? canonicalBounds(widget).height,
           url: getWidgetOverlayUrl(layoutId, widget.id, widget.windowMode)
         }],
         session: {
@@ -167,6 +179,45 @@
 
   const selectedWidget = $derived(placed.find((p) => p.id === selectedId) ?? null);
 
+  function formatJson(value: unknown) {
+    return JSON.stringify(value ?? null, null, 2);
+  }
+
+  function updateSelectedWidget(mutator: (widget: PlacedWidget) => PlacedWidget) {
+    if (!selectedId) return;
+    placed = placed.map((widget) => (widget.id === selectedId ? mutator(widget) : widget));
+  }
+
+  function applyJsonDraft(
+    raw: string,
+    kind: 'object' | 'array',
+    onValid: (value: Record<string, unknown> | unknown[]) => void,
+    onError: (message: string | null) => void
+  ) {
+    if (!raw.trim()) {
+      const fallback = kind === 'array' ? [] : {};
+      onValid(fallback);
+      onError(null);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (kind === 'array' && !Array.isArray(parsed)) {
+        onError('Must be a JSON array');
+        return;
+      }
+      if (kind === 'object' && (Array.isArray(parsed) || parsed === null || typeof parsed !== 'object')) {
+        onError('Must be a JSON object');
+        return;
+      }
+      onValid(parsed as Record<string, unknown> | unknown[]);
+      onError(null);
+    } catch {
+      onError('Invalid JSON');
+    }
+  }
+
   // ─── Build initial placed widgets from saved layout ─────────────────────────
   function buildInitialPlaced(): PlacedWidget[] {
     const layout = currentLayout as Record<string, unknown> | null;
@@ -190,6 +241,39 @@
       styleOverrides: (w.styleOverrides as Record<string, unknown>) ?? {}
     }));
   }
+
+  $effect(() => {
+    const nextLayoutId = String(currentLayout?.id ?? 'new');
+    if (initializedLayoutId !== nextLayoutId) {
+      layoutName = (currentLayout?.name as string) ?? 'Primary Participant Layout';
+      targetDisplay = String(currentLayout?.targetDisplay ?? '0');
+      placed = buildInitialPlaced();
+      selectedId = null;
+      initializedLayoutId = nextLayoutId;
+    }
+  });
+
+  $effect(() => {
+    if (!selectedWidget) {
+      selectedEditorId = null;
+      bindingsDraft = '{}';
+      triggerRulesDraft = '[]';
+      styleOverridesDraft = '{}';
+      bindingsError = null;
+      triggerRulesError = null;
+      styleOverridesError = null;
+      return;
+    }
+    if (selectedEditorId !== selectedWidget.id) {
+      selectedEditorId = selectedWidget.id;
+      bindingsDraft = formatJson(selectedWidget.bindingsConfig);
+      triggerRulesDraft = formatJson(selectedWidget.triggerRules);
+      styleOverridesDraft = formatJson(selectedWidget.styleOverrides);
+      bindingsError = null;
+      triggerRulesError = null;
+      styleOverridesError = null;
+    }
+  });
 
   function getWidgetMeta(widgetId: string): WidgetMeta | undefined {
     return (data.widgets as WidgetMeta[]).find((w) => w.id === widgetId);
@@ -339,7 +423,7 @@
       ...buildLayoutPayload(),
       name: layoutName,
       type: 'participant',
-      targetDisplay: '0',
+      targetDisplay,
       studyId: data.studyId as string
     };
 
@@ -511,8 +595,8 @@
   </div>
   <div class="metric-card">
     <p class="metric-card__label">Display</p>
-    <p class="metric-card__value">1920×1080</p>
-    <p class="metric-card__hint">Primary participant canvas</p>
+    <p class="metric-card__value">#{targetDisplay}</p>
+    <p class="metric-card__hint">Target display · 1920×1080 canvas</p>
   </div>
 </div>
 
@@ -564,6 +648,18 @@
         placeholder="Layout name"
         type="text"
       />
+      <label class="layout-canvas-display">
+        <span>Display</span>
+        <input
+          bind:value={targetDisplay}
+          inputmode="numeric"
+          pattern="[0-9]*"
+          type="text"
+          oninput={(e) => {
+            targetDisplay = (e.currentTarget as HTMLInputElement).value.replaceAll(/\D/g, '') || '0';
+          }}
+        />
+      </label>
       <button
         class="px-3 py-1.5 border border-line rounded-lg text-xs font-semibold bg-panel-soft hover:bg-panel-hover transition-colors whitespace-nowrap"
         onclick={launchBrowserView}
@@ -694,12 +790,75 @@
           value={selectedWidget.windowMode}
           onchange={(e) => {
             const value = (e.currentTarget as HTMLSelectElement).value as 'transparent_electron' | 'browser_popup';
-            placed = placed.map((p) => p.id === selectedWidget.id ? { ...p, windowMode: value } : p);
+            updateSelectedWidget((widget) => ({ ...widget, windowMode: value }));
           }}
         >
           <option value="transparent_electron">Transparent (Electron)</option>
           <option value="browser_popup">Browser window</option>
         </select>
+      </div>
+      <div class="layout-properties__section">
+        <p class="layout-properties__label">Bindings Config</p>
+        <textarea
+          class="layout-properties__textarea"
+          rows="7"
+          value={bindingsDraft}
+          oninput={(e) => {
+            const value = (e.currentTarget as HTMLTextAreaElement).value;
+            bindingsDraft = value;
+            applyJsonDraft(
+              value,
+              'object',
+              (parsed) => updateSelectedWidget((widget) => ({ ...widget, bindingsConfig: parsed as Record<string, unknown> })),
+              (message) => (bindingsError = message)
+            );
+          }}
+        ></textarea>
+        {#if bindingsError}
+          <p class="layout-properties__error">{bindingsError}</p>
+        {/if}
+      </div>
+      <div class="layout-properties__section">
+        <p class="layout-properties__label">Trigger Rules</p>
+        <textarea
+          class="layout-properties__textarea"
+          rows="7"
+          value={triggerRulesDraft}
+          oninput={(e) => {
+            const value = (e.currentTarget as HTMLTextAreaElement).value;
+            triggerRulesDraft = value;
+            applyJsonDraft(
+              value,
+              'array',
+              (parsed) => updateSelectedWidget((widget) => ({ ...widget, triggerRules: parsed as unknown[] })),
+              (message) => (triggerRulesError = message)
+            );
+          }}
+        ></textarea>
+        {#if triggerRulesError}
+          <p class="layout-properties__error">{triggerRulesError}</p>
+        {/if}
+      </div>
+      <div class="layout-properties__section">
+        <p class="layout-properties__label">Style Overrides</p>
+        <textarea
+          class="layout-properties__textarea"
+          rows="7"
+          value={styleOverridesDraft}
+          oninput={(e) => {
+            const value = (e.currentTarget as HTMLTextAreaElement).value;
+            styleOverridesDraft = value;
+            applyJsonDraft(
+              value,
+              'object',
+              (parsed) => updateSelectedWidget((widget) => ({ ...widget, styleOverrides: parsed as Record<string, unknown> })),
+              (message) => (styleOverridesError = message)
+            );
+          }}
+        ></textarea>
+        {#if styleOverridesError}
+          <p class="layout-properties__error">{styleOverridesError}</p>
+        {/if}
       </div>
       <div class="layout-properties__section">
         <button
@@ -822,6 +981,25 @@
     padding: 0.45rem 0.875rem;
     font-size: 0.8125rem;
     color: inherit;
+    outline: none;
+  }
+  .layout-canvas-display {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    white-space: nowrap;
+  }
+  .layout-canvas-display input {
+    width: 3.5rem;
+    border: 1px solid var(--color-line);
+    border-radius: 0.55rem;
+    background: var(--color-panel-soft);
+    color: #e2e8f0;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.75rem;
+    text-align: center;
     outline: none;
   }
   .btn-primary {
@@ -962,6 +1140,24 @@
     color: #e2e8f0;
     padding: 0.35rem 0.5rem;
     font-size: 0.75rem;
+  }
+  .layout-properties__textarea {
+    width: 100%;
+    border: 1px solid var(--color-line);
+    border-radius: 0.55rem;
+    background: rgba(15, 23, 42, 0.45);
+    color: #e2e8f0;
+    padding: 0.5rem 0.625rem;
+    font-size: 0.6875rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace;
+    line-height: 1.45;
+    resize: vertical;
+    min-height: 7.5rem;
+  }
+  .layout-properties__error {
+    margin-top: 0.35rem;
+    font-size: 0.6875rem;
+    color: #f87171;
   }
   .layout-properties__desc { font-size: 0.71875rem; color: #94a3b8; line-height: 1.4; }
   .layout-properties__empty { padding: 1.5rem 0; text-align: center; font-size: 0.75rem; color: #475569; }

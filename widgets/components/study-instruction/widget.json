@@ -3,7 +3,7 @@
   "name": "Study Instruction",
   "description": "Displays the current participant task or prompt.",
   "version": "1.0.0",
-  "category": "participant",
+  "category": "study",
   "entry": "index.html",
   "bindings": {
     "study.title": {

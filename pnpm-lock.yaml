@@ -129,8 +129,8 @@ importers:
   services/sim-bridge:
     dependencies:
       '@fastify/websocket':
-        specifier: ^10.0.1
-        version: 10.0.1
+        specifier: ^8.3.1
+        version: 8.3.1
       '@scarline/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

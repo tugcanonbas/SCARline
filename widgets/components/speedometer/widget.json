@@ -3,7 +3,7 @@
   "name": "Speedometer",
   "description": "Displays the current vehicle speed and speed limit.",
   "version": "1.0.0",
-  "category": "vehicle",
+  "category": "driving",
   "entry": "index.html",
   "bindings": {
     "vehicle.speed": {

@@ -15,6 +15,25 @@
   ]);
   const configuredSensors = $derived(data.config?.sensors ?? []);
   const trafficConfig = $derived((data.config?.trafficConfig ?? data.config?.traffic_config ?? {}) as Record<string, unknown>);
+  const weatherCustom = $derived((data.config?.weatherCustom ?? data.config?.weather_custom ?? {}) as Record<string, unknown>);
+  const pedestrianConfig = $derived((data.config?.pedestrianConfig ?? data.config?.pedestrian_config ?? {}) as Record<string, unknown>);
+  const sunConfig = $derived((data.config?.sunConfig ?? data.config?.sun_config ?? {}) as Record<string, unknown>);
+  const spectatorConfig = $derived((data.config?.spectatorConfig ?? data.config?.spectator_config ?? {}) as Record<string, unknown>);
+  const recordingConfig = $derived((data.config?.recordingConfig ?? data.config?.recording_config ?? {}) as Record<string, unknown>);
+
+  function sensorConfigured(type: string) {
+    if (!configuredSensors.length) {
+      return ['sensor.camera.rgb', 'sensor.other.collision', 'sensor.other.lane_invasion'].includes(type);
+    }
+
+    return configuredSensors.some((sensor: Record<string, unknown>) => sensor.type === type);
+  }
+
+  function sensorAttribute(type: string, key: string, fallback: string | number) {
+    const sensor = configuredSensors.find((entry: Record<string, unknown>) => entry.type === type) as Record<string, unknown> | undefined;
+    const attributes = (sensor?.attributes ?? {}) as Record<string, unknown>;
+    return attributes[key] ?? fallback;
+  }
 </script>
 
 <PageHeader eyebrow="Study" title="CARLA Configuration" description="Baseline simulator settings used for session start commands and condition overrides." />
@@ -74,8 +93,80 @@
         </label>
         <label class="grid gap-2 text-sm">
           <span>NPC Vehicles</span>
-          <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="npcVehicleCount" type="number" value="15" />
+          <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" min="0" name="npcVehicleCount" type="number" value={trafficConfig.npcVehicleCount ?? trafficConfig.npc_vehicle_count ?? 15} />
         </label>
+        <div class="grid gap-3 md:grid-cols-3">
+          <label class="grid gap-2 text-sm">
+            <span>Pedestrians</span>
+            <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" min="0" name="pedestrianCount" type="number" value={pedestrianConfig.pedestrianCount ?? pedestrianConfig.pedestrian_count ?? 0} />
+          </label>
+          <label class="grid gap-2 text-sm">
+            <span>Traffic Speed Difference</span>
+            <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="trafficSpeedDifference" type="number" value={trafficConfig.speedDifference ?? trafficConfig.speed_difference ?? 0} />
+          </label>
+          <label class="grid gap-2 text-sm">
+            <span>Sun Altitude Angle</span>
+            <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="sunAltitudeAngle" type="number" value={sunConfig.sunAltitudeAngle ?? sunConfig.sun_altitude_angle ?? 45} />
+          </label>
+        </div>
+        <div class="grid gap-3 md:grid-cols-3">
+          <label class="grid gap-2 text-sm">
+            <span>Cloudiness</span>
+            <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" max="100" min="0" name="cloudiness" type="number" value={weatherCustom.cloudiness ?? 0} />
+          </label>
+          <label class="grid gap-2 text-sm">
+            <span>Precipitation</span>
+            <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" max="100" min="0" name="precipitation" type="number" value={weatherCustom.precipitation ?? 0} />
+          </label>
+          <label class="grid gap-2 text-sm">
+            <span>Wind Intensity</span>
+            <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" max="100" min="0" name="windIntensity" type="number" value={weatherCustom.windIntensity ?? weatherCustom.wind_intensity ?? 0} />
+          </label>
+        </div>
+        <div class="grid gap-3 md:grid-cols-2">
+          <label class="grid gap-2 text-sm">
+            <span>Simulation Mode</span>
+            <select class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="simulationMode">
+              <option value="synchronous" selected={(data.config?.simulationMode ?? data.config?.simulation_mode ?? 'synchronous') === 'synchronous'}>synchronous</option>
+              <option value="asynchronous" selected={(data.config?.simulationMode ?? data.config?.simulation_mode) === 'asynchronous'}>asynchronous</option>
+            </select>
+          </label>
+          <label class="grid gap-2 text-sm">
+            <span>Fixed Delta Seconds</span>
+            <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="fixedDeltaSeconds" step="0.01" type="number" value={data.config?.fixedDeltaSeconds ?? data.config?.fixed_delta_seconds ?? 0.05} />
+          </label>
+        </div>
+        <div class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] p-4">
+          <p class="text-sm font-semibold text-white">Simulator Sensors</p>
+          <div class="mt-3 grid gap-2 md:grid-cols-2">
+            <label class="flex items-center gap-2 text-sm"><input checked={sensorConfigured('sensor.camera.rgb')} name="sensorRgb" type="checkbox" /> RGB camera</label>
+            <label class="flex items-center gap-2 text-sm"><input checked={sensorConfigured('sensor.lidar.ray_cast')} name="sensorLidar" type="checkbox" /> LiDAR</label>
+            <label class="flex items-center gap-2 text-sm"><input checked={sensorConfigured('sensor.other.gnss')} name="sensorGnss" type="checkbox" /> GNSS</label>
+            <label class="flex items-center gap-2 text-sm"><input checked={sensorConfigured('sensor.other.imu')} name="sensorImu" type="checkbox" /> IMU</label>
+            <label class="flex items-center gap-2 text-sm"><input checked={sensorConfigured('sensor.other.collision')} name="sensorCollision" type="checkbox" /> Collision</label>
+            <label class="flex items-center gap-2 text-sm"><input checked={sensorConfigured('sensor.other.lane_invasion')} name="sensorLane" type="checkbox" /> Lane invasion</label>
+          </div>
+          <div class="mt-3 grid gap-3 md:grid-cols-3">
+            <label class="grid gap-1.5 text-sm"><span>Camera Width</span><input class="rounded-2xl border border-[--color-line] bg-transparent px-3 py-2" name="cameraWidth" type="number" value={sensorAttribute('sensor.camera.rgb', 'image_size_x', 1280)} /></label>
+            <label class="grid gap-1.5 text-sm"><span>Camera Height</span><input class="rounded-2xl border border-[--color-line] bg-transparent px-3 py-2" name="cameraHeight" type="number" value={sensorAttribute('sensor.camera.rgb', 'image_size_y', 720)} /></label>
+            <label class="grid gap-1.5 text-sm"><span>Camera FOV</span><input class="rounded-2xl border border-[--color-line] bg-transparent px-3 py-2" name="cameraFov" type="number" value={sensorAttribute('sensor.camera.rgb', 'fov', 90)} /></label>
+            <label class="grid gap-1.5 text-sm"><span>LiDAR Range</span><input class="rounded-2xl border border-[--color-line] bg-transparent px-3 py-2" name="lidarRange" type="number" value={sensorAttribute('sensor.lidar.ray_cast', 'range', 80)} /></label>
+            <label class="grid gap-1.5 text-sm"><span>LiDAR Channels</span><input class="rounded-2xl border border-[--color-line] bg-transparent px-3 py-2" name="lidarChannels" type="number" value={sensorAttribute('sensor.lidar.ray_cast', 'channels', 32)} /></label>
+          </div>
+        </div>
+        <div class="grid gap-3 md:grid-cols-2">
+          <label class="flex items-center gap-2 text-sm"><input checked={Boolean(spectatorConfig.enabled ?? true)} name="spectatorEnabled" type="checkbox" /> Enable spectator camera</label>
+          <label class="flex items-center gap-2 text-sm"><input checked={Boolean(recordingConfig.enabled ?? false)} name="recordingEnabled" type="checkbox" /> Enable CARLA recording</label>
+          <input name="spectatorX" type="hidden" value={spectatorConfig.x ?? -6} />
+          <input name="spectatorY" type="hidden" value={spectatorConfig.y ?? 0} />
+          <input name="spectatorZ" type="hidden" value={spectatorConfig.z ?? 4} />
+          <input name="spectatorPitch" type="hidden" value={spectatorConfig.pitch ?? -15} />
+          <input name="spectatorYaw" type="hidden" value={spectatorConfig.yaw ?? 0} />
+          <label class="grid gap-2 text-sm md:col-span-2">
+            <span>Recording Directory</span>
+            <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="recordingDirectory" value={recordingConfig.directory ?? ''} />
+          </label>
+        </div>
         <button class="rounded-2xl bg-[--color-accent-strong] px-5 py-3 text-sm font-semibold text-white" type="submit">Save Configuration</button>
       </form>
     </SurfaceCard>

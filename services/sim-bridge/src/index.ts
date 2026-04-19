@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 import websocket from '@fastify/websocket';
+import '@fastify/websocket';
 import { z } from 'zod';
 import {
   makeEventRoutingKey,
@@ -23,7 +24,7 @@ const ADAPTER_COMMAND_TIMEOUT_MS = Number(process.env.SIM_BRIDGE_ADAPTER_COMMAND
 const ADAPTER_STALE_MS = Number(process.env.SIM_BRIDGE_ADAPTER_STALE_MS ?? 30_000);
 const ADAPTER_SWEEP_MS = Math.min(10_000, Math.max(1_000, Math.floor(ADAPTER_STALE_MS / 2)));
 
-await app.register(websocket);
+await app.register(websocket as never);
 await rabbit.connect();
 
 interface PendingAdapterCommand {
@@ -234,7 +235,8 @@ app.get('/health', async () => ({
   adapters: adapters.list()
 }));
 
-function handleAdapterSocket(socket: AdapterSocket) {
+function handleAdapterSocket(connection: unknown) {
+  const socket = (connection as { socket: AdapterSocket }).socket;
   let assignedId: string | null = null;
 
   socket.on('message', async (raw: Buffer) => {
@@ -360,8 +362,8 @@ function handleAdapterSocket(socket: AdapterSocket) {
   });
 }
 
-app.get(SIM_BRIDGE_WEBSOCKET_PATHS.adapter, { websocket: true }, handleAdapterSocket);
-app.get(SIM_BRIDGE_WEBSOCKET_PATHS.bridgeCompatibility, { websocket: true }, handleAdapterSocket);
+app.get(SIM_BRIDGE_WEBSOCKET_PATHS.adapter, { websocket: true } as never, handleAdapterSocket as never);
+app.get(SIM_BRIDGE_WEBSOCKET_PATHS.bridgeCompatibility, { websocket: true } as never, handleAdapterSocket as never);
 
 await rabbit.consume(RABBITMQ_QUEUES.simBridgeCommands, async (message) => {
   const action = message.routingKey.replace('commands.simulator.', '');

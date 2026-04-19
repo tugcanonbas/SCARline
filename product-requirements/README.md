@@ -77,7 +77,9 @@ This directory contains the detailed product requirements for every component. S
 | File                                                   | Description                                                                                                                                                  |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | [PRD.md](./PRD.md)                                     | Product Requirements Document — architecture, technology stack, access model, authentication, and complete document index                                    |
-| [IMPLEMENTATION_REPORT.md](./IMPLEMENTATION_REPORT.md) | Comprehensive codebase assessment — 100% platform completeness, production-ready hardened state, and verified verification pass |
+| [IMPLEMENTATION_REPORT.md](./IMPLEMENTATION_REPORT.md) | Current codebase assessment against product requirements, measured verification evidence, and remaining finalization risks |
+| [FINALIZATION_PLAN.md](./FINALIZATION_PLAN.md) | Implementation plan for bringing the platform to showcase-ready end-to-end reliability without adding new feature scope |
+| [REQUIREMENTS_TRACEABILITY.md](./REQUIREMENTS_TRACEABILITY.md) | Traceability matrix mapping each requirements document to implementation surfaces, verification status, and finalization actions |
 
 
 ### Infrastructure

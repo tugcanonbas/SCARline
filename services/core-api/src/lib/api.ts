@@ -134,8 +134,15 @@ function rolesForRoute(method: string, path: string): Array<z.infer<typeof RoleS
   }
 
   if (
+    path.startsWith('/api/devices')
+    || path.startsWith('/api/researchers')
+    || path.includes('/researchers')
+  ) {
+    return ['admin', 'researcher'];
+  }
+
+  if (
     path.startsWith('/api/users')
-    || path.startsWith('/api/devices')
     || path.startsWith('/api/system/configuration')
     || path.startsWith('/api/system/process-manager')
     || path.startsWith('/api/system/carla')
@@ -157,6 +164,7 @@ function rolesForRoute(method: string, path: string): Array<z.infer<typeof RoleS
       || path.endsWith('/complete')
       || path.endsWith('/cancel')
       || path.endsWith('/triggers')
+      || path.endsWith('/notes')
     )
   ) {
     return ['admin', 'researcher', 'operator'];
@@ -1384,6 +1392,51 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     }, { studyId: params.studyId, runId: params.id }));
   });
 
+  app.post('/api/studies/:studyId/sessions/:id/notes', async (request, reply) => {
+    const params = z.object({ studyId: z.string().uuid(), id: z.string().uuid() }).parse(request.params);
+    const payload = z.object({
+      note: z.string().trim().min(1).max(2000)
+    }).parse(request.body ?? {});
+    const timestamp = new Date().toISOString();
+    const noteEntry = `[${timestamp}] ${payload.note.replace(/\r?\n/g, ' ')}`;
+    const row = await queryOne(pool, `
+      UPDATE sessions
+      SET notes = CASE
+            WHEN notes IS NULL OR notes = '' THEN $3
+            ELSE notes || E'\n' || $3
+          END,
+          updated_at = NOW()
+      WHERE study_id = $1 AND id = $2
+      RETURNING *
+    `, [params.studyId, params.id, noteEntry]);
+
+    if (!row) {
+      reply.code(404);
+      return {
+        success: false,
+        data: null,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Session not found',
+          details: {}
+        }
+      };
+    }
+
+    await logActivity(pool, {
+      actorUserId: getActorUserId(request, config),
+      entityType: 'session',
+      entityId: params.id,
+      action: 'session.note_created',
+      payload: {
+        studyId: params.studyId,
+        timestamp
+      }
+    });
+
+    return { success: true, data: sessionDto(row as Record<string, unknown>), error: null };
+  });
+
   app.get('/api/studies/:studyId/carla-config', async (request) => {
     const params = z.object({ studyId: z.string().uuid() }).parse(request.params);
     const row = await queryOne(pool, `SELECT * FROM carla_configurations WHERE study_id = $1`, [params.studyId]);
@@ -1530,7 +1583,9 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     success: true,
     data: [
       { driverId: 'logitech_g29', sensorType: 'steering_wheel', displayName: 'Logitech G29' },
-      { driverId: 'usb_camera', sensorType: 'camera', displayName: 'USB Camera' }
+      { driverId: 'usb_camera', sensorType: 'camera', displayName: 'USB Camera' },
+      { driverId: 'heart_rate', sensorType: 'heart_rate', displayName: 'Heart Rate Monitor' },
+      { driverId: 'eye_tracker', sensorType: 'eye_tracker', displayName: 'Eye Tracker' }
     ],
     error: null
   }));

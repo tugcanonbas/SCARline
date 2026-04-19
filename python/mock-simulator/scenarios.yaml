@@ -23,6 +23,52 @@ scenarios:
       collisionEveryTicks: 0
       cameraEveryTicks: 20
     seed: 202
+  highway_cruise:
+    map: MockHighway01
+    speedLimit: 120
+    baseThrottle: 0.76
+    speedOscillation: 14.0
+    traffic:
+      npcCount: 28
+    events:
+      laneInvasionEveryTicks: 140
+      collisionEveryTicks: 0
+      cameraEveryTicks: 20
+    seed: 202
+  rainy_city:
+    map: MockTownRain
+    speedLimit: 45
+    baseThrottle: 0.4
+    speedOscillation: 7.0
+    weather:
+      preset: WetCloudyNoon
+      custom:
+        precipitation: 65
+        wetness: 85
+    traffic:
+      npcCount: 14
+      pedestrianCount: 8
+    events:
+      laneInvasionEveryTicks: 100
+      collisionEveryTicks: 0
+      cameraEveryTicks: 20
+    seed: 606
+  night_drive:
+    map: MockHighwayNight
+    speedLimit: 95
+    baseThrottle: 0.62
+    speedOscillation: 10.0
+    weather:
+      preset: ClearNight
+      custom:
+        sunAltitudeAngle: -30
+    traffic:
+      npcCount: 18
+    events:
+      laneInvasionEveryTicks: 150
+      collisionEveryTicks: 0
+      cameraEveryTicks: 20
+    seed: 707
   parking:
     map: MockParking01
     speedLimit: 15
@@ -48,6 +94,32 @@ scenarios:
       collisionEveryTicks: 0
       cameraEveryTicks: 20
     seed: 404
+  stop_and_go:
+    map: MockTownStopGo
+    speedLimit: 35
+    baseThrottle: 0.38
+    speedOscillation: 18.0
+    traffic:
+      npcCount: 18
+      stopGo: true
+    events:
+      laneInvasionEveryTicks: 90
+      collisionEveryTicks: 0
+      cameraEveryTicks: 20
+    seed: 404
+  parking_scenario:
+    map: MockParking01
+    speedLimit: 10
+    baseThrottle: 0.12
+    speedOscillation: 1.5
+    traffic:
+      npcCount: 1
+      pedestrianCount: 4
+    events:
+      laneInvasionEveryTicks: 0
+      collisionEveryTicks: 0
+      cameraEveryTicks: 20
+    seed: 303
   collision_course:
     map: MockTown01
     speedLimit: 45
@@ -60,3 +132,52 @@ scenarios:
       collisionEveryTicks: 180
       cameraEveryTicks: 20
     seed: 505
+  sensor_test:
+    map: MockSensorRig
+    speedLimit: 0
+    baseThrottle: 0.0
+    speedOscillation: 0.0
+    traffic:
+      npcCount: 0
+    events:
+      laneInvasionEveryTicks: 0
+      collisionEveryTicks: 0
+      cameraEveryTicks: 10
+    seed: 808
+  widget_test:
+    map: MockWidgetLoop
+    speedLimit: 80
+    baseThrottle: 0.58
+    speedOscillation: 25.0
+    traffic:
+      npcCount: 10
+    events:
+      laneInvasionEveryTicks: 60
+      collisionEveryTicks: 180
+      cameraEveryTicks: 10
+    seed: 909
+  stress_test:
+    map: MockStressTrack
+    speedLimit: 130
+    baseThrottle: 0.82
+    speedOscillation: 30.0
+    traffic:
+      npcCount: 40
+      pedestrianCount: 20
+    events:
+      laneInvasionEveryTicks: 40
+      collisionEveryTicks: 120
+      cameraEveryTicks: 5
+    seed: 1001
+  custom_template:
+    map: MockTown01
+    speedLimit: 50
+    baseThrottle: 0.45
+    speedOscillation: 8.0
+    traffic:
+      npcCount: 0
+    events:
+      laneInvasionEveryTicks: 0
+      collisionEveryTicks: 0
+      cameraEveryTicks: 20
+    seed: 42

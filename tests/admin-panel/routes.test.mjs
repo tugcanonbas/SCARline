@@ -77,16 +77,58 @@ test('authenticated admin routes enforce route-level RBAC before rendering or mu
 
 test('active study server route wires lifecycle and trigger actions', async () => {
   const source = await readRoute('user-studies/[id]/active-study/+page.server.ts');
-  for (const action of ['start', 'pause', 'resume', 'complete', 'cancel', 'trigger']) {
+  for (const action of ['start', 'pause', 'resume', 'complete', 'cancel', 'note', 'trigger']) {
     assert.match(source, new RegExp(`${action}:\\s*async`));
   }
   assert.match(source, /sessions\/\$\{sessionId\}\/triggers/);
+  assert.match(source, /sessions\/\$\{sessionId\}\/notes/);
+});
+
+test('sensor configuration route supports explicit driver saves and defaults', async () => {
+  const source = await readRoute('user-studies/[id]/sensors/+page.server.ts');
+  assert.match(source, /preset:\s*async/);
+  assert.match(source, /save:\s*async/);
+  assert.match(source, /driverId/);
+  assert.match(source, /sample_rate/);
+  assert.match(source, /parseJsonObject/);
+});
+
+test('participant view editor exposes widget bindings, triggers, and style overrides', async () => {
+  const source = await readRoute('user-studies/[id]/participant-view/+page.svelte');
+  assert.match(source, /Bindings Config/);
+  assert.match(source, /Trigger Rules/);
+  assert.match(source, /Style Overrides/);
+  assert.match(source, /targetDisplay/);
+  assert.match(source, /Target display/);
+  assert.match(source, /Must be a JSON object/);
+  assert.match(source, /Must be a JSON array/);
 });
 
 test('exports mutations stay restricted to admin and researcher roles', async () => {
   const source = await readRoute('exports/+page.server.ts');
   assert.match(source, /requireRole\([^)]*\['admin', 'researcher'\]\)/);
   assert.doesNotMatch(source, /\['admin', 'researcher', 'operator'\]/);
+});
+
+test('admin panel route RBAC matches documented role matrix', async () => {
+  for (const routeFile of [
+    'researchers/+page.server.ts',
+    'researchers/[id]/+page.server.ts',
+    'settings/devices/+page.server.ts',
+    'settings/components/+page.server.ts',
+    'user-studies/[id]/conditions/+page.server.ts',
+    'user-studies/[id]/carla-config/+page.server.ts',
+    'user-studies/[id]/sensors/+page.server.ts',
+    'user-studies/[id]/participant-view/+page.server.ts'
+  ]) {
+    const source = await readRoute(routeFile);
+    assert.match(source, /requireRole\([^)]*\['admin', 'researcher'\]\)/, routeFile);
+    assert.doesNotMatch(source, /\['admin', 'researcher', 'operator', 'viewer'\]/, routeFile);
+  }
+
+  const activeStudy = await readRoute('user-studies/[id]/active-study/+page.server.ts');
+  assert.match(activeStudy, /requireRole\([^)]*\['admin', 'researcher', 'operator'\]\)/);
+  assert.doesNotMatch(activeStudy, /\['admin', 'researcher', 'operator', 'viewer'\]/);
 });
 
 test('production admin pages do not render placeholder preformatted JSON views', async () => {

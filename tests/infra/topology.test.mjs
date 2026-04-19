@@ -82,6 +82,16 @@ test('nginx exposes PRD-aligned single-domain routing', async () => {
   assert.match(config, /location \/rabbitmq\//);
 });
 
+test('compose defines internal health checks for mock simulator and io client', async () => {
+  const compose = await readFile(path.join(root, 'docker-compose.yml'), 'utf8');
+  assert.match(compose, /mock-simulator:/);
+  assert.match(compose, /MOCK_HEALTH_PORT: 8082/);
+  assert.match(compose, /http:\/\/127\.0\.0\.1:8082\/health/);
+  assert.match(compose, /io-client:/);
+  assert.match(compose, /IO_HEALTH_PORT: 8081/);
+  assert.match(compose, /http:\/\/127\.0\.0\.1:8081\/health/);
+});
+
 test('process manager ipc can relay overlay reloads to electron control endpoint', async () => {
   const source = await readFile(path.join(root, 'infra/process-manager/ipc_server.py'), 'utf8');
   assert.match(source, /OVERLAY_CONTROL_PORT/);
@@ -98,6 +108,18 @@ test('desktop overlay exposes health and reload control hooks', async () => {
   assert.match(source, /\/health/);
   assert.match(source, /\/reload/);
   assert.match(source, /setIgnoreMouseEvents/);
+  assert.match(source, /acceptFirstMouse:\s*true/);
+  assert.match(source, /movable:\s*true/);
+  assert.match(source, /resizable:\s*!transparent/);
+  assert.match(source, /backgroundMaterial:\s*transparent \? 'none' : undefined/);
+  assert.match(source, /setBackgroundColor\('#00000000'\)/);
+  assert.match(source, /minWidth/);
+  assert.match(source, /minHeight/);
+  assert.match(source, /setMinimumSize/);
+  assert.match(source, /setFocusable\(process\.env\.OVERLAY_FOCUSABLE === 'true'\)/);
+  assert.match(source, /windowRef\.showInactive\(\)/);
+  assert.match(source, /windowRef\.on\('move'/);
+  assert.match(source, /windowRef\.on\('resize'/);
   assert.match(source, /screen\.getAllDisplays/);
   assert.match(source, /render-process-gone/);
 });
@@ -108,6 +130,7 @@ test('overlay web exposes widget validation and relative gateway assets', async 
   assert.match(source, /validateWidgetMetadata/);
   assert.match(source, /src="\/overlay\/app\.js"/);
   assert.match(source, /\/overlay\/assets\/:widgetId\/:file/);
+  assert.match(source, /__SCARLINE_OVERLAY_CONTROL_ORIGIN/);
 });
 
 test('scarline preserves CARLA paths and skips CARLA validation in --no-carla mode', async () => {

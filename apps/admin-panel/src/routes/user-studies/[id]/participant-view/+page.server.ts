@@ -3,7 +3,7 @@ import { requireRole } from '$lib/server/rbac';
 import { randomUUID } from 'node:crypto';
 
 export const load = async ({ fetch, locals, params }) => {
-  await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator', 'viewer']);
+  await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
   const layouts = await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/layouts`, locals.accessToken);
   const participantLayoutSummary = layouts.find((layout: Record<string, unknown>) => layout.type === 'participant') ?? layouts[0] ?? null;
   const participantLayout = participantLayoutSummary
@@ -23,6 +23,7 @@ export const actions = {
     await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
     const formData = await request.formData();
     const name = String(formData.get('name') || 'Primary Participant Layout');
+    const targetDisplay = String(formData.get('targetDisplay') || '0').replaceAll(/\D/g, '') || '0';
     const layoutJsonRaw = formData.get('layoutJson');
 
     let layoutConfig: Record<string, unknown>;
@@ -60,7 +61,7 @@ export const actions = {
       ...layoutConfig,
       name, 
       type: 'participant', 
-      targetDisplay: '0',
+      targetDisplay,
       studyId: params.id
     };
 

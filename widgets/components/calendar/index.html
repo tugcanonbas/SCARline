@@ -74,14 +74,13 @@
     </style>
 </head>
 
-<body class="bg-gray-200 min-h-screen flex items-center justify-center p-4">
+<body class="bg-transparent min-h-screen flex items-center justify-center p-4">
 
     <!-- Card Container: 150x129 (from meta.json) -->
     <div
-        class="bg-[#686d76] w-[150px] h-[129px] rounded-lg overflow-hidden shadow-lg relative text-white flex flex-col p-2 isolate">
+        class="bg-transparent w-[150px] h-[129px] rounded-lg overflow-hidden shadow-lg relative text-white flex flex-col p-2 isolate">
 
-        <!-- Grid Background Overlay -->
-        <div class="absolute inset-0 bg-grid pointer-events-none opacity-50 z-0"></div>
+
 
         <!-- Header -->
         <div class="relative z-10 flex items-center justify-between mb-1.5 px-1">
@@ -93,8 +92,10 @@
                 </svg>
             </button>
             <div class="text-center">
-                <div id="month-name" class="text-[10px] font-semibold leading-none" data-bind="calendar.month_label">February</div>
-                <div id="year-label" class="text-[8px] font-medium text-white/40 leading-none mt-0.5" data-bind="calendar.year_label">2026</div>
+                <div id="month-name" class="text-[10px] font-semibold leading-none" data-bind="calendar.month_label">
+                    February</div>
+                <div id="year-label" class="text-[8px] font-medium text-white/40 leading-none mt-0.5"
+                    data-bind="calendar.year_label">2026</div>
             </div>
             <button
                 class="w-5 h-5 flex items-center justify-center rounded border border-white/20 text-white/40 hover:text-white transition-colors">
@@ -139,6 +140,138 @@
             <span data-bind="calendar.event_3_time">13:00 - 14:30</span>
         </div>
     </div>
+
+    <script>
+        (function initSCARlineWidget() {
+            const WIDGET_RUNTIME_MARKER = 'scarline-widget-runtime';
+
+            function formatValue(element, value) {
+                if (value === undefined || value === null) return null;
+                if (element?.dataset?.format === 'number') {
+                    const decimals = Number(element.dataset.decimals ?? '0');
+                    const numeric = Number(value);
+                    if (!Number.isNaN(numeric)) {
+                        return numeric.toFixed(decimals);
+                    }
+                }
+                return String(value);
+            }
+
+            function toggleClassTokens(element, classNames, enabled) {
+                const tokens = String(classNames ?? '')
+                    .split(/\s+/)
+                    .map((token) => token.trim())
+                    .filter(Boolean);
+                if (tokens.length === 0) return;
+                if (enabled) {
+                    element.classList.add(...tokens);
+                } else {
+                    element.classList.remove(...tokens);
+                }
+            }
+
+            function applyBinding(key, value) {
+                document.querySelectorAll('[data-bind]').forEach((element) => {
+                    if (element.dataset.bind !== key) return;
+
+                    if (element.dataset.bindClass) {
+                        const className = element.dataset.bindClass;
+                        const falseClassName = element.dataset.bindClassFalse;
+                        if (value) {
+                            toggleClassTokens(element, className, true);
+                            if (falseClassName) toggleClassTokens(element, falseClassName, false);
+                        } else {
+                            toggleClassTokens(element, className, false);
+                            if (falseClassName) toggleClassTokens(element, falseClassName, true);
+                        }
+                    }
+
+                    if (element.dataset.bindStyle) {
+                        const styleName = element.dataset.bindStyle;
+                        const unit = element.dataset.styleUnit ?? '';
+                        element.style.setProperty(styleName, `${value}${unit}`);
+                    }
+
+                    if (element.dataset.bindAttr) {
+                        const attrName = element.dataset.bindAttr;
+                        const formatted = formatValue(element, value);
+                        if (formatted !== null) element.setAttribute(attrName, formatted);
+                    }
+
+                    if (element.dataset.bindText !== 'false') {
+                        const formatted = formatValue(element, value);
+                        if (formatted !== null) element.textContent = formatted;
+                    }
+                });
+            }
+
+            function setVisualState(nextState) {
+                const root = document.body.firstElementChild;
+                if (!root) return;
+                root.dataset.state = nextState;
+                root.style.opacity = nextState === 'hidden' ? '0' : '1';
+                root.style.filter = nextState === 'highlighted' ? 'drop-shadow(0 0 24px rgba(56, 189, 248, 0.85))' : 'none';
+                root.style.transform = nextState === 'highlighted' ? 'scale(1.015)' : 'scale(1)';
+                root.style.transition = 'opacity 180ms ease, filter 180ms ease, transform 180ms ease';
+            }
+
+            function bindWidget() {
+                if (!window.SCARline || document.body.dataset[WIDGET_RUNTIME_MARKER] === 'ready') {
+                    return;
+                }
+                document.body.dataset[WIDGET_RUNTIME_MARKER] = 'ready';
+
+                const keys = [...new Set(
+                    Array.from(document.querySelectorAll('[data-bind]'))
+                        .map((element) => element.dataset.bind)
+                        .filter(Boolean)
+                )];
+
+                keys.forEach((key) => {
+                    window.SCARline.onBinding(key, (value) => applyBinding(key, value));
+                    const currentValue = window.SCARline.getBinding(key);
+                    if (typeof currentValue !== 'undefined') {
+                        applyBinding(key, currentValue);
+                    }
+                });
+
+                document.querySelectorAll('[data-action]').forEach((element) => {
+                    element.addEventListener('click', () => {
+                        const action = element.dataset.action;
+                        if (!action) return;
+                        window.SCARline.send(action, {
+                            action,
+                            label: element.textContent?.trim() || null
+                        });
+                    });
+                });
+
+                window.SCARline.onTrigger((event) => {
+                    const bindingValues = event?.bindingValues ?? event?.payload?.bindingValues ?? {};
+                    Object.entries(bindingValues).forEach(([key, value]) => applyBinding(key, value));
+                    if (event?.action === 'highlight') {
+                        setVisualState('highlighted');
+                    } else if (event?.action === 'hide') {
+                        setVisualState('hidden');
+                    } else if (event?.action === 'show' || event?.action === 'reset') {
+                        setVisualState('visible');
+                    }
+                });
+
+                window.SCARline.onStateChange((state) => {
+                    setVisualState(state);
+                });
+
+                window.SCARline.ready();
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', bindWidget, { once: true });
+            } else {
+                bindWidget();
+            }
+        })();
+    </script>
 </body>
 
 </html>

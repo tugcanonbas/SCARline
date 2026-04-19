@@ -3,7 +3,7 @@
   "name": "Session Timeline",
   "description": "Displays current session state and timing details.",
   "version": "1.0.0",
-  "category": "researcher",
+  "category": "study",
   "entry": "index.html",
   "bindings": {
     "session.status_label": {

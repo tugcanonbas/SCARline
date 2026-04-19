@@ -3,7 +3,7 @@
   "name": "Time",
   "description": "Displays the current local time and date.",
   "version": "1.0.0",
-  "category": "utility",
+  "category": "general",
   "entry": "index.html",
   "bindings": {
     "system.time_label": {

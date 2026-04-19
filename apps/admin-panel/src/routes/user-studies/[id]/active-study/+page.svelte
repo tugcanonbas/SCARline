@@ -14,6 +14,7 @@
     status: string;
     startedAt?: string | null;
     conditionId?: string | null;
+    notes?: string | null;
   };
 
   const live = createRealtimeStore();
@@ -96,14 +97,34 @@
   // ─── Operator notes ──────────────────────────────────────────────────────────
   type NoteEntry = { timestamp: string; text: string };
   let noteText = $state('');
-  let notes = $state<NoteEntry[]>([]);
+  const noteEntries = $derived(parseNotes(selectedSessionObj?.notes ?? null));
 
-  function addNote() {
-    const text = noteText.trim();
-    if (!text) return;
-    notes = [{ timestamp: new Date().toLocaleTimeString(), text }, ...notes];
-    noteText = '';
+  function parseNotes(raw: string | null): NoteEntry[] {
+    return String(raw ?? '')
+      .split('\n')
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+      .map((entry) => {
+        const match = entry.match(/^\[([^\]]+)\]\s*(.*)$/);
+        return {
+          timestamp: match?.[1] ?? 'Recorded note',
+          text: match?.[2] ?? entry
+        };
+      })
+      .reverse();
   }
+
+  function handleNoteKeydown(event: KeyboardEvent) {
+    if (!event.ctrlKey || event.key !== 'Enter') return;
+    event.preventDefault();
+    (event.currentTarget as HTMLTextAreaElement | null)?.form?.requestSubmit();
+  }
+
+  $effect(() => {
+    if (form?.noteSaved) {
+      noteText = '';
+    }
+  });
 
   $effect(() => {
     if (!selectedSession && runningSessionId) {
@@ -180,8 +201,12 @@
   };
 
   const layoutId = $derived(String((data.layoutDetail as Record<string, unknown> | null)?.id ?? ''));
-  let windowDrafts = $state<WindowDraft[]>(
-    ((data.layoutDetail?.widgets ?? []) as Array<Record<string, unknown>>).map((widget) => ({
+  let initializedWindowLayoutId = $state('');
+  let windowDrafts = $state<WindowDraft[]>([]);
+  let windowUpdateStatus = $state<{ ok: boolean; message: string } | null>(null);
+
+  function buildWindowDrafts(): WindowDraft[] {
+    return ((data.layoutDetail?.widgets ?? []) as Array<Record<string, unknown>>).map((widget) => ({
       instanceId: String(widget.id),
       widgetId: String(widget.widgetId),
       mode: (widget.windowMode === 'browser_popup' ? 'browser_popup' : 'transparent_electron') as WindowDraft['mode'],
@@ -189,9 +214,15 @@
       y: Number(widget.y ?? 0),
       width: Number(widget.width ?? 180),
       height: Number(widget.height ?? 180)
-    }))
-  );
-  let windowUpdateStatus = $state<{ ok: boolean; message: string } | null>(null);
+    }));
+  }
+
+  $effect(() => {
+    if (initializedWindowLayoutId !== layoutId) {
+      windowDrafts = buildWindowDrafts();
+      initializedWindowLayoutId = layoutId;
+    }
+  });
 
   function updateDraft(instanceId: string, patch: Partial<WindowDraft>) {
     windowDrafts = windowDrafts.map((entry) => (entry.instanceId === instanceId ? { ...entry, ...patch } : entry));
@@ -490,25 +521,26 @@
     </div>
   </SurfaceCard>
 
-  <SurfaceCard title="Operator Notes" subtitle="Timestamped session notes stored locally. Clear on page reload.">
-    <div class="grid gap-3">
+  <SurfaceCard title="Operator Notes" subtitle="Timestamped session notes are saved to the selected session.">
+    <form class="grid gap-3" method="POST" action="?/note">
+      <input type="hidden" name="sessionId" value={selectedSession} />
       <div class="flex gap-2">
         <textarea
+          name="note"
           bind:value={noteText}
           class="min-h-20 flex-1 rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm"
           placeholder="Enter observation and press Add Note…"
-          onkeydown={(e) => e.key === 'Enter' && e.ctrlKey && addNote()}
+          onkeydown={handleNoteKeydown}
         ></textarea>
       </div>
       <button
         class="rounded-2xl border border-[--color-line] px-4 py-2 text-sm font-medium"
-        disabled={!noteText.trim()}
-        onclick={addNote}
-        type="button"
+        disabled={!noteText.trim() || !selectedSession}
+        type="submit"
       >Add Note (Ctrl+Enter)</button>
-      {#if notes.length > 0}
+      {#if noteEntries.length > 0}
         <div class="space-y-2">
-          {#each notes as note}
+          {#each noteEntries as note}
             <div class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm">
               <p class="font-medium text-white">{note.text}</p>
               <p class="mt-1 text-xs text-slate-500">{note.timestamp}</p>
@@ -516,7 +548,7 @@
           {/each}
         </div>
       {/if}
-    </div>
+    </form>
   </SurfaceCard>
 </div>
 
