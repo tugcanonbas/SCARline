@@ -29,8 +29,8 @@ const state = {
   conditionId: query.get("conditionId") || "",
   layout: null,
   widgets: new Map(),
+  bridges: new Map(),
   frames: new Map(),
-  directWidgets: new Map(),
   wrappers: new Map(),
   hiddenWidgetIds: new Set(),
   highlightedWidgetIds: new Set(),
@@ -598,20 +598,6 @@ function injectRuntime(html, metadata, instanceId) {
       background: transparent !important;
       background-color: transparent !important;
     }
-    body {
-      display: flex;
-      align-items: stretch;
-      justify-content: stretch;
-    }
-    body > *:first-child {
-      width: 100% !important;
-      height: 100% !important;
-      max-width: none !important;
-      max-height: none !important;
-      flex: 1 1 auto;
-      min-width: 0;
-      min-height: 0;
-    }
   </style>
   <script>
     (() => {
@@ -623,76 +609,39 @@ function injectRuntime(html, metadata, instanceId) {
       const bindingHandlers = new Map();
       const triggerHandlers = [];
       const stateHandlers = [];
+      const pendingTriggers = [];
       let currentState = 'visible';
+      let ready = false;
       const blockNetwork = (api) => function blockedNetworkAccess() {
         throw new Error('SCARline widgets must use window.SCARline.send instead of direct ' + api + ' calls');
       };
-      // Keep fetch/XHR intact so widget styling runtimes (e.g. Tailwind CDN) can initialize.
       window.WebSocket = blockNetwork('WebSocket');
       window.EventSource = blockNetwork('EventSource');
-      function installLayoutRuntime() {
-        const root = document.body.firstElementChild;
-        if (root) {
-          root.setAttribute('data-widget-root', 'true');
-        }
-        document.documentElement.style.setProperty('background', 'transparent', 'important');
-        document.documentElement.style.setProperty('background-color', 'transparent', 'important');
-        document.body.style.setProperty('background', 'transparent', 'important');
-        document.body.style.setProperty('background-color', 'transparent', 'important');
-      }
-      function formatValue(element, value) {
-        if (value === undefined || value === null) return null;
-        if (element?.dataset?.format === 'number') {
-          const decimals = Number(element.dataset.decimals ?? '0');
-          const numeric = Number(value);
-          if (!Number.isNaN(numeric)) return numeric.toFixed(decimals);
-        }
-        return String(value);
-      }
-      function applyDomBinding(key, value) {
-        const update = () => {
-          for (const element of document.querySelectorAll('[data-bind]')) {
-            if (element.dataset.bind !== key) continue;
-            if (element.dataset.bindClass) {
-              const className = element.dataset.bindClass;
-              const falseClassName = element.dataset.bindClassFalse;
-              if (value) {
-                toggleClassTokens(element, className, true);
-                if (falseClassName) toggleClassTokens(element, falseClassName, false);
-              } else {
-                toggleClassTokens(element, className, false);
-                if (falseClassName) toggleClassTokens(element, falseClassName, true);
-              }
-            }
-            if (element.dataset.bindStyle) {
-              const styleName = element.dataset.bindStyle;
-              const unit = element.dataset.styleUnit ?? '';
-              element.style.setProperty(styleName, String(value) + unit);
-            }
-            if (element.dataset.bindAttr) {
-              const attrName = element.dataset.bindAttr;
-              const formatted = formatValue(element, value);
-              if (formatted !== null) element.setAttribute(attrName, formatted);
-            }
-            if (element.dataset.bindText !== 'false') {
-              const formatted = formatValue(element, value);
-              if (formatted !== null) element.textContent = formatted;
-            }
-          }
-        };
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', update, { once: true });
-        } else {
-          update();
-        }
-      }
-      function emitBinding(key, value) {
-        bindings.set(key, value);
-        applyDomBinding(key, value);
+      function dispatchBinding(key, value) {
         const handlers = bindingHandlers.get(key) || [];
         handlers.forEach((handler) => {
           try { handler(value); } catch (error) { console.error(error); }
         });
+      }
+      function dispatchState() {
+        stateHandlers.forEach((handler) => {
+          try { handler(currentState); } catch (error) { console.error(error); }
+        });
+      }
+      function dispatchTrigger(payload) {
+        triggerHandlers.forEach((handler) => {
+          try { handler(payload); } catch (error) { console.error(error); }
+        });
+      }
+      function flushReadyQueue() {
+        if (!ready) return;
+        for (const [key, value] of bindings.entries()) {
+          dispatchBinding(key, value);
+        }
+        dispatchState();
+        while (pendingTriggers.length > 0) {
+          dispatchTrigger(pendingTriggers.shift());
+        }
       }
       window.SCARline = {
         onBinding(key, callback) {
@@ -704,7 +653,7 @@ function injectRuntime(html, metadata, instanceId) {
           const handlers = bindingHandlers.get(key) || [];
           handlers.push(callback);
           bindingHandlers.set(key, handlers);
-          if (bindings.has(key)) callback(bindings.get(key));
+          if (ready && bindings.has(key)) callback(bindings.get(key));
         },
         onTrigger(callback) {
           if (typeof callback !== 'function') return;
@@ -713,7 +662,9 @@ function injectRuntime(html, metadata, instanceId) {
         onStateChange(callback) {
           if (typeof callback !== 'function') return;
           stateHandlers.push(callback);
-          callback(currentState);
+          if (ready) {
+            callback(currentState);
+          }
         },
         send(type, payload) {
           if (typeof type !== 'string' || type.length > 80) {
@@ -731,33 +682,38 @@ function injectRuntime(html, metadata, instanceId) {
           return metadata;
         },
         ready() {
+          if (ready) return;
+          ready = true;
+          flushReadyQueue();
           parent.postMessage({ type: 'widget-ready', instanceId }, '*');
         }
       };
       window.addEventListener('message', (event) => {
         if (event.data?.instanceId !== instanceId) return;
-        if (event.data.type === 'binding') emitBinding(event.data.key, event.data.value);
+        if (event.data.type === 'binding') {
+          bindings.set(event.data.key, event.data.value);
+          if (ready) {
+            dispatchBinding(event.data.key, event.data.value);
+          }
+        }
         if (event.data.type === 'trigger') {
           const action = event.data.payload?.action || event.data.payload?.payload?.action;
           if (action && allowedTriggers.size > 0 && !allowedTriggers.has(action)) {
             console.warn('Received undeclared widget trigger', action, metadata.id);
           }
-          triggerHandlers.forEach((handler) => {
-            try { handler(event.data.payload); } catch (error) { console.error(error); }
-          });
+          if (ready) {
+            dispatchTrigger(event.data.payload);
+          } else {
+            pendingTriggers.push(event.data.payload);
+          }
         }
         if (event.data.type === 'state') {
           currentState = event.data.state;
-          stateHandlers.forEach((handler) => {
-            try { handler(currentState); } catch (error) { console.error(error); }
-          });
+          if (ready) {
+            dispatchState();
+          }
         }
       });
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', installLayoutRuntime, { once: true });
-      } else {
-        installLayoutRuntime();
-      }
     })();
   </script>`;
 
@@ -903,23 +859,140 @@ function forwardWidgetInteraction(instanceId, eventType, payload) {
   );
 }
 
+function createIframeWidgetBridge(frame, instanceId) {
+  const bindings = new Map();
+  const pendingTriggers = [];
+  let currentState = "visible";
+  let ready = false;
+  let disposed = false;
+
+  const post = (payload) => {
+    if (disposed) {
+      return;
+    }
+    frame?.contentWindow?.postMessage(payload, "*");
+  };
+
+  return {
+    emitBinding(key, value) {
+      if (disposed) return;
+      bindings.set(key, value);
+      if (ready) {
+        post({ type: "binding", instanceId, key, value });
+      }
+    },
+    emitTrigger(payload) {
+      if (disposed) return;
+      if (ready) {
+        post({ type: "trigger", instanceId, payload });
+      } else {
+        pendingTriggers.push(payload);
+      }
+    },
+    emitState(nextState) {
+      if (disposed) return;
+      currentState = nextState;
+      if (ready) {
+        post({ type: "state", instanceId, state: currentState });
+      }
+    },
+    markReady() {
+      if (disposed || ready) {
+        return;
+      }
+      ready = true;
+      for (const [key, value] of bindings.entries()) {
+        post({ type: "binding", instanceId, key, value });
+      }
+      post({ type: "state", instanceId, state: currentState });
+      while (pendingTriggers.length > 0) {
+        post({ type: "trigger", instanceId, payload: pendingTriggers.shift() });
+      }
+    },
+    matchesSource(source) {
+      return frame?.contentWindow === source;
+    },
+    teardown() {
+      disposed = true;
+      bindings.clear();
+      pendingTriggers.length = 0;
+    },
+  };
+}
+
 function createDirectWidgetBridge(instanceId, metadata) {
+  const allowedBindings = new Set(
+    (metadata.bindings || []).map((binding) => binding.key),
+  );
+  const allowedTriggers = new Set(
+    (metadata.triggers || []).map((trigger) => trigger.action),
+  );
   const bindings = new Map();
   const bindingHandlers = new Map();
   const triggerHandlers = [];
   const stateHandlers = [];
+  const pendingTriggers = [];
   let currentState = "visible";
+  let ready = false;
   let disposed = false;
+
+  function dispatchBinding(key, value) {
+    const handlers = bindingHandlers.get(key) || [];
+    handlers.forEach((handler) => {
+      try {
+        handler(value);
+      } catch (error) {
+        console.error(error);
+      }
+    });
+  }
+
+  function dispatchState() {
+    stateHandlers.forEach((handler) => {
+      try {
+        handler(currentState);
+      } catch (error) {
+        console.error(error);
+      }
+    });
+  }
+
+  function dispatchTrigger(payload) {
+    triggerHandlers.forEach((handler) => {
+      try {
+        handler(payload);
+      } catch (error) {
+        console.error(error);
+      }
+    });
+  }
+
+  function flushReadyQueue() {
+    if (!ready || disposed) {
+      return;
+    }
+    for (const [key, value] of bindings.entries()) {
+      dispatchBinding(key, value);
+    }
+    dispatchState();
+    while (pendingTriggers.length > 0) {
+      dispatchTrigger(pendingTriggers.shift());
+    }
+  }
 
   window.SCARline = {
     onBinding(key, callback) {
       if (disposed || typeof callback !== "function") {
         return;
       }
+      if (!allowedBindings.has(key)) {
+        console.warn("Ignoring undeclared widget binding", key, metadata.id);
+        return;
+      }
       const handlers = bindingHandlers.get(key) || [];
       handlers.push(callback);
       bindingHandlers.set(key, handlers);
-      if (bindings.has(key)) {
+      if (ready && bindings.has(key)) {
         callback(bindings.get(key));
       }
     },
@@ -934,9 +1007,14 @@ function createDirectWidgetBridge(instanceId, metadata) {
         return;
       }
       stateHandlers.push(callback);
-      callback(currentState);
+      if (ready) {
+        callback(currentState);
+      }
     },
     send(type, payload) {
+      if (typeof type !== "string" || type.length > 80) {
+        throw new Error("SCARline.send requires a short string event type");
+      }
       forwardWidgetInteraction(instanceId, type, payload);
     },
     getBinding(key) {
@@ -948,42 +1026,48 @@ function createDirectWidgetBridge(instanceId, metadata) {
     getMetadata() {
       return metadata;
     },
-    ready() {},
+    ready() {
+      if (disposed || ready) {
+        return;
+      }
+      ready = true;
+      flushReadyQueue();
+    },
   };
 
   return {
     emitBinding(key, value) {
       if (disposed) return;
       bindings.set(key, value);
-      const handlers = bindingHandlers.get(key) || [];
-      handlers.forEach((handler) => {
-        try {
-          handler(value);
-        } catch (error) {
-          console.error(error);
-        }
-      });
+      if (ready) {
+        dispatchBinding(key, value);
+      }
     },
     emitTrigger(payload) {
       if (disposed) return;
-      triggerHandlers.forEach((handler) => {
-        try {
-          handler(payload);
-        } catch (error) {
-          console.error(error);
-        }
-      });
+      const action = payload?.action || payload?.payload?.action;
+      if (action && allowedTriggers.size > 0 && !allowedTriggers.has(action)) {
+        console.warn("Received undeclared widget trigger", action, metadata.id);
+      }
+      if (ready) {
+        dispatchTrigger(payload);
+      } else {
+        pendingTriggers.push(payload);
+      }
     },
     emitState(nextState) {
       if (disposed) return;
       currentState = nextState;
-      stateHandlers.forEach((handler) => {
-        try {
-          handler(currentState);
-        } catch (error) {
-          console.error(error);
-        }
-      });
+      if (ready) {
+        dispatchState();
+      }
+    },
+    markReady() {
+      if (disposed || ready) {
+        return;
+      }
+      ready = true;
+      flushReadyQueue();
     },
     teardown() {
       disposed = true;
@@ -1002,7 +1086,7 @@ function mountDirectWidget(wrapper, html, metadata, instanceId) {
   const bridge = createDirectWidgetBridge(instanceId, metadata);
 
   wrapper.className = parsed.body.className;
-  wrapper.setAttribute("data-scarline-direct-widget-host", "true");
+  wrapper.setAttribute("data-scarline-widget-host", "true");
   wrapper.dataset.instanceId = instanceId;
   wrapper.style.position = "fixed";
   wrapper.style.inset = "0";
@@ -1042,7 +1126,7 @@ function mountDirectWidget(wrapper, html, metadata, instanceId) {
     wrapper.appendChild(cloneExecutableScript(scriptNode, baseHref));
   }
 
-  state.directWidgets.set(instanceId, bridge);
+  state.bridges.set(instanceId, bridge);
 }
 
 function normalizeWidgetMetadata(metadata) {
@@ -1131,16 +1215,7 @@ function setWidgetState(instanceId, nextState, options = {}) {
 
   wrapper.dataset.state = normalizedState;
   wrapper.hidden = normalizedState === "hidden";
-  const directWidget = state.directWidgets.get(instanceId);
-  if (directWidget) {
-    directWidget.emitState(normalizedState);
-  } else {
-    const frame = state.frames.get(instanceId);
-    frame?.contentWindow?.postMessage(
-      { type: "state", instanceId, state: normalizedState },
-      "*",
-    );
-  }
+  state.bridges.get(instanceId)?.emitState(normalizedState);
 
   if (normalizedState === "highlighted" && Number(options.durationMs) > 0) {
     const timer = setTimeout(() => {
@@ -1155,16 +1230,7 @@ function setWidgetState(instanceId, nextState, options = {}) {
 }
 
 function postBinding(instanceId, key, value) {
-  const directWidget = state.directWidgets.get(instanceId);
-  if (directWidget) {
-    directWidget.emitBinding(key, value);
-    return;
-  }
-  const frame = state.frames.get(instanceId);
-  frame?.contentWindow?.postMessage(
-    { type: "binding", instanceId, key, value },
-    "*",
-  );
+  state.bridges.get(instanceId)?.emitBinding(key, value);
 }
 
 function dispatchBindingPayload(payload) {
@@ -1517,16 +1583,7 @@ function applyWidgetUpdate(update) {
       setWidgetState(instanceId, action, { durationMs });
     }
 
-    const directWidget = state.directWidgets.get(instanceId);
-    if (directWidget) {
-      directWidget.emitTrigger(update);
-    } else {
-      const frame = state.frames.get(instanceId);
-      frame?.contentWindow?.postMessage(
-        { type: "trigger", instanceId, payload: update },
-        "*",
-      );
-    }
+    state.bridges.get(instanceId)?.emitTrigger(update);
   }
 }
 
@@ -1887,12 +1944,12 @@ async function renderLayout() {
   for (const timer of state.widgetStateTimers.values()) {
     clearTimeout(timer);
   }
-  for (const directWidget of state.directWidgets.values()) {
-    directWidget.teardown();
+  for (const bridge of state.bridges.values()) {
+    bridge.teardown?.();
   }
-  state.directWidgets.clear();
+  state.bridges.clear();
   document
-    .querySelectorAll("[data-scarline-direct-widget-host]")
+    .querySelectorAll("[data-scarline-widget-host]")
     .forEach((node) => node.remove());
   state.widgets.clear();
   state.frames.clear();
@@ -1990,6 +2047,7 @@ async function renderLayout() {
         enforceFrameTransparency(frame);
         frame.srcdoc = injectRuntime(html, metadata, widget.id);
         state.frames.set(widget.id, frame);
+        state.bridges.set(widget.id, createIframeWidgetBridge(frame, widget.id));
         wrapper.appendChild(frame);
       }
     } catch (error) {
@@ -2133,19 +2191,16 @@ function connectSocket() {
 
 window.addEventListener("message", (event) => {
   if (event.data?.type === "widget-ready") {
-    if (
-      state.frames.get(event.data.instanceId)?.contentWindow !== event.source
-    ) {
+    const bridge = state.bridges.get(event.data.instanceId);
+    if (!bridge?.matchesSource?.(event.source)) {
       return;
     }
-    const wrapper = state.wrappers.get(event.data.instanceId);
-    setWidgetState(event.data.instanceId, wrapper?.dataset.state || "visible");
+    bridge.markReady?.();
   }
 
   if (event.data?.type === "widget-send") {
-    if (
-      state.frames.get(event.data.instanceId)?.contentWindow !== event.source
-    ) {
+    const bridge = state.bridges.get(event.data.instanceId);
+    if (!bridge?.matchesSource?.(event.source)) {
       return;
     }
     forwardWidgetInteraction(

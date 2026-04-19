@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -116,14 +117,16 @@ test('overlay runtime implements PRD widget lifecycle controls', async () => {
   assert.match(source, /setExportIndicator/);
   assert.match(source, /blockNetwork/);
   assert.match(source, /allowedBindings/);
-  assert.match(source, /applyDomBinding/);
-  assert.match(source, /body > \*:first-child/);
+  assert.match(source, /pendingTriggers/);
+  assert.match(source, /createIframeWidgetBridge/);
+  assert.match(source, /createDirectWidgetBridge/);
+  assert.match(source, /markReady/);
+  assert.match(source, /state\.bridges/);
   assert.match(source, /localDateBindings/);
   assert.match(source, /sensorSnapshots/);
   assert.match(source, /speed_arc_offset/);
   assert.match(source, /normalizeWebSocketUrl/);
   assert.match(source, /searchParams\.set\(["']token["']/);
-  assert.match(source, /toggleClassTokens/);
   assert.match(source, /installDesktopWindowChrome/);
   assert.match(source, /overlayControlOrigin/);
   assert.match(source, /pushDesktopWindowBounds/);
@@ -131,12 +134,9 @@ test('overlay runtime implements PRD widget lifecycle controls', async () => {
   assert.match(source, /persistCurrentWindowBounds/);
   assert.match(source, /\/api\/system\/overlay\/windows\/update/);
   assert.match(source, /data-scarline-runtime/);
-  assert.match(source, /document\.documentElement\.style\.setProperty\('background', 'transparent', 'important'\)/);
-  assert.match(source, /root\.setAttribute\('data-widget-root', 'true'\)/);
   assert.match(source, /frame\.setAttribute\(["']allowtransparency["'], ["']true["']\)/);
   assert.doesNotMatch(source, /dragHandle\.textContent = 'Move'/);
   assert.doesNotMatch(source, /resizeHandle\.textContent = '◢'/);
-  assert.match(source, /dataset\.bindStyle/);
   assert.match(source, /setWidgetState/);
   assert.match(source, /sandbox["']?, ["']allow-scripts/);
   assert.match(source, /widget-send/);
@@ -156,29 +156,45 @@ test('overlay widget asset server supports static admin preview injection', asyn
   const source = await readFile(path.join(root, 'apps/overlay-web/src/server.ts'), 'utf8');
   assert.match(source, /query\.preview === "admin"/);
   assert.match(source, /injectWidgetPreviewRuntime/);
+  assert.match(source, /widget-runtime\.js/);
   assert.match(source, /window\.SCARline =/);
   assert.match(source, /widgetPreviewBindingDefaults/);
   assert.match(source, /SCARline admin preview blocks WebSocket/);
 });
 
-test('every widget implements the SCARline binding lifecycle locally', async () => {
+test('shared widget runtime implements the SCARline binding lifecycle', async () => {
+  const runtime = await readFile(path.join(root, 'widgets/widget-runtime.js'), 'utf8');
+  assert.match(runtime, /window\.SCARline/);
+  assert.match(runtime, /SCARline\.onBinding/);
+  assert.match(runtime, /SCARline\.onTrigger/);
+  assert.match(runtime, /SCARline\.onStateChange/);
+  assert.match(runtime, /SCARline\.ready\(\)/);
+  assert.match(runtime, /SCARline\.getBinding/);
+  assert.match(runtime, /toggleClassTokens/);
+  assert.match(runtime, /bindStyle/);
+  assert.match(runtime, /data-action/);
+  assert.match(runtime, /data-widget-root/);
+});
+
+test('every widget uses the shared widget runtime asset', async () => {
   const componentsDir = path.join(root, 'widgets/components');
   const entries = await readdir(componentsDir, { withFileTypes: true });
   const widgetDirs = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
 
   for (const widget of widgetDirs) {
     const html = await readFile(path.join(componentsDir, widget, 'index.html'), 'utf8');
-    assert.match(html, /window\.SCARline\.onBinding\(/, `${widget} must subscribe to bindings`);
-    assert.match(html, /window\.SCARline\.onTrigger\(/, `${widget} must subscribe to trigger events`);
-    assert.match(html, /window\.SCARline\.onStateChange\(/, `${widget} must subscribe to state changes`);
-    assert.match(html, /window\.SCARline\.ready\(\)/, `${widget} must signal readiness`);
-    assert.match(html, /window\.SCARline\.getBinding\(/, `${widget} must hydrate initial binding values`);
-    assert.match(html, /toggleClassTokens/, `${widget} must normalize class token bindings safely`);
-
-    if (/data-action=/.test(html)) {
-      assert.match(html, /window\.SCARline\.send\(/, `${widget} actions must bridge through SCARline.send`);
-    }
+    assert.match(html, /widget-runtime\.js/, `${widget} must load the shared widget runtime`);
+    assert.doesNotMatch(html, /function initSCARlineWidget\(/, `${widget} must not embed an inline widget runtime`);
   }
+});
+
+test('widgets dist.css stays up to date with the Tailwind build script', async () => {
+  assert.doesNotThrow(() => {
+    execFileSync(process.execPath, ['apps/admin-panel/scripts/build-widgets-css.mjs', '--check'], {
+      cwd: root,
+      stdio: 'pipe'
+    });
+  });
 });
 
 test('operator controls widget exposes runtime action bindings in markup and metadata', async () => {

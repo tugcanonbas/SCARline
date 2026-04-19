@@ -270,7 +270,10 @@ function injectWidgetStylesheetRuntime(html: string): string {
   const distCssRuntime = html.includes("dist.css")
     ? ""
     : '<link rel="stylesheet" href="/overlay/dist.css" />';
-  const runtime = `${criticalTransparentRuntime}${distCssRuntime}`;
+  const widgetRuntimeScript = html.includes("widget-runtime.js")
+    ? ""
+    : '<script src="/overlay/widget-runtime.js"></script>';
+  const runtime = `${criticalTransparentRuntime}${distCssRuntime}${widgetRuntimeScript}`;
   if (html.includes("</head>")) {
     return html.replace("</head>", `${runtime}</head>`);
   }
@@ -421,6 +424,18 @@ app.get("/app.js", async (_request, reply) => {
 app.get("/overlay/app.js", async (_request, reply) => {
   setNoCache(reply);
   const file = await fs.readFile(path.join(publicDir, "app.js"), "utf8");
+  reply.type("text/javascript").send(file);
+});
+
+app.get("/widget-runtime.js", async (_request, reply) => {
+  setNoCache(reply);
+  const file = await fs.readFile(path.join(widgetsDir, "widget-runtime.js"), "utf8");
+  reply.type("text/javascript").send(file);
+});
+
+app.get("/overlay/widget-runtime.js", async (_request, reply) => {
+  setNoCache(reply);
+  const file = await fs.readFile(path.join(widgetsDir, "widget-runtime.js"), "utf8");
   reply.type("text/javascript").send(file);
 });
 

@@ -9,10 +9,13 @@
     ]
   },
   "scripts": {
-    "build": "pnpm -r build",
-    "check": "pnpm -r check",
+    "widgets:build-css": "node apps/admin-panel/scripts/build-widgets-css.mjs",
+    "widgets:check-css": "node apps/admin-panel/scripts/build-widgets-css.mjs --check",
+    "build": "pnpm widgets:build-css && pnpm -r build",
+    "check": "pnpm widgets:check-css && pnpm -r check",
     "dev": "./scarline start --dev",
     "test": "pnpm -r test",
+    "test:widgets": "node --test tests/widgets/*.test.mjs",
     "test:e2e": "node --test tests/integration/platform-e2e.test.mjs",
     "lint": "pnpm -r lint"
   }
