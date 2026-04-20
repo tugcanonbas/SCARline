@@ -6,17 +6,22 @@
       href: string;
       label: string;
       icon: unknown;
+      external?: boolean;
     };
     active?: boolean;
     onSelect?: () => void;
   }>();
+
+  const href = $derived(item.external ? item.href : appPath(item.href));
 </script>
 
 <a
   class={`scarline-nav-item ${active ? 'scarline-nav-item--active' : ''}`}
   aria-current={active ? 'page' : undefined}
   aria-label={item.label}
-  href={appPath(item.href)}
+  href={href}
+  target={item.external ? '_blank' : undefined}
+  rel={item.external ? 'noopener noreferrer' : undefined}
   onclick={onSelect}
   title={item.label}
 >

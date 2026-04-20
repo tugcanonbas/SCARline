@@ -1,30 +1,39 @@
-import { error, redirect } from '@sveltejs/kit';
-import { appPath, stripAppBase } from '$lib/paths';
-import { createLoginRedirectPath } from '$lib/server/auth';
-import { getBootstrapState, resolveRouteGuardRedirect } from '$lib/server/bootstrap';
+import { error, redirect } from "@sveltejs/kit";
+import { appPath, stripAppBase } from "$lib/paths";
+import { createLoginRedirectPath } from "$lib/server/auth";
+import {
+  getBootstrapState,
+  resolveRouteGuardRedirect,
+} from "$lib/server/bootstrap";
 
 export const load = async ({ fetch, locals, url }) => {
   const bootstrap = await getBootstrapState(fetch, locals.apiBase);
   if (!bootstrap.available && locals.accessToken) {
-    throw error(503, 'CoreAPI is unavailable. Please check the SCARline stack and try again.');
+    throw error(
+      503,
+      "CoreAPI is unavailable. Please check the SCARline stack and try again.",
+    );
   }
 
   const target = resolveRouteGuardRedirect({
     pathname: stripAppBase(url.pathname),
     onboardingCompleted: bootstrap.onboardingCompleted,
-    isAuthenticated: Boolean(locals.accessToken)
+    isAuthenticated: Boolean(locals.accessToken),
   });
 
   if (target) {
-    throw redirect(303, target === '/login' ? createLoginRedirectPath(url) : appPath(target));
+    throw redirect(
+      303,
+      target === "/login" ? createLoginRedirectPath(url) : appPath(target),
+    );
   }
 
   let user = null;
   if (locals.accessToken) {
     const response = await fetch(`${locals.apiBase}/auth/me`, {
       headers: {
-        authorization: `Bearer ${locals.accessToken}`
-      }
+        authorization: `Bearer ${locals.accessToken}`,
+      },
     });
 
     if (response.ok) {
@@ -36,6 +45,7 @@ export const load = async ({ fetch, locals, url }) => {
   return {
     user,
     isAuthenticated: Boolean(locals.accessToken),
-    onboardingCompleted: bootstrap.onboardingCompleted
+    onboardingCompleted: bootstrap.onboardingCompleted,
+    docsUrl: process.env.PUBLIC_DOCS_URL ?? "/docs/",
   };
 };

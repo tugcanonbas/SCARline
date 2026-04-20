@@ -28,6 +28,7 @@
     label: string;
     icon: typeof LayoutDashboard;
     roles: Role[];
+    external?: boolean;
   };
 
   const allRoles: Role[] = ["admin", "researcher", "operator", "viewer"];
@@ -68,7 +69,7 @@
     },
   ] satisfies NavigationItem[];
 
-  const utilityNavigation = [
+  const utilityNavigation = $derived([
     {
       href: "/settings/system",
       label: "System",
@@ -94,12 +95,13 @@
       roles: designRoles,
     },
     {
-      href: "/documentation",
+      href: data.docsUrl ?? "/docs/",
       label: "Documentation",
       icon: BookOpenText,
       roles: allRoles,
+      external: true,
     },
-  ] satisfies NavigationItem[];
+  ] satisfies NavigationItem[]);
 
   const visiblePrimaryNavigation = $derived(
     primaryNavigation.filter((item) =>
@@ -123,6 +125,9 @@
   });
 
   function isActive(href: string) {
+    if (href.startsWith("http://") || href.startsWith("https://")) {
+      return false;
+    }
     const target = appPath(href);
     return currentPath === target || currentPath.startsWith(`${target}/`);
   }
@@ -133,7 +138,9 @@
 </script>
 
 {#if data.isAuthenticated}
-  <div class={`scarline-shell ${sidebarCollapsed ? "scarline-shell--collapsed" : ""}`}>
+  <div
+    class={`scarline-shell ${sidebarCollapsed ? "scarline-shell--collapsed" : ""}`}
+  >
     <button
       class="scarline-mobile-toggle"
       aria-controls="scarline-sidebar"

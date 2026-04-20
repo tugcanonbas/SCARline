@@ -7,6 +7,7 @@
       href: string;
       label: string;
       icon: unknown;
+      external?: boolean;
     }>;
     isActive: (href: string) => boolean;
     onSelect?: () => void;
