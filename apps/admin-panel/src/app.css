@@ -545,7 +545,7 @@ body {
 
   .scarline-content {
     margin: 0 auto;
-    max-width: 1320px;
+    max-width: 1600px;
     width: 100%;
   }
 
@@ -1608,8 +1608,8 @@ body {
 
   .layout-editor-shell {
     display: grid;
-    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(240px, 300px);
-    gap: 16px;
+    grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(230px, 280px);
+    gap: 14px;
     margin-top: 20px;
     align-items: start;
   }
@@ -1792,7 +1792,8 @@ body {
 
   .layout-display-panel {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
+    justify-content: space-between;
     gap: 12px;
     border: 1px solid var(--scarline-border);
     border-radius: 12px;
@@ -1800,34 +1801,49 @@ body {
     padding: 10px 12px;
   }
 
-  .layout-display-topology {
-    position: relative;
-    min-width: 120px;
-    min-height: 48px;
-    border: 1px solid var(--scarline-grey);
-    border-radius: 10px;
-    background:
-      linear-gradient(var(--scarline-grey-16) 1px, transparent 1px),
-      linear-gradient(90deg, var(--scarline-grey-16) 1px, transparent 1px),
-      #fafafa;
-    background-size: 16px 16px;
-    overflow: hidden;
+  .layout-display-panel__summary {
+    display: flex;
+    min-width: 220px;
+    flex-direction: column;
+    gap: 2px;
   }
 
-  .layout-display-node {
-    position: absolute;
-    display: grid;
-    place-items: center;
+  .layout-display-panel__eyebrow {
+    color: var(--scarline-black);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .layout-display-panel__screens {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .layout-display-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     border: 1px solid var(--scarline-border);
-    border-radius: 5px;
+    border-radius: 999px;
     background: rgba(255, 255, 255, 0.9);
     color: var(--scarline-black-60);
-    font-size: 9px;
+    padding: 6px 9px;
+    font-size: 10px;
     font-weight: 700;
     cursor: pointer;
   }
 
-  .layout-display-node--selected {
+  .layout-display-chip small {
+    font-size: 9px;
+    font-weight: 600;
+    opacity: 0.78;
+  }
+
+  .layout-display-chip--selected {
     border-color: var(--scarline-black);
     background: var(--scarline-black);
     color: var(--scarline-white);
@@ -1836,6 +1852,11 @@ body {
   .layout-display-panel__meta {
     color: var(--scarline-black-60);
     font-size: 12px;
+  }
+
+  .layout-display-panel__submeta {
+    color: var(--scarline-black-60);
+    font-size: 11px;
   }
 
   .layout-canvas-scroll {
@@ -1861,6 +1882,55 @@ body {
     border: 1px dashed var(--scarline-black-60);
     border-radius: 8px;
     pointer-events: none;
+  }
+
+  .layout-display-region {
+    position: absolute;
+    border: 1px solid rgba(8, 14, 16, 0.24);
+    border-radius: 10px;
+    background:
+      linear-gradient(var(--scarline-grey-16) 1px, transparent 1px),
+      linear-gradient(90deg, var(--scarline-grey-16) 1px, transparent 1px),
+      rgba(255, 255, 255, 0.5);
+    background-size: 24px 24px;
+    color: var(--scarline-black);
+    cursor: pointer;
+    overflow: hidden;
+    padding: 0;
+    text-align: left;
+  }
+
+  .layout-display-region--selected {
+    border-color: var(--scarline-black);
+    box-shadow: inset 0 0 0 1px var(--scarline-black);
+  }
+
+  .layout-display-region__label {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid var(--scarline-border);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.92);
+    padding: 4px 8px;
+    font-size: 10px;
+    line-height: 1;
+    pointer-events: none;
+  }
+
+  .layout-display-region__label strong {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .layout-display-region__label small {
+    color: var(--scarline-black-60);
+    font-size: 9px;
+    font-weight: 700;
   }
 
   .layout-canvas-empty {

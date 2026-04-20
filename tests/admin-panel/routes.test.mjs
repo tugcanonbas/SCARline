@@ -156,6 +156,9 @@ test("participant view editor exposes widget bindings, triggers, and style overr
   assert.match(source, /Target display/);
   assert.match(source, /overlayDisplays/);
   assert.match(source, /selectedDisplay\.bounds/);
+  assert.match(source, /displayTopology/);
+  assert.match(source, /displayCanvasRects/);
+  assert.match(source, /placed\.map\(\(widget\) => placedForCanvas\(widget\)\)/);
   assert.match(source, /preferredWidth/);
   assert.match(source, /preferredHeight/);
   assert.match(source, /windows\/close/);
