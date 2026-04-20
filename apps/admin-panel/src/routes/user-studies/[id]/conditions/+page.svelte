@@ -1,4 +1,6 @@
 <script lang="ts">
+  import EmptyState from '$lib/components/admin/EmptyState.svelte';
+  import MetricCard from '$lib/components/admin/MetricCard.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import StudyTabs from '$lib/components/StudyTabs.svelte';
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
@@ -35,6 +37,9 @@
   let newName = $state('');
   let newDescription = $state('');
   let newWeather = $state('');
+  let newTrafficDensity = $state('');
+  let newPedestrianDensity = $state('');
+  let newSpeedLimitOverride = $state('');
   let newHiddenWidgets = $state('');
   let newRules = $state<TriggerRule[]>([]);
 
@@ -92,47 +97,30 @@
 <StudyTabs studyId={data.studyId} current={`/user-studies/${data.studyId}/conditions`} />
 
 <div class="metric-grid">
-  <div class="metric-card">
-    <p class="metric-card__label">Conditions</p>
-    <p class="metric-card__value">{data.conditions.length}</p>
-    <p class="metric-card__hint">Defined study variants</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Weather Overrides</p>
-    <p class="metric-card__value">{weatherCount}</p>
-    <p class="metric-card__hint">Conditions changing CARLA weather</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Widget Overrides</p>
-    <p class="metric-card__value">{widgetOverrideCount}</p>
-    <p class="metric-card__hint">Conditions hiding widgets</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Trigger Rules</p>
-    <p class="metric-card__value">{ruleCount}</p>
-    <p class="metric-card__hint">Auto-trigger conditions across all variants</p>
-  </div>
+  <MetricCard label="Conditions" value={data.conditions.length} hint="Defined study variants" accent />
+  <MetricCard label="Weather Overrides" value={weatherCount} hint="Conditions changing CARLA weather" />
+  <MetricCard label="Widget Overrides" value={widgetOverrideCount} hint="Conditions hiding widgets" />
+  <MetricCard label="Trigger Rules" value={ruleCount} hint="Auto-trigger conditions across all variants" />
 </div>
 
-<div class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr] mt-4">
+<div class="section-grid section-grid--balanced mt-4">
   <!-- ── Add Condition ──────────────────────────────────────────────────── -->
   {#if data.canManage}
   <SurfaceCard title="Add Condition" subtitle="Define a new study condition variant with CARLA, widget, and trigger rule configuration.">
-    <form class="grid gap-4" method="POST" action="?/create" use:enhance>
-      <label class="grid gap-2 text-sm">
+    <form class="form-stack" method="POST" action="?/create" use:enhance>
+      <label class="form-field">
         <span>Name <span class="text-red-400">*</span></span>
         <input
           bind:value={newName}
-          class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3"
           name="name"
           required
         />
       </label>
-      <label class="grid gap-2 text-sm">
+      <label class="form-field">
         <span>Description</span>
         <textarea
           bind:value={newDescription}
-          class="min-h-20 rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3"
+          class="min-h-20"
           name="description"
         ></textarea>
       </label>
@@ -140,11 +128,10 @@
       <!-- CARLA overrides -->
       <div class="condition-section">
         <p class="condition-section__title">CARLA Overrides</p>
-        <label class="grid gap-2 text-sm">
+        <label class="form-field">
           <span>Weather Preset</span>
           <select
             bind:value={newWeather}
-            class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3"
             name="weather"
           >
             <option value="">Default (study config)</option>
@@ -153,16 +140,47 @@
             {/each}
           </select>
         </label>
+        <div class="form-grid-3">
+          <label class="form-field">
+            <span>Traffic Density</span>
+            <input
+              bind:value={newTrafficDensity}
+              min="0"
+              name="trafficDensity"
+              placeholder="0-100"
+              type="number"
+            />
+          </label>
+          <label class="form-field">
+            <span>Pedestrian Density</span>
+            <input
+              bind:value={newPedestrianDensity}
+              min="0"
+              name="pedestrianDensity"
+              placeholder="0-100"
+              type="number"
+            />
+          </label>
+          <label class="form-field">
+            <span>Speed Limit Override</span>
+            <input
+              bind:value={newSpeedLimitOverride}
+              min="0"
+              name="speedLimitOverride"
+              placeholder="km/h"
+              type="number"
+            />
+          </label>
+        </div>
       </div>
 
       <!-- Widget overrides -->
       <div class="condition-section">
         <p class="condition-section__title">Widget Overrides</p>
-        <label class="grid gap-2 text-sm">
+        <label class="form-field">
           <span>Hidden Widgets <span class="text-slate-500 font-normal">(comma-separated IDs)</span></span>
           <input
             bind:value={newHiddenWidgets}
-            class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3"
             name="hiddenWidgets"
             placeholder="music,calendar,navigation-prompt"
           />
@@ -214,11 +232,7 @@
         {/each}
       </div>
 
-      <button
-        class="rounded-2xl bg-[--color-accent-strong] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
-        disabled={!newName.trim()}
-        type="submit"
-      >Save Condition</button>
+      <button class="button-primary" disabled={!newName.trim()} type="submit">Save Condition</button>
     </form>
   </SurfaceCard>
   {/if}
@@ -268,16 +282,16 @@
               return async ({ update }) => { await update(); cancelEdit(); }
             }}>
               <input type="hidden" name="conditionId" value={c.id} />
-              <div class="grid gap-3">
-                <label class="grid gap-1.5 text-sm">
+              <div class="form-stack">
+                <label class="form-field form-field--compact">
                   <span>Name</span>
                   <input class="condition-edit-input" name="name" value={c.name} required />
                 </label>
-                <label class="grid gap-1.5 text-sm">
+                <label class="form-field form-field--compact">
                   <span>Description</span>
                   <textarea class="condition-edit-input min-h-16" name="description">{c.description ?? ''}</textarea>
                 </label>
-                <label class="grid gap-1.5 text-sm">
+                <label class="form-field form-field--compact">
                   <span>Weather</span>
                   <select class="condition-edit-input" name="weather">
                     <option value="">Default</option>
@@ -286,7 +300,21 @@
                     {/each}
                   </select>
                 </label>
-                <label class="grid gap-1.5 text-sm">
+                <div class="form-grid-3">
+                  <label class="form-field form-field--compact">
+                    <span>Traffic Density</span>
+                    <input class="condition-edit-input" min="0" name="trafficDensity" type="number" value={getCarlaOverrides(c).trafficDensity ?? ''} />
+                  </label>
+                  <label class="form-field form-field--compact">
+                    <span>Pedestrian Density</span>
+                    <input class="condition-edit-input" min="0" name="pedestrianDensity" type="number" value={getCarlaOverrides(c).pedestrianDensity ?? ''} />
+                  </label>
+                  <label class="form-field form-field--compact">
+                    <span>Speed Limit Override</span>
+                    <input class="condition-edit-input" min="0" name="speedLimitOverride" type="number" value={getCarlaOverrides(c).speedLimitOverride ?? ''} />
+                  </label>
+                </div>
+                <label class="form-field form-field--compact">
                   <span>Hidden Widgets</span>
                   <input
                     class="condition-edit-input"
@@ -319,7 +347,7 @@
                     </div>
                   {/each}
                 </div>
-                <button class="rounded-2xl bg-[--color-accent-strong] px-4 py-2.5 text-sm font-semibold text-white" type="submit">Update Condition</button>
+                <button class="button-primary" type="submit">Update Condition</button>
               </div>
             </form>
           {:else}
@@ -328,6 +356,18 @@
               <div class="condition-kv">
                 <span class="condition-kv__label">Weather</span>
                 <span class="condition-kv__value">{getCarlaOverrides(c).weather ?? 'Default'}</span>
+              </div>
+              <div class="condition-kv">
+                <span class="condition-kv__label">Traffic Density</span>
+                <span class="condition-kv__value">{getCarlaOverrides(c).trafficDensity ?? 'Default'}</span>
+              </div>
+              <div class="condition-kv">
+                <span class="condition-kv__label">Pedestrian Density</span>
+                <span class="condition-kv__value">{getCarlaOverrides(c).pedestrianDensity ?? 'Default'}</span>
+              </div>
+              <div class="condition-kv">
+                <span class="condition-kv__label">Speed Limit</span>
+                <span class="condition-kv__value">{getCarlaOverrides(c).speedLimitOverride ?? 'Default'}</span>
               </div>
               <div class="condition-kv">
                 <span class="condition-kv__label">Hidden Widgets</span>
@@ -349,98 +389,8 @@
           {/if}
         </div>
       {:else}
-        <p class="rounded-2xl border border-dashed border-[--color-line] px-4 py-6 text-sm text-slate-400">
-          No conditions have been defined yet.
-        </p>
+        <EmptyState message="No conditions have been defined yet." />
       {/each}
     </div>
   </SurfaceCard>
 </div>
-
-<style>
-  .condition-section { border-top: 1px solid var(--color-line); padding-top: 0.875rem; display: grid; gap: 0.625rem; }
-  .condition-section__title { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.12em; color: #64748b; font-weight: 600; }
-  .condition-section__row { display: flex; align-items: center; justify-content: space-between; }
-  .condition-add-rule-btn {
-    font-size: 0.6875rem; color: var(--color-accent-strong, #6366f1);
-    border: 1px solid var(--color-accent-strong, #6366f1); border-radius: 999px;
-    padding: 0.2rem 0.625rem; cursor: pointer; background: transparent;
-  }
-  .condition-add-rule-btn:hover { background: rgba(99,102,241,0.08); }
-
-  .trigger-rule-row {
-    display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;
-    border: 1px solid var(--color-line); border-radius: 0.75rem;
-    padding: 0.5rem 0.75rem; background: rgba(0,0,0,0.12);
-  }
-  .trigger-input {
-    border: 1px solid var(--color-line); border-radius: 0.5rem;
-    background: transparent; padding: 0.3rem 0.5rem; font-size: 0.75rem;
-    color: inherit; outline: none; min-width: 80px; flex: 1;
-  }
-  .trigger-input--wide { flex: 2; }
-  .trigger-select {
-    border: 1px solid var(--color-line); border-radius: 0.5rem;
-    background: var(--color-panel-soft); padding: 0.3rem 0.5rem;
-    font-size: 0.75rem; color: inherit; min-width: 80px;
-  }
-  .trigger-remove-btn {
-    color: #64748b; border: none; background: none; cursor: pointer;
-    font-size: 0.875rem; padding: 0 4px;
-  }
-  .trigger-remove-btn:hover { color: #f87171; }
-
-  .condition-card {
-    border: 1px solid var(--color-line); border-radius: 1rem;
-    background: var(--color-panel-soft); padding: 1rem;
-    display: grid; gap: 0.75rem;
-  }
-  .condition-card__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
-  .condition-card__name { font-size: 0.875rem; font-weight: 700; color: #e2e8f0; }
-  .condition-card__desc { font-size: 0.75rem; color: #64748b; margin-top: 0.2rem; }
-  .condition-card__actions { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
-  .condition-order-badge {
-    border: 1px solid var(--color-line); border-radius: 999px;
-    padding: 0.15rem 0.6rem; font-size: 0.625rem; color: #94a3b8;
-    white-space: nowrap;
-  }
-  .condition-action-btn {
-    border: 1px solid var(--color-line); border-radius: 0.5rem;
-    padding: 0.2rem 0.6rem; font-size: 0.6875rem; cursor: pointer;
-    background: transparent; color: #94a3b8;
-  }
-  .condition-action-btn:hover { background: rgba(255,255,255,0.04); }
-  .condition-action-btn--cancel { color: #94a3b8; }
-  .condition-action-btn--danger { color: #f87171; border-color: rgba(248,113,113,0.3); }
-  .condition-action-btn--danger:hover { background: rgba(248,113,113,0.08); }
-
-  .condition-read-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
-  .condition-kv {
-    border: 1px solid var(--color-line); border-radius: 0.75rem;
-    background: rgba(0,0,0,0.15); padding: 0.5rem 0.75rem;
-    display: grid; gap: 0.2rem;
-  }
-  .condition-kv__label { font-size: 0.5625rem; text-transform: uppercase; letter-spacing: 0.12em; color: #64748b; }
-  .condition-kv__value { font-size: 0.8125rem; color: #cbd5e1; }
-
-  .trigger-rules-summary { display: grid; gap: 0.375rem; }
-  .trigger-rule-badge {
-    display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;
-    border: 1px solid rgba(99,102,241,0.2); border-radius: 0.625rem;
-    background: rgba(99,102,241,0.05); padding: 0.375rem 0.625rem;
-  }
-  .trigger-rule-badge__name { font-size: 0.6875rem; font-weight: 600; color: #a5b4fc; flex-shrink: 0; }
-  .trigger-rule-badge__condition { font-size: 0.6875rem; color: #94a3b8; font-family: monospace; flex: 1; }
-  .trigger-rule-badge__action {
-    font-size: 0.5625rem; text-transform: uppercase; letter-spacing: 0.1em;
-    border: 1px solid rgba(99,102,241,0.3); border-radius: 999px;
-    padding: 0.1rem 0.4rem; color: #818cf8; white-space: nowrap;
-  }
-
-  .condition-edit-form { border-top: 1px solid var(--color-line); padding-top: 0.75rem; }
-  .condition-edit-input {
-    border: 1px solid var(--color-line); border-radius: 0.75rem;
-    background: rgba(0,0,0,0.2); padding: 0.45rem 0.75rem;
-    font-size: 0.8125rem; color: inherit; outline: none; width: 100%;
-  }
-</style>

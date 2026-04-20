@@ -26,7 +26,7 @@ All SCARline components run inside Docker containers except the OS-level compone
 | `core-api` | Node.js (Alpine) | Central API and control plane | `8080` |
 | `admin-panel` | Node.js (Alpine) | SvelteKit web UI | `3000` |
 | `sim-bridge` | Node.js (Alpine) | Simulator protocol bridge | `9000` |
-| `mock-client` | Python (slim) | Development mock simulator | — (connects outbound to sim-bridge) |
+| `mock-simulator` | Python (slim) | Development mock simulator | — (connects outbound to sim-bridge) |
 | `carla-client` | Python (slim) | CARLA simulator adapter | — (connects outbound to sim-bridge + CARLA Server) |
 | `io-client` | Python (slim) | Physical sensor integration | — (connects outbound to RabbitMQ) |
 | `overlay-web` | Node.js / static server | Overlay Engine in web mode | `4000` |
@@ -69,7 +69,7 @@ flowchart TD
     API --> SBRIDGE["sim-bridge"]
     UI["admin-panel"] --> API
     OW["overlay-web"] --> API
-    MC["mock-client"] --> SBRIDGE
+    MC["mock-simulator"] --> SBRIDGE
     CC["carla-client"] --> SBRIDGE
     IO["io-client"] --> RMQ
     DOCS["docs"]
@@ -83,7 +83,7 @@ flowchart TD
 4. `dev-seed` — applies seed data after schema is applied (one-shot, exits, development only)
 5. `core-api` — starts after database and RabbitMQ are healthy
 6. `sim-bridge` — starts after core-api is healthy
-7. `mock-client` — starts after sim-bridge is healthy (optional)
+7. `mock-simulator` — starts after sim-bridge is healthy (optional)
 8. `carla-client` — starts after sim-bridge is healthy (optional, only when CARLA Server is available)
 9. `io-client` — starts after RabbitMQ is healthy (optional, only when sensors are connected)
 10. `admin-panel` — starts after core-api is healthy
@@ -113,7 +113,7 @@ Containers reference each other by service name within the Docker network:
 | `postgres:5432` | core-api, schema-bootstrap, dev-seed |
 | `rabbitmq:5672` | core-api, io-client |
 | `core-api:8080` | admin-panel, overlay-web |
-| `sim-bridge:9000` | core-api, mock-client, carla-client |
+| `sim-bridge:9000` | core-api, mock-simulator, carla-client |
 
 ### Host Access
 
@@ -202,7 +202,7 @@ Every long-running container must define a Docker health check:
 | `sim-bridge` | `GET /health` | 10s | 3s | 3 |
 | `admin-panel` | `GET /` | 10s | 3s | 3 |
 | `overlay-web` | `GET /health` | 10s | 3s | 3 |
-| `mock-client` | `GET /health` (internal) | 10s | 3s | 3 |
+| `mock-simulator` | `GET /health` (internal) | 10s | 3s | 3 |
 | `io-client` | `GET /health` (internal) | 10s | 3s | 3 |
 
 ---

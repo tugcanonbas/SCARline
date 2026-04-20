@@ -3,7 +3,7 @@
   "name": "Calendar",
   "description": "Displays a compact calendar summary.",
   "version": "1.0.0",
-  "category": "utility",
+  "category": "general",
   "entry": "index.html",
   "bindings": {
     "calendar.month_label": {

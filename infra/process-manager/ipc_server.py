@@ -87,6 +87,17 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as error:
             return False, str(error)
 
+    def _overlay_displays(self) -> tuple[int, dict]:
+        port = int(os.environ.get("OVERLAY_CONTROL_PORT", "4097"))
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/displays", timeout=2) as response:
+                payload = json.loads(response.read().decode("utf8") or "{}")
+                return response.status, payload if isinstance(payload, dict) else {"displays": []}
+        except urllib.error.URLError as error:
+            return 503, {"error": "overlay_control_unavailable", "message": str(error.reason)}
+        except Exception as error:
+            return 503, {"error": "overlay_control_unavailable", "message": str(error)}
+
     def _configure_overlay(self, payload: dict) -> tuple[bool, str]:
         port = int(os.environ.get("OVERLAY_CONTROL_PORT", "4097"))
         encoded = json.dumps(payload).encode("utf8")
@@ -102,6 +113,26 @@ class Handler(BaseHTTPRequestHandler):
         try:
             with urllib.request.urlopen(request, timeout=3) as response:
                 return response.status in (200, 202), "electron overlay configured"
+        except urllib.error.URLError as error:
+            return False, f"overlay control endpoint unavailable: {error.reason}"
+        except Exception as error:
+            return False, str(error)
+
+    def _close_overlay_windows(self, payload: dict) -> tuple[bool, str]:
+        port = int(os.environ.get("OVERLAY_CONTROL_PORT", "4097"))
+        encoded = json.dumps(payload).encode("utf8")
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{port}/windows/close",
+            method="POST",
+            data=encoded,
+            headers={
+                "content-type": "application/json",
+                "content-length": str(len(encoded)),
+            },
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=3) as response:
+                return response.status in (200, 202), "electron overlay windows closed"
         except urllib.error.URLError as error:
             return False, f"overlay control endpoint unavailable: {error.reason}"
         except Exception as error:
@@ -262,6 +293,11 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {"status": self._pid_status("carla")})
             return
 
+        if self.path == "/overlay/displays":
+            status, payload = self._overlay_displays()
+            self._json(status, payload)
+            return
+
         self._json(404, {"error": "not_found"})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -303,6 +339,18 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(400, {"accepted": False, "message": "Invalid JSON payload"})
                 return
             accepted, message = self._open_overlay_windows(payload if isinstance(payload, dict) else {})
+            self._json(202 if accepted else 503, {"accepted": accepted, "message": message})
+            return
+
+        if self.path.startswith("/overlay/windows/close"):
+            content_length = int(self.headers.get("Content-Length", "0"))
+            raw_payload = self.rfile.read(content_length) if content_length > 0 else b"{}"
+            try:
+                payload = json.loads(raw_payload.decode("utf8")) if raw_payload else {}
+            except Exception:
+                self._json(400, {"accepted": False, "message": "Invalid JSON payload"})
+                return
+            accepted, message = self._close_overlay_windows(payload if isinstance(payload, dict) else {})
             self._json(202 if accepted else 503, {"accepted": accepted, "message": message})
             return
 

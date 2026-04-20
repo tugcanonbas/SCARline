@@ -5,38 +5,40 @@
 
 <PageHeader eyebrow="Team" title="Create Researcher" description="Add a researcher profile for study ownership and assignment." />
 
-<div class="max-w-3xl">
+<div class="page-shell--wide">
   <SurfaceCard title="Profile">
-    <form class="grid gap-4" method="POST">
-      <label class="grid gap-2 text-sm">
+    <form class="form-stack" method="POST">
+      <label class="form-field">
         <span>Name</span>
-        <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="name" required />
+        <input name="name" required />
       </label>
-      <div class="grid gap-4 md:grid-cols-2">
-        <label class="grid gap-2 text-sm">
+      <div class="form-grid-2">
+        <label class="form-field">
           <span>Email</span>
-          <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="email" type="email" />
+          <input name="email" type="email" />
         </label>
-        <label class="grid gap-2 text-sm">
+        <label class="form-field">
           <span>Phone</span>
-          <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="phone" />
+          <input name="phone" />
         </label>
       </div>
-      <div class="grid gap-4 md:grid-cols-2">
-        <label class="grid gap-2 text-sm">
+      <div class="form-grid-2">
+        <label class="form-field">
           <span>Institution</span>
-          <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="institution" />
+          <input name="institution" />
         </label>
-        <label class="grid gap-2 text-sm">
+        <label class="form-field">
           <span>Role</span>
-          <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="role" />
+          <input name="role" />
         </label>
       </div>
-      <label class="grid gap-2 text-sm">
+      <label class="form-field">
         <span>Notes</span>
-        <textarea class="min-h-32 rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="notes"></textarea>
+        <textarea class="min-h-32" name="notes"></textarea>
       </label>
-      <button class="rounded-2xl bg-[--color-accent-strong] px-5 py-3 text-sm font-semibold text-white" type="submit">Create Researcher</button>
+      <div class="form-actions">
+        <button class="button-primary" type="submit">Create Researcher</button>
+      </div>
     </form>
   </SurfaceCard>
 </div>

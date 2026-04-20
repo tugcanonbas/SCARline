@@ -39,13 +39,17 @@ test('core api exposes full PRD management surfaces', async () => {
     '/api/session-logs/:sessionId/summary',
     '/api/system/process-manager/status',
     '/api/system/carla/:action',
-    '/api/system/overlay/reload'
+    '/api/system/overlay/reload',
+    '/api/system/overlay/displays',
+    '/api/system/overlay/windows/close'
   ]) {
     assert.match(source, new RegExp(route.replaceAll('/', '\\/').replaceAll(':', '\\:')));
   }
   assert.match(apiSource, /\/api\/studies\/:studyId\/researchers/);
   assert.match(apiSource, /\/api\/studies\/:studyId\/layouts\/:id/);
   assert.match(apiSource, /app\.delete\('\/api\/studies\/:studyId\/layouts\/:id'/);
+  assert.match(apiSource, /heart_rate/);
+  assert.match(apiSource, /eye_tracker/);
 });
 
 test('core api export pipeline creates durable async artifacts', async () => {
@@ -84,6 +88,9 @@ test('core api protects PRD routes with shared RBAC hook', async () => {
   assert.match(source, /FORBIDDEN/);
   assert.match(source, /path === '\/api\/system\/ready'/);
   assert.match(source, /path === '\/api\/system\/shutdown'/);
+  assert.match(source, /path\.startsWith\('\/api\/devices'\)[\s\S]*return \['admin', 'researcher'\]/);
+  assert.match(source, /path\.startsWith\('\/api\/researchers'\)[\s\S]*return \['admin', 'researcher'\]/);
+  assert.match(source, /path\.endsWith\('\/notes'\)[\s\S]*return \['admin', 'researcher', 'operator'\]/);
 });
 
 test('sim-bridge exposes adapter websocket and simulator command consumption', async () => {
@@ -92,6 +99,7 @@ test('sim-bridge exposes adapter websocket and simulator command consumption', a
   assert.match(source, /\/adapter/);
   assert.match(source, /bridgeCompatibility/);
   assert.match(source, /SIM_BRIDGE_WEBSOCKET_PATHS/);
+  assert.match(source, /connection as \{ socket: AdapterSocket \}/);
   assert.match(source, /RABBITMQ_QUEUES\.simBridgeCommands/);
   assert.match(source, /commands\.simulator\./);
   assert.match(source, /simulator\.bound/);
@@ -171,4 +179,14 @@ test('core api hardens realtime scoping, component status, triggers, and outbox'
   assert.match(schema, /message_id UUID UNIQUE/);
   assert.match(schema, /CREATE TABLE IF NOT EXISTS event_outbox/);
   assert.match(prd, /EXPORT_SCOPE_MISMATCH/);
+  assert.match(prd, /payload\.clickThrough \?\? false/);
+  assert.match(prd, /\/api\/system\/overlay\/windows\/update/);
+  assert.match(prd, /\/api\/system\/overlay\/windows\/close/);
+  assert.match(prd, /\/api\/system\/overlay\/displays/);
+  assert.match(prd, /selectOverlayDisplay/);
+  assert.match(prd, /widgetTargetDisplay/);
+  assert.match(prd, /selectedDisplay\.bounds\.x \+/);
+  assert.match(prd, /loadWidgetMetadataMap/);
+  assert.match(prd, /preferredWidth/);
+  assert.match(prd, /minWidth/);
 });

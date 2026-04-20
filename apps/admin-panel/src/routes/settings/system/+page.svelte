@@ -1,4 +1,5 @@
 <script lang="ts">
+  import MetricCard from '$lib/components/admin/MetricCard.svelte';
   import KeyValueGrid from '$lib/components/KeyValueGrid.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
@@ -18,74 +19,34 @@
 />
 
 <div class="metric-grid">
-  <div class="metric-card">
-    <p class="metric-card__label">Process Manager</p>
-    <p class="metric-card__value">{pmReachable ? 'Ready' : 'Down'}</p>
-    <p class="metric-card__hint">IPC-backed status and controls</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Platform Port</p>
-    <p class="metric-card__value">{data.configuration.platformPort ?? 8088}</p>
-    <p class="metric-card__hint">Single-domain Nginx entrypoint</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">CARLA Port</p>
-    <p class="metric-card__value">{data.configuration.carlaServerPort ?? 2000}</p>
-    <p class="metric-card__hint">Simulator server endpoint</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Overlay</p>
-    <p class="metric-card__value">{data.configuration.transparentOverlayEnabled ? 'On' : 'Off'}</p>
-    <p class="metric-card__hint">Transparent shell startup setting</p>
-  </div>
+  <MetricCard label="Process Manager" value={pmReachable ? 'Ready' : 'Down'} hint="IPC-backed status and controls" accent />
+  <MetricCard label="Platform Port" value={data.configuration.platformPort ?? 8088} hint="Single-domain Nginx entrypoint" />
+  <MetricCard label="CARLA Port" value={data.configuration.carlaServerPort ?? 2000} hint="Simulator server endpoint" />
+  <MetricCard label="Overlay" value={data.configuration.transparentOverlayEnabled ? 'On' : 'Off'} hint="Transparent shell startup setting" />
 </div>
 
-<div class="grid gap-4 xl:grid-cols-[1fr_0.9fr]">
+<div class="section-grid section-grid--sidebar">
   <SurfaceCard title="Platform Configuration" subtitle="Persisted system configuration used by the launcher and CoreAPI.">
-    <form class="grid gap-4" method="POST" action="?/update">
-      <label class="grid gap-2 text-sm">
+    <form class="form-stack" method="POST" action="?/update">
+      <label class="form-field">
         <span>CARLA Server Path</span>
-        <input
-          class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3"
-          name="carlaServerPath"
-          placeholder="/opt/carla/CarlaUE4.sh"
-          value={data.configuration.carlaServerPath ?? ''}
-        />
+        <input name="carlaServerPath" placeholder="/opt/carla/CarlaUE4.sh" value={data.configuration.carlaServerPath ?? ''} />
       </label>
-      <label class="grid gap-2 text-sm">
+      <label class="form-field">
         <span>Data Directory</span>
-        <input
-          class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3"
-          name="dataDirectory"
-          required
-          value={data.configuration.dataDirectory ?? '.scarline-runtime'}
-        />
+        <input name="dataDirectory" required value={data.configuration.dataDirectory ?? '.scarline-runtime'} />
       </label>
-      <div class="grid gap-4 md:grid-cols-2">
-        <label class="grid gap-2 text-sm">
+      <div class="form-grid-2">
+        <label class="form-field">
           <span>Platform Port</span>
-          <input
-            class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3"
-            min="1"
-            name="platformPort"
-            required
-            type="number"
-            value={data.configuration.platformPort ?? 8088}
-          />
+          <input min="1" name="platformPort" required type="number" value={data.configuration.platformPort ?? 8088} />
         </label>
-        <label class="grid gap-2 text-sm">
+        <label class="form-field">
           <span>CARLA Server Port</span>
-          <input
-            class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3"
-            min="1"
-            name="carlaServerPort"
-            required
-            type="number"
-            value={data.configuration.carlaServerPort ?? 2000}
-          />
+          <input min="1" name="carlaServerPort" required type="number" value={data.configuration.carlaServerPort ?? 2000} />
         </label>
       </div>
-      <label class="flex items-center gap-3 rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm">
+      <label class="form-choice-card">
         <input
           class="size-4"
           name="transparentOverlayEnabled"
@@ -94,13 +55,13 @@
         />
         <span>Enable transparent overlay shell on startup</span>
       </label>
-      <button class="rounded-2xl bg-[--color-accent-strong] px-5 py-3 text-sm font-semibold text-white" type="submit">
-        Save Configuration
-      </button>
+      <div class="form-actions">
+        <button class="button-primary" type="submit">Save Configuration</button>
+      </div>
     </form>
   </SurfaceCard>
 
-  <div class="grid gap-4">
+  <div class="content-stack">
     <SurfaceCard title="Process Manager" subtitle="Current IPC response from the OS-level launcher.">
       <div class="mb-4">
         <StatusBadge status={data.processManager?.unavailable ? 'disconnected' : 'running'} label={data.processManager?.unavailable ? 'Unavailable' : 'Reachable'} />
@@ -109,11 +70,11 @@
     </SurfaceCard>
 
     <SurfaceCard title="Runtime Controls" subtitle="Only implemented server actions are exposed here.">
-      <div class="grid gap-3">
-        <form class="grid grid-cols-3 gap-2" method="POST" action="?/carla">
+      <div class="content-stack">
+        <form class="detail-grid-3" method="POST" action="?/carla">
           {#each ['start', 'stop', 'restart'] as action}
             <button
-              class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm capitalize"
+              class="button-secondary capitalize"
               name="action"
               type="submit"
               value={action}
@@ -123,7 +84,7 @@
           {/each}
         </form>
         <form method="POST" action="?/overlayReload">
-          <button class="w-full rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm" type="submit">
+          <button class="button-secondary button-block" type="submit">
             Reload Transparent Overlay
           </button>
         </form>

@@ -393,6 +393,75 @@ For the technical architecture, development guide, and `widget.json` schema, see
 
 ---
 
+### `operator-controls`
+
+| Property | Value |
+|----------|-------|
+| **Name** | Operator Controls |
+| **Category** | `study` |
+| **Description** | Displays primary researcher/operator runtime actions during an active session. |
+| **Preferred Size** | 316 × 129 px |
+| **Minimum Size** | 316 × 129 px |
+
+**Bindings**:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `controls.runtime_state` | `string` | Current runtime state label |
+| `controls.primary_label` | `string` | Primary operator action label |
+| `controls.secondary_label` | `string` | Secondary operator action label |
+| `controls.tertiary_label` | `string` | Tertiary operator action label |
+
+**Behavior**: Shows active-study control labels inside the overlay layout. User interactions must be routed through the injected `SCARline` widget API; the widget must not call backend APIs directly.
+
+---
+
+### `operator-notes`
+
+| Property | Value |
+|----------|-------|
+| **Name** | Operator Notes |
+| **Category** | `study` |
+| **Description** | Displays live researcher notes, reminders, or participant observations during a session. |
+| **Preferred Size** | 316 × 129 px |
+| **Minimum Size** | 316 × 129 px |
+
+**Bindings**:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `notes.title` | `string` | Notes card title |
+| `notes.body` | `string` | Primary note content |
+| `notes.footer` | `string` | Secondary note metadata |
+
+**Behavior**: Presents operator-authored note content in the overlay. Notes originate from CoreAPI/Admin Panel state and are delivered through standard widget binding updates.
+
+---
+
+### `sensor-health`
+
+| Property | Value |
+|----------|-------|
+| **Name** | Sensor Health |
+| **Category** | `study` |
+| **Description** | Displays current runtime status of attached sensors for operator awareness. |
+| **Preferred Size** | 316 × 197 px |
+| **Minimum Size** | 316 × 197 px |
+
+**Bindings**:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `sensor.streaming_label` | `string` | Streaming status summary |
+| `sensor.issue_label` | `string` | Issue summary label |
+| `sensor.summary_1` | `string` | First sensor detail line |
+| `sensor.summary_2` | `string` | Second sensor detail line |
+| `sensor.summary_3` | `string` | Third sensor detail line |
+
+**Behavior**: Summarizes healthy and degraded sensor states using binding data from CoreAPI's I/O client status stream.
+
+---
+
 ## 6. General / Infotainment Widgets
 
 ### `time`
@@ -495,6 +564,9 @@ For the technical architecture, development guide, and `widget.json` schema, see
 | spo2 | I/O Client (SpO2 sensor) → RabbitMQ → CoreAPI | Yes |
 | study-instruction | Manual trigger / CoreAPI | Trigger-based |
 | session-timeline | CoreAPI (session metadata) | Yes |
+| operator-controls | CoreAPI (active study controls) | Trigger-based |
+| operator-notes | CoreAPI/Admin Panel operator notes | Yes |
+| sensor-health | I/O Client status → RabbitMQ → CoreAPI | Yes |
 | time | System clock / Manual override | Yes |
 | calendar, appointments | Manual trigger / CoreAPI | Trigger-based |
 | avatar | CoreAPI (participant profile) | Static |

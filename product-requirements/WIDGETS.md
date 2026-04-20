@@ -13,11 +13,12 @@ Widgets are the **visual interface elements** displayed to study participants du
 
 | Characteristic | Description |
 |----------------|-------------|
-| **Static HTML** | Each widget is a self-contained HTML file — no build step required |
-| **TailwindCSS v4** | All styling uses [TailwindCSS v4](https://tailwindcss.com) for consistency and ease of development |
+| **Static HTML** | Each widget is a self-contained HTML file with no per-widget bundler |
+| **TailwindCSS v4** | Styling uses the shared generated `widgets/dist.css` artifact for deterministic utility coverage |
 | **Metadata-driven** | A `widget.json` file defines bindings, sizing, and categorization |
 | **Real-time data** | Widgets receive live data through the `SCARline` JavaScript API |
 | **Trigger-aware** | Widgets respond to manual, automatic, and configurable triggers |
+| **Shared runtime** | Declarative bindings are applied by `widgets/widget-runtime.js` |
 | **Isolated** | Each widget runs independently — no inter-widget dependencies |
 
 ---
@@ -28,19 +29,21 @@ Each widget is a self-contained directory within the widget catalogue:
 
 ```
 widgets/
-├── speedometer/
-│   ├── widget.json          ← Metadata and bindings definition
-│   ├── index.html           ← Widget entry point (HTML + inline CSS/JS)
-│   └── preview.png          ← Preview image for Admin Panel
-├── navigation-prompt/
-│   ├── widget.json
-│   ├── index.html
-│   └── preview.png
-├── hr/
-│   ├── widget.json
-│   ├── index.html
-│   └── preview.png
-└── ...
+├── widget-runtime.js         ← Shared declarative binding/runtime asset
+├── tailwind-source.css       ← Tailwind v4 CSS-first source
+├── dist.css                  ← Built shared widget CSS artifact
+├── components/
+│   ├── speedometer/
+│   │   ├── widget.json       ← Metadata and bindings definition
+│   │   └── index.html        ← Widget entry point
+│   ├── navigation-prompt/
+│   │   ├── widget.json
+│   │   └── index.html
+│   └── hr/
+│       ├── widget.json
+│       └── index.html
+├── images/
+└── icons/
 ```
 
 ---
@@ -131,22 +134,15 @@ A minimal widget template:
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Speedometer</title>
-  <!-- TailwindCSS v4 CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../../dist.css">
   <style>
-    /* Widget-specific styles */
-    body {
-      margin: 0;
-      padding: 0;
-      background: transparent;
-      overflow: hidden;
-    }
+    /* Keep widget-specific animation/keyframe CSS local when utilities are not enough. */
   </style>
 </head>
 <body>
-  <div id="widget-root" class="w-full h-full flex items-center justify-center">
+  <div data-scarline-widget-root class="flex h-full w-full items-center justify-center">
     <!-- Widget content here -->
-    <div id="speed-display" class="text-6xl font-bold text-white">
+    <div data-bind="vehicle.speed" data-format="number" class="text-6xl font-bold text-white">
       0
     </div>
     <div id="unit" class="text-xl text-gray-400 ml-2">
@@ -154,45 +150,7 @@ A minimal widget template:
     </div>
   </div>
 
-  <script>
-    // SCARline API is injected by the Overlay Engine
-    // Wait for the API to be available
-    function init() {
-      if (typeof SCARline === 'undefined') {
-        setTimeout(init, 100);
-        return;
-      }
-
-      // Subscribe to data bindings
-      SCARline.onBinding('vehicle.speed', (value) => {
-        document.getElementById('speed-display').textContent = Math.round(value);
-      });
-
-      SCARline.onBinding('vehicle.speedLimit', (value) => {
-        // Change color if over speed limit
-        const display = document.getElementById('speed-display');
-        const currentSpeed = parseInt(display.textContent);
-        display.className = currentSpeed > value
-          ? 'text-6xl font-bold text-red-500'
-          : 'text-6xl font-bold text-white';
-      });
-
-      // Handle trigger events
-      SCARline.onTrigger((event) => {
-        console.log('Trigger received:', event);
-      });
-
-      // Handle visibility state changes
-      SCARline.onStateChange((state) => {
-        document.body.style.opacity = state === 'hidden' ? '0' : '1';
-      });
-
-      // Report widget is ready
-      SCARline.ready();
-    }
-
-    init();
-  </script>
+  <script src="../../widget-runtime.js"></script>
 </body>
 </html>
 ```
@@ -211,9 +169,21 @@ The Overlay Engine injects a `SCARline` global object into every widget's contex
 | `SCARline.onTrigger(callback)` | `callback: (event: TriggerEvent) => void` | Subscribe to trigger events for this widget. |
 | `SCARline.onStateChange(callback)` | `callback: (state: string) => void` | Subscribe to visibility state changes (`visible`, `hidden`, `highlighted`). |
 | `SCARline.ready()` | — | Notify the Overlay Engine that the widget has finished initialization. |
+| `SCARline.send(type, payload)` | `type: string`, `payload: object` | Send a widget action/interaction event to the overlay host. |
 | `SCARline.getBinding(key)` | `key: string` → `any` | Get the current value of a binding (synchronous). |
 | `SCARline.getState()` | — → `string` | Get the current visibility state. |
 | `SCARline.getMetadata()` | — → `object` | Get the widget's `widget.json` metadata. |
+
+Most widgets should prefer declarative markup over custom bootstrap scripts:
+
+| Attribute | Behavior |
+|-----------|----------|
+| `data-bind="key"` | Subscribes the element to the declared binding key |
+| `data-bind-class` / `data-bind-class-false` | Toggles classes from a truthy/falsy binding value |
+| `data-bind-style` | Writes binding values to a CSS property or custom property |
+| `data-bind-attr` | Writes binding values to an attribute, useful for SVG attributes |
+| `data-format="number"` | Formats numeric text with optional `data-decimals` |
+| `data-action="type"` | Sends a widget interaction through `SCARline.send()` |
 
 ### TriggerEvent Object
 
@@ -287,7 +257,9 @@ Researchers define trigger rules per condition. These combine automatic evaluati
 
 All widgets must use TailwindCSS v4 for styling:
 
-- Include TailwindCSS via CDN in each widget's `<head>`
+- Include the shared `../../dist.css` in each widget's `<head>`
+- Run `pnpm widgets:build-css` after changing widget classes or `widgets/tailwind-source.css`
+- Use `pnpm widgets:check-css` to verify the generated artifact is current
 - Use Tailwind utility classes for layout, typography, colors
 - Custom styles (if needed) go in a `<style>` block within the HTML file
 - Follow Tailwind's dark-mode-first approach (widgets typically appear on dark simulator backgrounds)
@@ -310,7 +282,7 @@ All widgets must use TailwindCSS v4 for styling:
 ### Step 1: Create Widget Directory
 
 ```bash
-mkdir widgets/my-new-widget
+mkdir widgets/components/my-new-widget
 ```
 
 ### Step 2: Create `widget.json`
@@ -319,7 +291,7 @@ Define the widget metadata, bindings, and sizing.
 
 ### Step 3: Create `index.html`
 
-Build the widget UI using static HTML and TailwindCSS v4. Use the `SCARline` API for data binding.
+Build the widget UI using static HTML and TailwindCSS v4 utilities from `dist.css`. Use declarative `data-*` bindings and `widget-runtime.js` first; use the `SCARline` API directly only for widget-specific behavior that cannot be expressed declaratively.
 
 ### Step 4: Create Preview Image
 
@@ -334,7 +306,7 @@ Capture a screenshot of the widget for the Admin Panel's widget catalogue browse
 
 ### Step 6: Register
 
-Widgets are auto-discovered from the `widgets/` directory. No registration step is needed — the widget catalogue is built by scanning all directories with a valid `widget.json`.
+Widgets are auto-discovered from `widgets/components/`. No registration step is needed — the widget catalogue is built by scanning all component directories with a valid `widget.json`.
 
 ---
 

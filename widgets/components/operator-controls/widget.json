@@ -3,7 +3,7 @@
   "name": "Operator Controls",
   "description": "Displays primary researcher runtime actions.",
   "version": "1.0.0",
-  "category": "researcher",
+  "category": "study",
   "entry": "index.html",
   "bindings": {
     "controls.runtime_state": {
@@ -25,6 +25,17 @@
       "type": "string",
       "description": "Tertiary operator action label.",
       "default": "Recover Runtime"
+    }
+  },
+  "actions": {
+    "controls.primary": {
+      "description": "Run the primary runtime control action."
+    },
+    "controls.secondary": {
+      "description": "Run the secondary runtime control action."
+    },
+    "controls.tertiary": {
+      "description": "Run the tertiary runtime control action."
     }
   },
   "ui": {

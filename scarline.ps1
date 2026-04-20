@@ -129,8 +129,9 @@ function ComposeArgs {
 }
 
 function Invoke-Compose {
-  param([string[]]$Args)
-  & docker compose @((ComposeArgs) + $Args)
+  param([string[]]$CommandArgs)
+  $FullArgs = (ComposeArgs) + $CommandArgs
+  & docker compose $FullArgs
 }
 
 function Require-Command {

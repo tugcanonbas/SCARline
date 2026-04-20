@@ -38,14 +38,13 @@
     </style>
 </head>
 
-<body class="bg-gray-200 min-h-screen flex items-center justify-center p-4">
+<body class="bg-transparent min-h-screen flex items-center justify-center p-4">
 
     <!-- Card Container: 150x197 -->
     <div
-        class="bg-[#686d76] w-[150px] h-[197px] rounded-lg overflow-hidden shadow-md relative text-white flex flex-col items-center p-1 isolate">
+        class="bg-transparent w-[150px] h-[197px] rounded-lg overflow-hidden shadow-md relative text-white flex flex-col items-center p-1 isolate">
 
-        <!-- Grid Background Overlay -->
-        <div class="absolute inset-0 bg-grid pointer-events-none opacity-50 z-0"></div>
+
 
         <!-- Caller Info -->
         <div class="relative z-10 flex flex-col items-center mt-1 w-full">
@@ -65,12 +64,18 @@
                 +49 1234 567890
             </div>
             <!-- Call Ended text -->
-            <div class="text-[8px] font-medium text-red-400 tracking-wide mt-1 animate-flash" data-bind="call.status_label">
+            <div class="text-[8px] font-medium text-red-400 tracking-wide mt-1 animate-flash"
+                data-bind="call.status_label">
                 Call Ended
             </div>
             <!-- Call Duration -->
-            <div id="call-duration" class="text-[9px] font-medium text-white/60 tracking-wide" data-bind="call.duration_label">
+            <div id="call-duration" class="text-[9px] font-medium text-white/60 tracking-wide"
+                data-bind="call.duration_label">
                 00:00
+            </div>
+            <div class="text-[7px] font-medium text-white/45 tracking-wide text-center px-3"
+                data-bind="call.note_label">
+                Conversation saved
             </div>
         </div>
 
@@ -96,7 +101,7 @@
         </div>
 
     </div>
-
+    <script src="../../widget-runtime.js"></script>
 </body>
 
 </html>

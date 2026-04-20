@@ -64,12 +64,13 @@
 
         <!-- Ticks/Scale decorative elements -->
         <div class="absolute bottom-3 w-full flex justify-between px-5 text-[8px] text-white/40 font-medium">
+            <span data-bind="vehicle.speed_ratio" data-format="number" data-decimals="0">60</span>
             <span>0</span>
             <span data-bind="vehicle.speed_limit" data-format="number" data-decimals="0">220</span>
         </div>
 
     </div>
-
+    <script src="../../widget-runtime.js"></script>
 </body>
 
 </html>

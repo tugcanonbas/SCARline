@@ -185,28 +185,43 @@ Widget layout configurations for participant screens.
 | `study_id` | `UUID` | `FK → studies.id, ON DELETE CASCADE` | Parent study |
 | `name` | `VARCHAR(200)` | `NOT NULL` | Layout name |
 | `type` | `VARCHAR(30)` | `NOT NULL` | Layout type: `participant`, `researcher_monitor` |
-| `target_display` | `VARCHAR(100)` | | Target display identifier |
-| `layout_config` | `JSONB` | `NOT NULL` | Zone definitions and widget placements |
+| `target_display` | `VARCHAR(100)` | | Default/fallback target display identifier for the layout |
+| `layout_config` | `JSONB` | `NOT NULL` | Widget placements, per-widget display assignments, and layout runtime options |
 | `created_at` | `TIMESTAMPTZ` | `DEFAULT NOW()` | Creation timestamp |
 | `updated_at` | `TIMESTAMPTZ` | `DEFAULT NOW()` | Last update timestamp |
 
 **`layout_config` example**:
 ```json
 {
-  "zones": [
+  "targetDisplay": "0",
+  "widgets": [
     {
-      "id": "top-bar",
-      "x": 0, "y": 0, "width": 1920, "height": 100,
-      "widgets": ["time", "speedometer"]
+      "id": "8ff8f798-03d8-4ce0-930e-ec3418c09caa",
+      "widgetId": "speedometer",
+      "windowMode": "transparent_electron",
+      "targetDisplay": "0",
+      "order": 0,
+      "x": 40,
+      "y": 40,
+      "width": 300,
+      "height": 300
     },
     {
-      "id": "center-console",
-      "x": 700, "y": 400, "width": 520, "height": 600,
-      "widgets": ["navigation-prompt", "music"]
+      "id": "c7de3f9e-4bea-4b15-b3f3-f7f87c1d0647",
+      "widgetId": "operator-controls",
+      "windowMode": "browser_popup",
+      "targetDisplay": "1",
+      "order": 1,
+      "x": 80,
+      "y": 80,
+      "width": 520,
+      "height": 280
     }
   ]
 }
 ```
+
+`layout_config.widgets[].targetDisplay` is the canonical per-widget screen assignment. The layout-level `target_display` remains a compatibility fallback for older layouts and launch requests that do not include per-widget display values.
 
 ### `widget_instances`
 
@@ -217,12 +232,12 @@ Individual widget instances placed within a view layout.
 | `id` | `UUID` | `PK, DEFAULT uuid_generate_v4()` | Unique instance identifier |
 | `layout_id` | `UUID` | `FK → view_layouts.id, ON DELETE CASCADE` | Parent layout |
 | `widget_id` | `VARCHAR(100)` | `NOT NULL` | Widget catalogue ID (e.g., `speedometer`) |
-| `zone_id` | `VARCHAR(100)` | | Target zone within the layout |
-| `order` | `INTEGER` | `DEFAULT 0` | Order within the zone |
-| `x` | `INTEGER` | `DEFAULT 0` | X-coordinate in 1080p pixels |
-| `y` | `INTEGER` | `DEFAULT 0` | Y-coordinate in 1080p pixels |
-| `width` | `INTEGER` | `DEFAULT 180` | Width in 1080p pixels |
-| `height` | `INTEGER` | `DEFAULT 180` | Height in 1080p pixels |
+| `zone_id` | `VARCHAR(100)` | | Legacy optional zone identifier |
+| `order` | `INTEGER` | `DEFAULT 0` | Ordering within the layout/widget list |
+| `x` | `INTEGER` | `DEFAULT 0` | X-coordinate relative to the assigned display |
+| `y` | `INTEGER` | `DEFAULT 0` | Y-coordinate relative to the assigned display |
+| `width` | `INTEGER` | `DEFAULT 180` | Widget window width in device-independent layout pixels |
+| `height` | `INTEGER` | `DEFAULT 180` | Widget window height in device-independent layout pixels |
 | `bindings_config` | `JSONB` | `DEFAULT '{}'` | Custom binding configuration |
 | `trigger_rules` | `JSONB` | `DEFAULT '[]'` | Trigger rules for this instance |
 | `style_overrides` | `JSONB` | `DEFAULT '{}'` | Style overrides (size, position) |

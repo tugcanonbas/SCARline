@@ -3,7 +3,7 @@
   "name": "Avatar",
   "description": "Displays the current participant profile summary.",
   "version": "1.0.0",
-  "category": "participant",
+  "category": "general",
   "entry": "index.html",
   "bindings": {
     "participant.name": {

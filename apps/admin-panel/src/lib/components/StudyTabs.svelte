@@ -25,7 +25,7 @@
 <nav class="study-tabs">
   {#each tabs as tab}
     <a
-      class="study-tab"
+      class={`study-tab ${current === tab.href ? 'study-tab--active' : ''}`}
       aria-current={current === tab.href ? 'page' : undefined}
       href={appPath(tab.href)}
     >

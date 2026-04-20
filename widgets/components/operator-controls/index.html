@@ -16,10 +16,11 @@
       <div class="rounded-full border border-white/10 px-3 py-1 text-[11px] text-white/65" data-bind="controls.runtime_state">running</div>
     </div>
     <div class="grid grid-cols-3 gap-3">
-      <button type="button" class="rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm font-medium" data-bind="controls.primary_label">Pause Session</button>
-      <button type="button" class="rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm font-medium" data-bind="controls.secondary_label">Mark Event</button>
-      <button type="button" class="rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm font-medium" data-bind="controls.tertiary_label">Recover Runtime</button>
+      <button type="button" data-action="controls.primary" class="rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm font-medium" data-bind="controls.primary_label">Pause Session</button>
+      <button type="button" data-action="controls.secondary" class="rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm font-medium" data-bind="controls.secondary_label">Mark Event</button>
+      <button type="button" data-action="controls.tertiary" class="rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-sm font-medium" data-bind="controls.tertiary_label">Recover Runtime</button>
     </div>
   </section>
+    <script src="../../widget-runtime.js"></script>
 </body>
 </html>

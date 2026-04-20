@@ -13,10 +13,10 @@
     </style>
 </head>
 
-<body class="bg-gray-200 min-h-screen flex items-center justify-center p-4">
+<body class="bg-transparent min-h-screen flex items-center justify-center p-4">
 
     <!-- Card Container -->
-    <div class="bg-[#686d76] w-full max-w-md rounded-2xl p-6 shadow-2xl relative text-white">
+    <div class="bg-transparent w-full max-w-md rounded-2xl p-6 shadow-2xl relative text-white">
 
         <!-- Top Section: Album Art & Info -->
         <div class="flex gap-5 mb-8">
@@ -85,8 +85,7 @@
 
             <!-- Previous -->
             <button type="button" data-action="media.previous"
-                class="text-zinc-400 hover:text-white transition relative group p-2 button-toggle"
-                data-active="false">
+                class="text-zinc-400 hover:text-white transition relative group p-2 button-toggle" data-active="false">
                 <svg fill="currentColor" class="w-8 h-8" viewBox="0 0 24 24">
                     <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
                 </svg>
@@ -109,8 +108,7 @@
 
             <!-- Next -->
             <button type="button" data-action="media.next"
-                class="text-zinc-400 hover:text-white transition relative group p-2 button-toggle"
-                data-active="false">
+                class="text-zinc-400 hover:text-white transition relative group p-2 button-toggle" data-active="false">
                 <svg fill="currentColor" class="w-8 h-8" viewBox="0 0 24 24">
                     <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
                 </svg>
@@ -135,6 +133,7 @@
         </div>
 
     </div>
+    <script src="../../widget-runtime.js"></script>
 </body>
 
 </html>

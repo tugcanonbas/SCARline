@@ -1,4 +1,7 @@
 <script lang="ts">
+  import EmptyState from '$lib/components/admin/EmptyState.svelte';
+  import InlineNotice from '$lib/components/admin/InlineNotice.svelte';
+  import MetricCard from '$lib/components/admin/MetricCard.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import StudyTabs from '$lib/components/StudyTabs.svelte';
@@ -31,101 +34,85 @@
 <StudyTabs studyId={data.studyId} current={`/user-studies/${data.studyId}/sessions`} />
 
 <div class="metric-grid">
-  <div class="metric-card">
-    <p class="metric-card__label">Sessions</p>
-    <p class="metric-card__value">{data.sessions.length}</p>
-    <p class="metric-card__hint">Created session records</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Running</p>
-    <p class="metric-card__value">{runningCount}</p>
-    <p class="metric-card__hint">Live operator workload</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Completed</p>
-    <p class="metric-card__value">{completedCount}</p>
-    <p class="metric-card__hint">Ready for log review/export</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Setup Inputs</p>
-    <p class="metric-card__value">{data.participants.length}/{data.conditions.length}</p>
-    <p class="metric-card__hint">Participants and conditions available</p>
-  </div>
+  <MetricCard label="Sessions" value={data.sessions.length} hint="Created session records" accent />
+  <MetricCard label="Running" value={runningCount} hint="Live operator workload" />
+  <MetricCard label="Completed" value={completedCount} hint="Ready for log review/export" />
+  <MetricCard label="Setup Inputs" value={`${data.participants.length}/${data.conditions.length}`} hint="Participants and conditions available" />
 </div>
 
-<div class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+<div class="section-grid section-grid--sidebar">
   {#if data.canOperate}
     <SurfaceCard title="Create Session" subtitle="Bind a participant and optional condition before starting the session.">
       {#if form?.message}
-        <p class="mb-4 rounded-2xl border border-red-500/30 bg-red-950/40 px-4 py-3 text-sm text-red-100">
-          {form.message}
-        </p>
+        <InlineNotice tone="danger" message={form.message} />
       {/if}
 
-      <form class="grid gap-4" method="POST" action="?/create">
-        <label class="grid gap-2 text-sm">
+      <form class="form-stack" method="POST" action="?/create">
+        <label class="form-field">
           <span>Name</span>
-          <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="name" placeholder="Session 1" />
+          <input name="name" placeholder="Session 1" />
         </label>
-        <label class="grid gap-2 text-sm">
+        <label class="form-field">
           <span>Participant</span>
-          <select class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="participantId">
+          <select name="participantId">
             <option value="">Unassigned</option>
             {#each data.participants as participant}
               <option value={participant.id}>{participant.participantCode}</option>
             {/each}
           </select>
         </label>
-        <label class="grid gap-2 text-sm">
+        <label class="form-field">
           <span>Condition</span>
-          <select class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="conditionId">
+          <select name="conditionId">
             <option value="">None</option>
             {#each data.conditions as condition}
               <option value={condition.id}>{condition.name}</option>
             {/each}
           </select>
         </label>
-        <button class="rounded-2xl bg-[--color-accent-strong] px-5 py-3 text-sm font-semibold text-white" type="submit">Create Session</button>
+        <div class="form-actions">
+          <button class="button-primary" type="submit">Create Session</button>
+        </div>
       </form>
     </SurfaceCard>
   {/if}
 
   <SurfaceCard title="Session Queue" subtitle="State transitions use existing SvelteKit form actions and CoreAPI commands.">
-    <div class="space-y-3">
+    <div class="list-stack">
       {#each data.sessions as session}
-        <div class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] p-4">
-          <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div class="entity-card">
+          <div class="entity-card__header">
             <div>
-              <p class="font-semibold text-white">{session.name ?? session.id}</p>
-              <p class="text-sm text-slate-400">
+              <p class="entity-card__title">{session.name ?? session.id}</p>
+              <p class="entity-card__meta">
                 Participant {session.participantId ?? 'unassigned'} · Condition {session.conditionId ?? 'none'}
               </p>
             </div>
             <StatusBadge status={session.status} />
           </div>
 
-          <div class="mb-4 grid gap-3 md:grid-cols-3">
-            <div class="rounded-2xl border border-[--color-line] bg-black/20 px-4 py-3 text-sm">
-              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Started</p>
-              <p class="mt-1 text-slate-100">{formatDate(session.startedAt)}</p>
+          <div class="detail-grid-3">
+            <div class="detail-panel">
+              <p class="technical-label">Started</p>
+              <p class="technical-value">{formatDate(session.startedAt)}</p>
             </div>
-            <div class="rounded-2xl border border-[--color-line] bg-black/20 px-4 py-3 text-sm">
-              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Duration</p>
-              <p class="mt-1 text-slate-100">{session.durationSeconds ?? 0}s</p>
+            <div class="detail-panel">
+              <p class="technical-label">Duration</p>
+              <p class="technical-value">{session.durationSeconds ?? 0}s</p>
             </div>
-            <div class="rounded-2xl border border-[--color-line] bg-black/20 px-4 py-3 text-sm">
-              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Completed</p>
-              <p class="mt-1 text-slate-100">{formatDate(session.completedAt)}</p>
+            <div class="detail-panel">
+              <p class="technical-label">Completed</p>
+              <p class="technical-value">{formatDate(session.completedAt)}</p>
             </div>
           </div>
 
           {#if data.canOperate}
-          <div class="flex flex-wrap gap-2">
+          <div class="form-actions">
             {#each ['start', 'pause', 'resume', 'complete'] as actionName}
               <form method="POST" action={`?/${actionName}`}>
                 <input name="sessionId" type="hidden" value={session.id} />
                 <button
-                  class="rounded-full border border-[--color-line] px-3 py-1 text-xs text-slate-200 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-600"
+                  class="button-chip"
                   type="submit"
                   disabled={!canTransition(session.status, actionName)}
                 >{actionName}</button>
@@ -135,7 +122,7 @@
               <input name="sessionId" type="hidden" value={session.id} />
               <input name="reason" type="hidden" value="Operator cancelled session" />
               <button
-                class="rounded-full border border-[--color-danger]/40 px-3 py-1 text-xs text-red-200 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-600"
+                class="button-danger"
                 type="submit"
                 disabled={!canTransition(session.status, 'cancel')}
               >cancel</button>
@@ -144,7 +131,7 @@
           {/if}
        </div>
       {:else}
-        <p class="rounded-2xl border border-dashed border-[--color-line] px-4 py-6 text-sm text-slate-400">No sessions have been created yet.</p>
+        <EmptyState message="No sessions have been created yet." />
       {/each}
     </div>
   </SurfaceCard>

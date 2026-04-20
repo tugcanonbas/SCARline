@@ -81,6 +81,13 @@ function getActorUserId(request: FastifyRequest, config: CoreApiConfig): string 
   }
 }
 
+function layoutWidgetConfigMap(layoutConfig: Record<string, unknown> | null | undefined): Map<string, Record<string, unknown>> {
+  const widgets = Array.isArray(layoutConfig?.widgets)
+    ? layoutConfig.widgets as Array<Record<string, unknown>>
+    : [];
+  return new Map(widgets.map((widget) => [String(widget.id ?? ''), widget]));
+}
+
 function apiError(code: string, message: string): {
   success: false;
   data: null;
@@ -129,13 +136,22 @@ function rolesForRoute(method: string, path: string): Array<z.infer<typeof RoleS
     path.startsWith('/api/system/overlay/configure')
     || path.startsWith('/api/system/overlay/windows/update')
     || path.startsWith('/api/system/overlay/windows/open')
+    || path.startsWith('/api/system/overlay/windows/close')
+    || path.startsWith('/api/system/overlay/displays')
   ) {
     return ['admin', 'researcher', 'operator'];
   }
 
   if (
+    path.startsWith('/api/devices')
+    || path.startsWith('/api/researchers')
+    || path.includes('/researchers')
+  ) {
+    return ['admin', 'researcher'];
+  }
+
+  if (
     path.startsWith('/api/users')
-    || path.startsWith('/api/devices')
     || path.startsWith('/api/system/configuration')
     || path.startsWith('/api/system/process-manager')
     || path.startsWith('/api/system/carla')
@@ -157,6 +173,7 @@ function rolesForRoute(method: string, path: string): Array<z.infer<typeof RoleS
       || path.endsWith('/complete')
       || path.endsWith('/cancel')
       || path.endsWith('/triggers')
+      || path.endsWith('/notes')
     )
   ) {
     return ['admin', 'researcher', 'operator'];
@@ -1384,6 +1401,51 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     }, { studyId: params.studyId, runId: params.id }));
   });
 
+  app.post('/api/studies/:studyId/sessions/:id/notes', async (request, reply) => {
+    const params = z.object({ studyId: z.string().uuid(), id: z.string().uuid() }).parse(request.params);
+    const payload = z.object({
+      note: z.string().trim().min(1).max(2000)
+    }).parse(request.body ?? {});
+    const timestamp = new Date().toISOString();
+    const noteEntry = `[${timestamp}] ${payload.note.replace(/\r?\n/g, ' ')}`;
+    const row = await queryOne(pool, `
+      UPDATE sessions
+      SET notes = CASE
+            WHEN notes IS NULL OR notes = '' THEN $3
+            ELSE notes || E'\n' || $3
+          END,
+          updated_at = NOW()
+      WHERE study_id = $1 AND id = $2
+      RETURNING *
+    `, [params.studyId, params.id, noteEntry]);
+
+    if (!row) {
+      reply.code(404);
+      return {
+        success: false,
+        data: null,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Session not found',
+          details: {}
+        }
+      };
+    }
+
+    await logActivity(pool, {
+      actorUserId: getActorUserId(request, config),
+      entityType: 'session',
+      entityId: params.id,
+      action: 'session.note_created',
+      payload: {
+        studyId: params.studyId,
+        timestamp
+      }
+    });
+
+    return { success: true, data: sessionDto(row as Record<string, unknown>), error: null };
+  });
+
   app.get('/api/studies/:studyId/carla-config', async (request) => {
     const params = z.object({ studyId: z.string().uuid() }).parse(request.params);
     const row = await queryOne(pool, `SELECT * FROM carla_configurations WHERE study_id = $1`, [params.studyId]);
@@ -1530,7 +1592,9 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     success: true,
     data: [
       { driverId: 'logitech_g29', sensorType: 'steering_wheel', displayName: 'Logitech G29' },
-      { driverId: 'usb_camera', sensorType: 'camera', displayName: 'USB Camera' }
+      { driverId: 'usb_camera', sensorType: 'camera', displayName: 'USB Camera' },
+      { driverId: 'heart_rate', sensorType: 'heart_rate', displayName: 'Heart Rate Monitor' },
+      { driverId: 'eye_tracker', sensorType: 'eye_tracker', displayName: 'Eye Tracker' }
     ],
     error: null
   }));
@@ -1603,6 +1667,7 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     `, [params.studyId, params.id]);
     const widgets = await queryMany(pool, `SELECT * FROM widget_instances WHERE layout_id = $1 ORDER BY "order" ASC`, [params.id]);
     const rawLayoutConfig = (row?.layout_config as Record<string, unknown> | undefined) ?? {};
+    const widgetConfigById = layoutWidgetConfigMap(rawLayoutConfig);
     const data = layoutConfigSchema.parse({
       id: row?.id,
       studyId: row?.study_id,
@@ -1614,6 +1679,7 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
         id: widget.id,
         widgetId: widget.widget_id,
         windowMode: resolveWidgetWindowMode(widget as Record<string, unknown>),
+        targetDisplay: String(widgetConfigById.get(String(widget.id))?.targetDisplay ?? row?.target_display ?? '0'),
         order: widget.order,
         x: widget.x,
         y: widget.y,

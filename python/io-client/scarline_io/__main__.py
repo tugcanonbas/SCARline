@@ -39,6 +39,94 @@ def iso_timestamp() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
 
 
+HEALTH_STATE: dict[str, object] = {
+    "status": "starting",
+    "startedAt": iso_timestamp(),
+    "rabbitConnected": False,
+    "activeDriverCount": 0,
+    "configuredSensorCount": 0,
+    "activeSession": None,
+    "sensors": [],
+}
+
+
+def update_health(**values: object) -> None:
+    HEALTH_STATE.update(values)
+    HEALTH_STATE["checkedAt"] = iso_timestamp()
+
+
+def health_sensor_entry(
+    *,
+    driver_id: str,
+    sensor_type: str,
+    connected: bool,
+    sample_rate: int,
+    last_reading: str | None = None,
+    message: str | None = None,
+    degraded: bool = False,
+) -> dict[str, object]:
+    return {
+        "driverId": driver_id,
+        "type": sensor_type,
+        "connected": connected,
+        "sampleRate": sample_rate,
+        "lastReading": last_reading,
+        "message": message,
+        "degraded": degraded,
+    }
+
+
+def refresh_health_sensors(active_drivers: dict[str, SensorDriver], sensor_health: dict[str, dict[str, object]]) -> None:
+    sensors = [snapshot.copy() for snapshot in sensor_health.values()]
+    sensor_keys = {key for key in sensor_health}
+    for key, driver in active_drivers.items():
+        if key in sensor_keys:
+            continue
+        metadata = driver.get_metadata()
+        sensors.append(
+            health_sensor_entry(
+                driver_id=metadata.driver_id,
+                sensor_type=metadata.sensor_type,
+                connected=driver.is_connected(),
+                sample_rate=metadata.sample_rate,
+                degraded=not driver.is_connected(),
+            )
+        )
+    sensors.sort(key=lambda entry: (str(entry["driverId"]), str(entry["type"])))
+    update_health(sensors=sensors)
+
+
+async def handle_health_request(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    request_line = await reader.readline()
+    parts = request_line.decode("utf8", errors="ignore").split()
+    path = parts[1] if len(parts) >= 2 else "/"
+
+    while True:
+        line = await reader.readline()
+        if line in {b"\r\n", b"\n", b""}:
+            break
+
+    status_code = 200 if path in {"/", "/health"} else 404
+    body = json.dumps(HEALTH_STATE | {"service": "io-client"}).encode("utf8")
+    reason = "OK" if status_code == 200 else "Not Found"
+    headers = (
+        f"HTTP/1.1 {status_code} {reason}\r\n"
+        "Content-Type: application/json\r\n"
+        f"Content-Length: {len(body)}\r\n"
+        "Connection: close\r\n\r\n"
+    )
+    writer.write(headers.encode("utf8") + body)
+    await writer.drain()
+    writer.close()
+    await writer.wait_closed()
+
+
+async def health_server(port: int) -> None:
+    server = await asyncio.start_server(handle_health_request, "0.0.0.0", port)
+    async with server:
+        await server.serve_forever()
+
+
 def discover_driver_factories() -> dict[str, Callable[[], SensorDriver]]:
     factories = DRIVER_FACTORIES.copy()
     try:
@@ -202,7 +290,16 @@ async def publish_driver_status_event(
     )
 
 
-async def sensor_loop(driver: SensorDriver, exchange: aio_pika.Exchange, study_id: str, run_id: str) -> None:
+async def sensor_loop(
+    driver: SensorDriver,
+    exchange: aio_pika.Exchange,
+    study_id: str,
+    run_id: str,
+    *,
+    task_key: str,
+    active_drivers: dict[str, SensorDriver],
+    sensor_health: dict[str, dict[str, object]],
+) -> None:
     metadata = driver.get_metadata()
     delay = 1 / max(metadata.sample_rate, 1)
     last_status_at = 0.0
@@ -210,6 +307,16 @@ async def sensor_loop(driver: SensorDriver, exchange: aio_pika.Exchange, study_i
         try:
             reading = driver.read()
         except Exception as error:
+            sensor_health[task_key] = health_sensor_entry(
+                driver_id=metadata.driver_id,
+                sensor_type=metadata.sensor_type,
+                connected=False,
+                sample_rate=metadata.sample_rate,
+                last_reading=sensor_health.get(task_key, {}).get("lastReading"),
+                message=f"read failed: {error}",
+                degraded=True,
+            )
+            refresh_health_sensors(active_drivers, sensor_health)
             await publish_sensor_status(
                 exchange,
                 driver_id=metadata.driver_id,
@@ -222,6 +329,15 @@ async def sensor_loop(driver: SensorDriver, exchange: aio_pika.Exchange, study_i
             continue
 
         if reading:
+            sensor_health[task_key] = health_sensor_entry(
+                driver_id=metadata.driver_id,
+                sensor_type=metadata.sensor_type,
+                connected=driver.is_connected(),
+                sample_rate=metadata.sample_rate,
+                last_reading=iso_timestamp(),
+                degraded=not driver.is_connected(),
+            )
+            refresh_health_sensors(active_drivers, sensor_health)
             await publish(
                 exchange,
                 routing_key_for_sensor(metadata.sensor_type, study_id, run_id),
@@ -236,6 +352,15 @@ async def sensor_loop(driver: SensorDriver, exchange: aio_pika.Exchange, study_i
             )
         if time.monotonic() - last_status_at > 10:
             last_status_at = time.monotonic()
+            sensor_health[task_key] = health_sensor_entry(
+                driver_id=metadata.driver_id,
+                sensor_type=metadata.sensor_type,
+                connected=driver.is_connected(),
+                sample_rate=metadata.sample_rate,
+                last_reading=sensor_health.get(task_key, {}).get("lastReading"),
+                degraded=not driver.is_connected(),
+            )
+            refresh_health_sensors(active_drivers, sensor_health)
             await publish_sensor_status(
                 exchange,
                 driver_id=metadata.driver_id,
@@ -253,8 +378,13 @@ async def sensor_loop(driver: SensorDriver, exchange: aio_pika.Exchange, study_i
 async def main() -> None:
     config = load_config()
     configured_sensors = enabled_configured_sensors(config)
+    health_config = config.get("health_check", {})
+    health_port = int(os.environ.get("IO_HEALTH_PORT") or (health_config.get("port", 8081) if isinstance(health_config, dict) else 8081))
+    update_health(status="starting", configuredSensorCount=len(configured_sensors))
+    asyncio.create_task(health_server(health_port))
     driver_factories = discover_driver_factories()
     connection = await aio_pika.connect_robust(AMQP_URL)
+    update_health(status="running", rabbitConnected=True)
     channel = await connection.channel()
     await channel.set_qos(prefetch_count=20)
     commands_exchange = await channel.declare_exchange("scarline.commands", aio_pika.ExchangeType.TOPIC, durable=True)
@@ -273,6 +403,48 @@ async def main() -> None:
 
     active_tasks: dict[str, asyncio.Task] = {}
     active_drivers: dict[str, SensorDriver] = {}
+    sensor_health: dict[str, dict[str, object]] = {}
+
+    for configured_sensor in configured_sensors:
+        key = driver_key(configured_sensor)
+        factory = driver_factories.get(key)
+        if not factory:
+            sensor_health[f"configured:{key or 'unknown'}"] = health_sensor_entry(
+                driver_id=key or "unknown",
+                sensor_type=str(configured_sensor.get("sensorType") or configured_sensor.get("type") or "unknown"),
+                connected=False,
+                sample_rate=int(configured_sensor.get("sample_rate", configured_sensor.get("sampleRate", 0)) or 0),
+                message="No registered driver factory",
+                degraded=True,
+            )
+            continue
+
+        driver = factory()
+        initialized = driver.initialize(configured_sensor)
+        metadata = driver.get_metadata()
+        sensor_health[f"configured:{metadata.driver_id}"] = health_sensor_entry(
+            driver_id=metadata.driver_id,
+            sensor_type=metadata.sensor_type,
+            connected=initialized and driver.is_connected(),
+            sample_rate=metadata.sample_rate,
+            message=None if initialized else "Driver initialized in degraded mode",
+            degraded=not initialized or not driver.is_connected(),
+        )
+        await publish_sensor_status(
+            events_exchange,
+            driver_id=metadata.driver_id,
+            sensor_type=metadata.sensor_type,
+            connected=initialized and driver.is_connected(),
+            sample_rate=metadata.sample_rate,
+            message=None if initialized else "Driver initialized in degraded mode",
+            capabilities=list(metadata.custom_fields.get("capabilities", [])),
+            config_schema=driver.get_configurable_fields(),
+            degraded=not initialized or not driver.is_connected(),
+        )
+        driver.shutdown()
+
+    refresh_health_sensors(active_drivers, sensor_health)
+    update_health(status="running", rabbitConnected=True, activeSession=None)
 
     async with queue.iterator() as iterator:
         async for message in iterator:
@@ -285,6 +457,7 @@ async def main() -> None:
                     study_id = data["studyId"]
                     run_id = data["sessionId"]
                     session_sensors = data.get("sensors") or configured_sensors
+                    update_health(activeSession=run_id)
                     for sensor_config in session_sensors:
                         if not isinstance(sensor_config, dict):
                             continue
@@ -293,6 +466,15 @@ async def main() -> None:
                         key = driver_key(effective_config)
                         factory = driver_factories.get(key)
                         if not factory:
+                            sensor_health[f"{run_id}:{key or 'unknown'}"] = health_sensor_entry(
+                                driver_id=key or "unknown",
+                                sensor_type=str(effective_config.get("sensorType") or effective_config.get("type") or "unknown"),
+                                connected=False,
+                                sample_rate=0,
+                                message="No registered driver factory",
+                                degraded=True,
+                            )
+                            refresh_health_sensors(active_drivers, sensor_health)
                             await publish_sensor_status(
                                 events_exchange,
                                 driver_id=key or "unknown",
@@ -313,12 +495,39 @@ async def main() -> None:
                             existing_driver = active_drivers.pop(task_key)
                             existing_driver.stop()
                             existing_driver.shutdown()
+                            sensor_health.pop(task_key, None)
 
                         initialized = driver.initialize(effective_config)
                         driver.start()
-                        task = asyncio.create_task(sensor_loop(driver, events_exchange, study_id, run_id))
+                        sensor_health[task_key] = health_sensor_entry(
+                            driver_id=driver.get_metadata().driver_id,
+                            sensor_type=driver.get_metadata().sensor_type,
+                            connected=initialized and driver.is_connected(),
+                            sample_rate=driver.get_metadata().sample_rate,
+                            message=None if initialized else "Driver initialized in degraded mode",
+                            degraded=not initialized or not driver.is_connected(),
+                        )
                         active_drivers[task_key] = driver
+                        task = asyncio.create_task(
+                            sensor_loop(
+                                driver,
+                                events_exchange,
+                                study_id,
+                                run_id,
+                                task_key=task_key,
+                                active_drivers=active_drivers,
+                                sensor_health=sensor_health,
+                            )
+                        )
                         active_tasks[task_key] = task
+                        refresh_health_sensors(active_drivers, sensor_health)
+                        update_health(
+                            status="running",
+                            rabbitConnected=True,
+                            activeDriverCount=len(active_drivers),
+                            configuredSensorCount=len(session_sensors),
+                            activeSession=run_id,
+                        )
                         await publish_sensor_status(
                             events_exchange,
                             driver_id=driver.get_metadata().driver_id,
@@ -353,6 +562,22 @@ async def main() -> None:
                         metadata = driver.get_metadata()
                         driver.stop()
                         driver.shutdown()
+                        sensor_health[key] = health_sensor_entry(
+                            driver_id=metadata.driver_id,
+                            sensor_type=metadata.sensor_type,
+                            connected=False,
+                            sample_rate=metadata.sample_rate,
+                            last_reading=sensor_health.get(key, {}).get("lastReading"),
+                            message="Session stopped",
+                            degraded=True,
+                        )
+                        refresh_health_sensors(active_drivers, sensor_health)
+                        update_health(
+                            status="running",
+                            rabbitConnected=True,
+                            activeDriverCount=len(active_drivers),
+                            activeSession=None if not active_drivers else HEALTH_STATE.get("activeSession"),
+                        )
                         await publish_sensor_status(
                             events_exchange,
                             driver_id=metadata.driver_id,
@@ -365,6 +590,7 @@ async def main() -> None:
                             degraded=True,
                         )
 
+    update_health(status="stopped", rabbitConnected=False, activeDriverCount=0, activeSession=None)
     await connection.close()
 
 

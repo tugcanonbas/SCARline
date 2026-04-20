@@ -1,4 +1,6 @@
 <script lang="ts">
+  import EmptyState from '$lib/components/admin/EmptyState.svelte';
+  import MetricCard from '$lib/components/admin/MetricCard.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import StudyTabs from '$lib/components/StudyTabs.svelte';
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
@@ -22,62 +24,48 @@
 <StudyTabs studyId={data.studyId} current={`/user-studies/${data.studyId}/participants`} />
 
 <div class="metric-grid">
-  <div class="metric-card">
-    <p class="metric-card__label">Participant Records</p>
-    <p class="metric-card__value">{data.participants.length}</p>
-    <p class="metric-card__hint">Anonymized IDs ready for sessions</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Coding Pattern</p>
-    <p class="metric-card__value">P-###</p>
-    <p class="metric-card__hint">Recommended local identifier format</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Notes</p>
-    <p class="metric-card__value">{data.participants.filter((participant: Record<string, unknown>) => participant.notes).length}</p>
-    <p class="metric-card__hint">Records with operator notes</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Privacy</p>
-    <p class="metric-card__value">ID</p>
-    <p class="metric-card__hint">No direct personal identifiers shown here</p>
-  </div>
+  <MetricCard label="Participant Records" value={data.participants.length} hint="Anonymized IDs ready for sessions" accent />
+  <MetricCard label="Coding Pattern" value="P-###" hint="Recommended local identifier format" />
+  <MetricCard label="Notes" value={data.participants.filter((participant: Record<string, unknown>) => participant.notes).length} hint="Records with operator notes" />
+  <MetricCard label="Privacy" value="ID" hint="No direct personal identifiers shown here" />
 </div>
 
-<div class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+<div class="section-grid section-grid--sidebar">
   {#if data.canManage}
     <SurfaceCard title="Add Participant" subtitle="Create the participant record used by session setup.">
-      <form class="grid gap-4" method="POST">
-        <label class="grid gap-2 text-sm">
+      <form class="form-stack" method="POST">
+        <label class="form-field">
           <span>Participant Code</span>
-          <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="participantCode" placeholder="P-001" required />
+          <input name="participantCode" placeholder="P-001" required />
         </label>
-        <label class="grid gap-2 text-sm">
+        <label class="form-field">
           <span>Notes</span>
-          <textarea class="min-h-32 rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3" name="notes"></textarea>
+          <textarea class="min-h-32" name="notes"></textarea>
         </label>
-        <button class="rounded-2xl bg-[--color-accent-strong] px-5 py-3 text-sm font-semibold text-white" type="submit">Add Participant</button>
+        <div class="form-actions">
+          <button class="button-primary" type="submit">Add Participant</button>
+        </div>
       </form>
     </SurfaceCard>
   {/if}
 
   <SurfaceCard title="Current Participants" subtitle="Use these records when creating or reviewing sessions.">
-    <div class="space-y-3">
+    <div class="list-stack">
       {#each data.participants as participant}
-        <div class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] p-4">
-          <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div class="entity-card entity-card--tight">
+          <div class="entity-card__header">
             <div>
-              <p class="font-semibold text-white">{participantCode(participant)}</p>
-              <p class="mt-1 text-sm text-slate-400">{participantNotes(participant)}</p>
+              <p class="entity-card__title">{participantCode(participant)}</p>
+              <p class="entity-card__meta">{participantNotes(participant)}</p>
             </div>
-            <div class="text-left md:text-right">
-              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Participant</p>
-              <p class="mt-1 text-xs text-slate-500">{participantCreated(participant)}</p>
+            <div class="entity-card__meta">
+              <p>Participant</p>
+              <p>{participantCreated(participant)}</p>
             </div>
           </div>
         </div>
       {:else}
-        <p class="rounded-2xl border border-dashed border-[--color-line] px-4 py-6 text-sm text-slate-400">No participants have been added yet.</p>
+        <EmptyState message="No participants have been added yet." />
       {/each}
     </div>
   </SurfaceCard>

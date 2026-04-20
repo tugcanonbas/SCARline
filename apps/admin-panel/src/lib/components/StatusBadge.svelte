@@ -6,17 +6,33 @@
 
   function tone(value: string | null | undefined) {
     const normalized = String(value ?? 'unknown').toLowerCase();
-    if (['running', 'ready', 'healthy', 'completed', 'active', 'open', 'true'].includes(normalized)) {
-      return '';
+    if (
+      ['running', 'ready', 'healthy', 'completed', 'active', 'open', 'true'].includes(
+        normalized,
+      )
+    ) {
+      return 'status-badge--success';
     }
-    if (['paused', 'degraded', 'pending', 'created', 'draft', 'connecting'].includes(normalized)) {
-      return 'status-badge--soft';
+    if (
+      ['paused', 'degraded', 'pending', 'created', 'draft', 'connecting'].includes(
+        normalized,
+      )
+    ) {
+      return 'status-badge--warning';
     }
-    if (['failed', 'error', 'cancelled', 'disconnected', 'inactive', 'closed', 'false'].includes(normalized)) {
-      return 'status-badge--soft';
+    if (
+      ['failed', 'error', 'cancelled', 'disconnected', 'inactive', 'closed', 'false'].includes(
+        normalized,
+      )
+    ) {
+      return 'status-badge--danger';
     }
 
-    return 'status-badge--soft';
+    if (['queued', 'scheduled', 'processing', 'manual-trigger'].includes(normalized)) {
+      return 'status-badge--info';
+    }
+
+    return 'status-badge--muted';
   }
 </script>
 

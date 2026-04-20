@@ -138,7 +138,7 @@ The platform is designed for multi-device usage on a local network:
 
 - **Main Device**: Runs all Docker containers + Process Manager. Displays simulator window with transparent widget overlay (Electron).
 - **Operator Devices**: Any laptop/tablet on the local network can access the Admin Panel via browser to control studies, trigger widgets, and monitor sessions.
-- **Additional Screens**: Can render widgets in web mode via browser for participant-facing displays.
+- **Additional Screens**: Can render browser or transparent widget windows for participant-facing displays. Participant View layouts can assign individual widget instances to different connected displays.
 
 ---
 
@@ -205,8 +205,8 @@ This directory contains the following requirement documents. Each file focuses o
 | [ADMIN_PANEL.md](./ADMIN_PANEL.md) | Web UI specification — all screens, routes, interactions, and design decisions |
 | [SIM_BRIDGE.md](./SIM_BRIDGE.md) | Abstract simulator bridge — WebSocket protocol, adapter interface |
 | [IO_CLIENT.md](./IO_CLIENT.md) | Physical sensor client — SensorDriver interface, data flow, supported sensors |
-| [OVERLAY_ENGINE.md](./OVERLAY_ENGINE.md) | Widget rendering engine — web mode and desktop transparent mode |
-| [WIDGETS.md](./WIDGETS.md) | Widget architecture — development guide, metadata schema, trigger system |
+| [OVERLAY_ENGINE.md](./OVERLAY_ENGINE.md) | Widget rendering engine — browser, browser-popup, desktop transparent, and per-widget display targeting |
+| [WIDGETS.md](./WIDGETS.md) | Widget architecture — development guide, metadata schema, shared runtime, trigger system |
 | [WIDGET_CATALOGUE.md](./WIDGET_CATALOGUE.md) | Complete catalogue of all 24 widgets with specs and bindings |
 
 ### Simulators

@@ -17,7 +17,7 @@ The system predefines all required components so researchers can focus solely on
 | ---------------------------- | ------------------------------------------------------------------------------------------------ |
 | **Rapid Study Design**       | Researchers design and launch studies entirely through the Admin Panel — no code required        |
 | **Real-Time Data Pipeline**  | All data streams flow in real time from simulators and sensors through to widgets and storage    |
-| **Extensible Widget System** | Static HTML + TailwindCSS v4 widgets with metadata-driven bindings — easy to create and maintain |
+| **Extensible Widget System** | Static HTML widgets with shared TailwindCSS v4 styling and metadata-driven bindings — easy to create and maintain |
 | **Multi-Device Access**      | Web-based platform accessible from any device on the local network                               |
 | **Complete Data Capture**    | Every event, input, and telemetry reading is persisted to PostgreSQL for analysis                |
 | **Simulator Agnostic**       | Abstract Sim-Bridge protocol enables future simulator integrations beyond CARLA                  |
@@ -55,8 +55,8 @@ The system predefines all required components so researchers can focus solely on
 | **Admin Panel**     | Web-based researcher and operator interface built with [SvelteKit](https://svelte.dev/docs/kit). Manages everything from study design and simulator configuration to session execution and data export.                                                                                                                              |
 | **Sim-Bridge**      | Abstract protocol bridge that normalizes communication between the platform and any simulator backend. Enables future simulator integrations through a standardized adapter interface.                                                                                                                                               |
 | **I/O Client**      | [Python](https://www.python.org)-based service for physical sensor integration. Implements a standardized `SensorDriver` interface, allowing eye trackers, steering wheels, heart rate monitors, and other hardware to stream data through RabbitMQ.                                                                                 |
-| **Overlay Engine**  | Widget rendering engine supporting two modes: **web mode** (browser-based, accessible on any device) and **desktop transparent mode** ([Electron](https://www.electronjs.org) windows overlaying the simulator for the participant).                                                                                                 |
-| **Widgets**         | Catalogue of self-contained HTML + [TailwindCSS v4](https://tailwindcss.com) components rendered by the Overlay Engine. Widgets are organized under `widgets/components/<widget-id>/` with shared assets in `widgets/images/` and `widgets/icons/`. Each widget includes `widget.json` metadata defining bindings, sizing, and category. |
+| **Overlay Engine**  | Widget rendering engine supporting browser overlays/browser-popup windows and desktop transparent mode. It uses detected display topology so individual widget instances can be assigned to different connected participant displays. |
+| **Widgets**         | Catalogue of self-contained HTML + [TailwindCSS v4](https://tailwindcss.com) components rendered by the Overlay Engine. Widgets are organized under `widgets/components/<widget-id>/` with shared assets in `widgets/images/` and `widgets/icons/`. Each widget includes `widget.json` metadata defining bindings, sizing, category, and preferred/minimum dimensions. |
 
 ### Simulators
 
@@ -77,7 +77,9 @@ This directory contains the detailed product requirements for every component. S
 | File                                                   | Description                                                                                                                                                  |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | [PRD.md](./PRD.md)                                     | Product Requirements Document — architecture, technology stack, access model, authentication, and complete document index                                    |
-| [IMPLEMENTATION_REPORT.md](./IMPLEMENTATION_REPORT.md) | Comprehensive codebase assessment — 100% platform completeness, production-ready hardened state, and verified verification pass |
+| [IMPLEMENTATION_REPORT.md](./IMPLEMENTATION_REPORT.md) | Current codebase assessment against product requirements, measured verification evidence, and remaining finalization risks |
+| [FINALIZATION_PLAN.md](./FINALIZATION_PLAN.md) | Implementation plan for bringing the platform to showcase-ready end-to-end reliability without adding new feature scope |
+| [REQUIREMENTS_TRACEABILITY.md](./REQUIREMENTS_TRACEABILITY.md) | Traceability matrix mapping each requirements document to implementation surfaces, verification status, and finalization actions |
 
 
 ### Infrastructure
@@ -101,8 +103,8 @@ This directory contains the detailed product requirements for every component. S
 | [ADMIN_PANEL.md](./ADMIN_PANEL.md)           | Web UI specification — all 24 screens, routes, interactions, and role-based access control            |
 | [SIM_BRIDGE.md](./SIM_BRIDGE.md)             | Simulator bridge — WebSocket protocol, adapter registration, and session binding                      |
 | [IO_CLIENT.md](./IO_CLIENT.md)               | Physical sensor client — SensorDriver interface, supported sensors, and data flow                     |
-| [OVERLAY_ENGINE.md](./OVERLAY_ENGINE.md)     | Widget rendering engine — web mode, desktop transparent mode, and data binding model                  |
-| [WIDGETS.md](./WIDGETS.md)                   | Widget architecture — development guide, `widget.json` schema, trigger system, and styling guidelines |
+| [OVERLAY_ENGINE.md](./OVERLAY_ENGINE.md)     | Widget rendering engine — browser, browser-popup, desktop transparent, display targeting, and data binding model |
+| [WIDGETS.md](./WIDGETS.md)                   | Widget architecture — development guide, `widget.json` schema, shared runtime, trigger system, and styling guidelines |
 | [WIDGET_CATALOGUE.md](./WIDGET_CATALOGUE.md) | Complete catalogue of all 24 widgets with bindings, sizing, and behavior                              |
 
 ---

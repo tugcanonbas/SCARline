@@ -90,6 +90,18 @@ services:
       - scarline-node-modules:/workspace/node_modules
       - scarline-overlay-web-node-modules:/workspace/apps/overlay-web/node_modules
 
+  docs:
+    extends:
+      file: ./docker-compose.yml
+      service: docs
+    depends_on:
+      dev-deps:
+        condition: service_completed_successfully
+    command: ["pnpm", "--dir", "/workspace/docs", "dev", "--host", "0.0.0.0", "--port", "4040"]
+    volumes:
+      - .:/workspace
+      - scarline-node-modules:/workspace/node_modules
+
   mock-simulator:
     extends:
       file: ./docker-compose.yml

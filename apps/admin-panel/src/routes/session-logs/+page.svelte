@@ -1,4 +1,6 @@
 <script lang="ts">
+  import EmptyState from '$lib/components/admin/EmptyState.svelte';
+  import MetricCard from '$lib/components/admin/MetricCard.svelte';
   import { appPath } from '$lib/paths';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
@@ -15,42 +17,26 @@
 />
 
 <div class="metric-grid">
-  <div class="metric-card">
-    <p class="metric-card__label">Visible Events</p>
-    <p class="metric-card__value">{data.logs.length}</p>
-    <p class="metric-card__hint">Current filtered result set</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Studies</p>
-    <p class="metric-card__value">{data.studies.length}</p>
-    <p class="metric-card__hint">Available study filters</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Modalities</p>
-    <p class="metric-card__value">{modalityCount}</p>
-    <p class="metric-card__hint">Modalities in current result</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Sources</p>
-    <p class="metric-card__value">{sourceCount}</p>
-    <p class="metric-card__hint">Event producers represented</p>
-  </div>
+  <MetricCard label="Visible Events" value={data.logs.length} hint="Current filtered result set" accent />
+  <MetricCard label="Studies" value={data.studies.length} hint="Available study filters" />
+  <MetricCard label="Modalities" value={modalityCount} hint="Modalities in current result" />
+  <MetricCard label="Sources" value={sourceCount} hint="Event producers represented" />
 </div>
 
 <div class="mt-4">
 <SurfaceCard title="Filters" subtitle="Filter the persisted event stream without changing the underlying query contract.">
-  <form class="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_1fr_0.6fr_auto]" method="GET">
-    <select class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm" name="studyId">
+  <form class="filter-bar filter-bar--6" method="GET">
+    <select name="studyId">
       <option value="">All studies</option>
       {#each data.studies as study}
         <option value={study.id} selected={data.filters.studyId === study.id}>{study.name}</option>
       {/each}
     </select>
-    <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm" name="sessionId" placeholder="Session UUID" value={data.filters.sessionId} />
-    <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm" name="eventType" placeholder="Event type" value={data.filters.eventType} />
-    <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm" name="modality" placeholder="Modality" value={data.filters.modality} />
-    <input class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm" min="1" max="500" name="limit" type="number" value={data.filters.limit} />
-    <button class="rounded-2xl border border-[--color-line] px-4 py-3 text-sm" type="submit">Apply</button>
+    <input name="sessionId" placeholder="Session UUID" value={data.filters.sessionId} />
+    <input name="eventType" placeholder="Event type" value={data.filters.eventType} />
+    <input name="modality" placeholder="Modality" value={data.filters.modality} />
+    <input min="1" max="500" name="limit" type="number" value={data.filters.limit} />
+    <button class="button-secondary" type="submit">Apply</button>
   </form>
 </SurfaceCard>
 </div>
@@ -59,18 +45,18 @@
   <SurfaceCard title="Event Timeline" subtitle="Timeline-like view of persisted events; open a row for session-level detail.">
     <div class="timeline-list">
       {#each data.logs as entry}
-        <a class="timeline-entry block transition hover:border-[--color-accent]/40" href={appPath(`/session-logs/${entry.sessionId ?? entry.session_id}`)}>
+        <a class="timeline-entry block" href={appPath(`/session-logs/${entry.sessionId ?? entry.session_id}`)}>
           <div class="mb-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
-              <p class="font-semibold text-white">{entry.eventType ?? entry.event_type}</p>
-              <p class="text-sm text-slate-400">{entry.modality} · {entry.source}</p>
+              <p class="font-semibold">{entry.eventType ?? entry.event_type}</p>
+              <p class="entity-card__meta">{entry.modality} · {entry.source}</p>
             </div>
-            <p class="text-xs text-slate-500">{entry.timestamp}</p>
+            <p class="entity-card__meta">{entry.timestamp}</p>
           </div>
-          <p class="truncate text-xs text-slate-400">{entry.routingKey ?? entry.routing_key}</p>
+          <p class="truncate entity-card__meta">{entry.routingKey ?? entry.routing_key}</p>
         </a>
       {:else}
-        <p class="rounded-2xl border border-dashed border-[--color-line] px-4 py-6 text-sm text-slate-400">No events match the current filters.</p>
+        <EmptyState message="No events match the current filters." />
       {/each}
     </div>
   </SurfaceCard>

@@ -78,14 +78,13 @@
     </style>
 </head>
 
-<body class="bg-gray-200 min-h-screen flex items-center justify-center p-4">
+<body class="bg-transparent min-h-screen flex items-center justify-center p-4">
 
     <!-- Card Container: 150x129 -->
     <div
-        class="bg-[#686d76] w-[150px] h-[129px] rounded-lg overflow-hidden shadow-md relative text-white flex flex-col items-center p-2 isolate">
+        class="bg-transparent w-[150px] h-[129px] rounded-lg overflow-hidden shadow-md relative text-white flex flex-col items-center p-2 isolate">
 
-        <!-- Grid Background Overlay -->
-        <div class="absolute inset-0 bg-grid pointer-events-none opacity-50 z-0"></div>
+
 
         <!-- Analog Clock -->
         <div class="relative z-10 clock-container mt-1">
@@ -99,7 +98,8 @@
         </div>
 
         <!-- Digital Time -->
-        <div id="digital-time" class="relative z-10 text-[14px] font-bold mt-1 leading-none" data-bind="system.time_label">
+        <div id="digital-time" class="relative z-10 text-[14px] font-bold mt-1 leading-none"
+            data-bind="system.time_label">
             01:38 PM
         </div>
 
@@ -116,6 +116,7 @@
         </div>
 
     </div>
+    <script src="../../widget-runtime.js"></script>
 </body>
 
 </html>

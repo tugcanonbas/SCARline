@@ -1,6 +1,6 @@
 ---
 name: "tailwindcss-v4"
-description: "Rules for developing and customizing styling using Tailwind CSS v4."
+description: "Rules for developing and customizing styling using Tailwind CSS v4 in SCARline Admin Panel and static widget CSS artifacts."
 license: "Apache-2.0"
 ---
 
@@ -46,3 +46,14 @@ Define custom tokens using CSS variables within the `@theme` block in your CSS f
 - Prefer modern, built-in utility classes over arbitrary values (`[]`) whenever possible.
 - Trust that v4 natively supports modern CSS features (like CSS nesting, container queries, and logical properties). 
 - Avoid outdated v3 specific plugins if Tailwind v4 has integrated those features natively.
+
+## 5. Widget CSS Artifact
+
+Static widgets do not load Tailwind from a CDN and do not run per-widget builds.
+
+- Widget CSS source is `widgets/tailwind-source.css`.
+- Generated widget CSS artifact is `widgets/dist.css`.
+- Source scanning must include `widgets/components/**/*.{html,js}` and `widgets/widget-runtime.js`.
+- After changing widget utility classes, shared widget base styles, or `tailwind-source.css`, run `pnpm widgets:build-css`.
+- Use `pnpm widgets:check-css` or the contract tests to verify `widgets/dist.css` is current.
+- Keep shared reset/font/background behavior in the widget base layer. Keep widget-specific animations/keyframes local to the widget HTML when utilities are not a good fit.

@@ -1,35 +1,35 @@
 # SCARline Implementation Report
 
-> **Report Date**: April 14, 2026  
+> **Report Date**: April 17, 2026  
 > **Scope**: Full repository status against product requirements and current implementation  
-> **Overall Completeness**: 100%  
-> **Assessment Status**: Production-Ready (Hardening and Validation Complete)
+> **Overall Completeness**: Static finalization complete; live acceptance pending  
+> **Assessment Status**: Build-clean and statically verified; runtime E2E blocked by Docker image metadata resolution
 
 ---
 
 ## Executive Summary
 
-SCARline is now at a production-ready state. The final stabilization phase has successfully addressed rate limiting, structured error handling, simulator connectivity diagnostics, and cross-platform launcher stability. All core architecture boundaries are enforced, and the platform has 100% feature coverage against the requirements.
+SCARline has the main architecture and implementation surfaces required by the product documents, and the current repository is build-clean and statically verified. The finalization pass closed measured gaps in build cleanliness, requirement traceability, documentation drift, RBAC alignment, simulator health coverage, widget catalogue consistency, Admin configuration surfaces, and active-study operator note persistence. The platform is not yet ready to be represented as fully production-ready because live end-to-end acceptance through the public gateway is still blocked by Docker image metadata resolution on this host.
 
-The final implementation phase focused on:
-- **CoreAPI Hardening**: Centralized error normalization and rate limiting plugin integration.
-- **Simulator Presets**: Expansion and centralization of CARLA weather/bridge presets.
-- **Launcher Stability**: Diagnostics for Node.js/pnpm environments and robust cross-platform IPC socket management.
-- **Verification**: Expansion of integration tests for IPC recovery and launcher requirements.
+The remaining finalization focus is runtime acceptance:
+- **Gateway E2E**: Start the mock-backed stack and pass the public researcher/participant flow through `localhost:8088`.
+- **Overlay Smoke**: Verify browser and Electron overlay rendering, lifecycle behavior, and window placement against a running stack.
+- **External Validation**: Run CARLA host and physical sensor smoke checks where the required hardware/runtime exists.
+- **Recovery Validation**: Exercise RabbitMQ reconnect, simulator disconnect/reconnect, service restart, and session recovery behavior.
 
 ### Current Platform Snapshot
 
-| Area | Completeness | Status |
+| Area | Status | Notes |
 | --- | --- | --- |
-| Architecture compliance | 100% | ✅ Fully Compliant |
-| Infrastructure (Docker/DB/MQ/Nginx) | 100% | ✅ Production-grade |
-| CoreAPI backend | 100% | ✅ Hardened and Rate-limited |
-| Admin Panel | 100% | ✅ UX Complete and Standardized |
-| Overlay engine (web + desktop control path) | 100% | ✅ Solid and Reconfigurable |
-| Process Manager / launcher parity | 100% | ✅ Robust with Diagnostics |
-| Python simulator clients | 100% | ✅ CARLA and Mock fully functional |
-| Contracts and schema layer | 100% | ✅ Type-safe and Validated |
-| Tests and verification | 100% | ✅ 100% Pass Rate |
+| Architecture compliance | Partially aligned | Static tests confirm CQRS boundaries and component ownership; live failure/recovery paths still need acceptance evidence. |
+| Infrastructure (Docker/DB/MQ/Nginx) | Runtime blocked | Compose topology, healthchecks, and gateway config are statically verified; live startup is blocked by Docker image metadata resolution. |
+| CoreAPI backend | Partially aligned | Build/tests pass and RBAC/session-note/sensor surfaces were tightened; full live gateway route behavior still needs E2E evidence. |
+| Admin Panel | Partially aligned | RBAC, sidebar visibility, CARLA controls, condition overrides, sensor configuration, and persisted operator notes are implemented; browser walkthrough remains pending. |
+| Overlay engine (web + desktop control path) | External validation required | Static overlay tests pass; browser/Electron visual smoke remains pending. |
+| Process Manager / launcher parity | Runtime blocked | Static launcher/process-manager tests pass and partial startup/stop cleanup worked; full readiness is blocked by Docker image metadata resolution. |
+| Python simulator clients | Partially aligned | Mock scenarios/health and I/O health/degraded status are implemented; live Sim-Bridge connection, CARLA host, and hardware smoke remain pending. |
+| Contracts and schema layer | Aligned | Shared contracts, widget metadata categories, RabbitMQ/I/O taxonomy, and schema coverage are statically verified. |
+| Tests and verification | Static pass / live blocked | `pnpm test`, `pnpm check`, and `pnpm build` pass; `pnpm test:e2e` skips until the gateway is running. |
 
 ---
 
@@ -119,16 +119,19 @@ The launcher stack has moved significantly toward parity and recovery readiness:
   - `scope=all` forbids study/session IDs
 - Active-study lifecycle route permissions and overlay configure permissions refined.
 - Overlay configure endpoint implemented and wired to process manager.
+- Researchers, devices, study-design routes, active-study controls, and session note routes now match the documented RBAC matrix.
+- Active-study operator notes are persisted to session records instead of page-local state.
+- Sensor driver catalogue includes baseline optional drivers exposed by the I/O client.
 
 #### Implemented and verified
 
 - Active Study actions now operational server-side:
-  - `start`, `pause`, `resume`, `complete`, `cancel`, `trigger`
+  - `start`, `pause`, `resume`, `complete`, `cancel`, `note`, `trigger`
 - Triggerable widget instance discovery now uses actual participant layout detail.
 - Active Study flow now invokes overlay configure on relevant transitions.
 - Realtime telemetry store updated to keyed merge behavior with latest snapshot marker.
 - DTO usage was normalized to current contract shape (removed snake_case fallback usage where migrated).
-- Export creation restrictions align to admin/researcher policy.
+- Export, researcher, device, and study-design restrictions align to documented role policy.
 - High-fidelity drag-and-drop participant layout editor implemented fixed implicit any errors.
 - Comprehensive trigger rule builder and active study telemetry charts implemented.
 - Session log evidence dashboard with modality filtering and event timeline.
@@ -141,11 +144,14 @@ The launcher stack has moved significantly toward parity and recovery readiness:
   - pause -> freeze bindings
   - completed/cancelled -> freeze and hide widgets
 - Widget interaction forwarding and binding application logic remains intact.
+- Widget metadata validation now accepts the canonical documented category set only: `driving`, `communication`, `health`, `study`, and `general`.
 
 #### Desktop overlay + control wiring
 
 - Desktop overlay now supports runtime reconfiguration through `/configure`.
-- Configure payload supports URL/mode/display/zones/bounds/session/click-through updates.
+- Configure payload supports URL/mode/display/bounds/session/click-through updates.
+- Display topology is exposed through the desktop overlay, Process Manager, and CoreAPI so Participant View can project detected screens.
+- Managed widget windows can be opened, resized/updated, and closed individually.
 - Status endpoint now exposes richer runtime state context.
 
 ---
@@ -206,6 +212,10 @@ To preserve the implemented data flow without editing design files:
   - serves shared `/images/*`, `/icons/*`, `/dist.css`
   - validates both metadata structures
 - Overlay runtime normalizes metadata before applying existing binding/trigger flow.
+- Shared `widgets/widget-runtime.js` applies declarative binding/state/action behavior across widget contexts.
+- Shared Tailwind CSS is generated into `widgets/dist.css` from `widgets/tailwind-source.css`.
+- Widget `widget.json` categories have been normalized to the product taxonomy.
+- `WIDGET_CATALOGUE.md` now documents all 24 widgets, including `operator-controls`, `operator-notes`, and `sensor-health`.
 
 ### 5.4 Design Fidelity Constraint
 
@@ -234,37 +244,42 @@ Remaining validation burden is environment/runtime integration with real CARLA h
 
 ### 6.2 I/O Client
 
-Framework and driver structure remain intact. Real hardware integration still depends on concrete device-specific implementation/testing in target lab environments.
+Framework and driver structure remain intact, and the client now exposes a `/health` endpoint for Docker/process-manager readiness. Driver status, degraded behavior, plugin discovery, and explicit Admin sensor configuration are statically covered. Real hardware integration still depends on concrete device-specific testing in target lab environments.
+
+### 6.3 Mock Simulator
+
+The mock simulator now includes the documented scenario catalogue in `scenarios.yaml` and exposes a `/health` endpoint. Static tests cover deterministic scenario catalogue support, runtime event emission paths, reconnect settings, and health server presence. Live Sim-Bridge connection validation remains blocked until Docker startup succeeds.
 
 ---
 
 ## Part 7: Testing And Verification Snapshot
 
-The following checks were run in this implementation window and passed:
+The following checks were run during the finalization review:
 
-- `node --test tests/contracts/contracts.test.mjs`
-- `node --test tests/infra/topology.test.mjs`
-- `node --test tests/services/core-api.test.mjs`
-- `node --test tests/admin-panel/routes.test.mjs`
-- `pnpm --dir packages/contracts build`
-- `pnpm --dir apps/overlay-web build`
+- `pnpm test` passed.
+- `pnpm check` passed with zero Svelte diagnostics.
+- `pnpm build` passed across all workspace packages.
+- Targeted static tests passed for Admin routes, infra topology, mock simulator, and I/O client.
+- `pnpm test:e2e` executed but skipped because the public gateway was not reachable before stack startup.
 
-Notable current limitation:
+Notable current limitation found during live validation:
 
-- `pnpm --dir services/core-api build` currently reports existing TypeScript typing issues around websocket plugin typing/routes in this environment. This is tracked as a stabilization item and is not introduced by the widget file copy itself.
+- Mock-backed stack startup was attempted with `./scarline start --no-carla --no-overlay --no-browser`, but Docker stalled while resolving base image metadata for `node:22-alpine` and `python:3.11-slim`. The partial startup was canceled and `./scarline stop` removed the temporary containers/network. Live E2E remains blocked until Docker image resolution is available on the host.
 
 ---
 
 ## Part 8: Open Risks And Gaps
 
-### High Priority (Resolved)
+### High Priority
 
-1. **CoreAPI Hardening** (Mitigated)
-   - Integrated `@fastify/rate-limit`.
-   - Centralized error normalization.
-2. **Launcher Stability** (Mitigated)
-   - Added Node.js/pnpm version diagnostics.
-   - Robust IPC recovery logic.
+1. **Build Cleanliness**
+   - Root `pnpm check` and `pnpm build` pass after Sim-Bridge websocket dependency alignment; keep them as mandatory gates.
+2. **Showcase Reliability**
+   - Live mock-backed E2E and overlay smoke checks must be run through the public gateway.
+3. **Requirement Drift**
+   - Resolved for widget catalogue categories/specs, mock simulator scenarios, I/O command taxonomy, and mock/I/O health endpoint documentation.
+4. **Admin Panel Completeness**
+   - RBAC and major advanced configuration workflows were updated; browser walkthrough remains required before production-ready status.
 
 ---
 
@@ -290,18 +305,19 @@ Notable current limitation:
 
 ### 11.1 Overlay Rendering and Persistence
 A final stabilization pass was performed to resolve issues with participant view rendering:
-- **Absolute Positioning**: Transitioned from a zone-based model to an absolute coordinate model (logical 1080p pixels).
+- **Absolute Positioning**: Transitioned from a zone-based model to display-relative device-independent widget coordinates.
 - **Persistence Correction**: Fixed Zod schema mismatches and JSONB mapping logic in the CoreAPI to ensure layout configurations (transparency, coordinates) are correctly saved and retrieved.
 - **Connectivity Stability**: Resolved Docker-to-Host networking mismatches by enabling relative API origin discovery in the overlay runtime.
+- **Per-Widget Display Targeting**: Participant View now persists `targetDisplay` per widget instance, CoreAPI resolves display offsets per widget, and browser-popup/transparent Electron launch paths use the same saved bounds.
 
-### 11.2 CoreAPI Build Success
-The build issues related to `@fastify/websocket` versioning and TypeScript typing mismatches have been fully resolved:
-- Downgraded `@fastify/websocket` to v8 for Fastify 4 compatibility.
-- Normalized WebSocket type imports to ensure clean compilation.
-- **Verification**: `pnpm build` now passes across all workspace packages.
+### 11.2 Build Stabilization Target
+The build issue identified in this finalization pass was Sim-Bridge websocket dependency skew:
+- Sim-Bridge now uses the Fastify 4-compatible `@fastify/websocket` line.
+- WebSocket route typing compiles cleanly under the workspace TypeScript configuration.
+- **Verification**: root `pnpm check` and `pnpm build` pass across all workspace packages.
 
 ---
 
 ## Conclusion
 
-SCARline is now **100% implemented, production-ready, and stabilized**. All documented features including complex participant layouts, real-time widget interactions, and simulator coordinate mappings are fully operational and verified.
+SCARline is build-clean and statically finalized against the reviewed requirements, but it is not yet production-ready. Production-ready status depends on resolving Docker image metadata/startup on the host, passing live gateway E2E, completing overlay visual smoke checks, and recording CARLA/hardware validation where those external runtimes are available.

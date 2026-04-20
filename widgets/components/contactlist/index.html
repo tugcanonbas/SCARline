@@ -35,14 +35,13 @@
     </style>
 </head>
 
-<body class="bg-gray-200 min-h-screen flex items-center justify-center p-4">
+<body class="bg-transparent min-h-screen flex items-center justify-center p-4">
 
     <!-- Card Container: 150x197 -->
     <div
-        class="bg-[#686d76] w-[150px] h-[197px] rounded-lg overflow-hidden shadow-md relative text-white flex flex-col isolate">
+        class="bg-transparent w-[150px] h-[197px] rounded-lg overflow-hidden shadow-md relative text-white flex flex-col isolate">
 
-        <!-- Grid Background Overlay -->
-        <div class="absolute inset-0 bg-grid pointer-events-none opacity-50 z-0"></div>
+
 
         <!-- Scrollable Contact List -->
         <div class="relative z-10 contact-list overflow-y-auto flex-1 px-2 py-1">
@@ -56,7 +55,12 @@
                     <img src="../../images/avatars/adam-friedman.png" alt="Adam Friedman"
                         class="w-full h-full object-cover">
                 </div>
-                <span class="text-[9px] font-medium text-white/90 leading-tight" data-bind="contacts.item_1_name">Adam Friedman</span>
+                <div class="min-w-0 flex flex-col items-start">
+                    <span class="text-[9px] font-medium text-white/90 leading-tight truncate"
+                        data-bind="contacts.item_1_name">Adam Friedman</span>
+                    <span class="text-[7px] font-medium text-white/45 leading-tight truncate"
+                        data-bind="contacts.item_1_phone">+49 1234 567890</span>
+                </div>
             </button>
 
             <button type="button" data-action="contacts.select_2"
@@ -65,7 +69,12 @@
                     <img src="../../images/avatars/alessandra-orso.png" alt="Alessandra Orso"
                         class="w-full h-full object-cover">
                 </div>
-                <span class="text-[9px] font-medium text-white/90 leading-tight" data-bind="contacts.item_2_name">Alessandra Orso</span>
+                <div class="min-w-0 flex flex-col items-start">
+                    <span class="text-[9px] font-medium text-white/90 leading-tight truncate"
+                        data-bind="contacts.item_2_name">Alessandra Orso</span>
+                    <span class="text-[7px] font-medium text-white/45 leading-tight truncate"
+                        data-bind="contacts.item_2_phone">+49 221 555 814</span>
+                </div>
             </button>
 
             <button type="button" data-action="contacts.select_3"
@@ -74,7 +83,12 @@
                     <img src="../../images/avatars/aaliyah-kassab.png" alt="Aaliyah Kassab"
                         class="w-full h-full object-cover">
                 </div>
-                <span class="text-[9px] font-medium text-white/90 leading-tight" data-bind="contacts.item_3_name">Aaliyah Kassab</span>
+                <div class="min-w-0 flex flex-col items-start">
+                    <span class="text-[9px] font-medium text-white/90 leading-tight truncate"
+                        data-bind="contacts.item_3_name">Aaliyah Kassab</span>
+                    <span class="text-[7px] font-medium text-white/45 leading-tight truncate"
+                        data-bind="contacts.item_3_phone">+49 30 884 229</span>
+                </div>
             </button>
 
             <!-- Section B -->
@@ -86,7 +100,12 @@
                     <img src="../../images/avatars/barbara-mueller.png" alt="Barbara Müller"
                         class="w-full h-full object-cover">
                 </div>
-                <span class="text-[9px] font-medium text-white/90 leading-tight" data-bind="contacts.item_4_name">Barbara Müller</span>
+                <div class="min-w-0 flex flex-col items-start">
+                    <span class="text-[9px] font-medium text-white/90 leading-tight truncate"
+                        data-bind="contacts.item_4_name">Barbara Müller</span>
+                    <span class="text-[7px] font-medium text-white/45 leading-tight truncate"
+                        data-bind="contacts.item_4_phone">+49 711 404 770</span>
+                </div>
             </button>
 
             <a href="../contact/index.html?name=Bianca%20Davis&avatar=../../images/avatars/bianca-davis.png&phone=%2B1%20555%20234%205678"
@@ -164,6 +183,7 @@
         </div>
 
     </div>
+    <script src="../../widget-runtime.js"></script>
 </body>
 
 </html>

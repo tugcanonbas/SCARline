@@ -1,6 +1,6 @@
 ---
 name: "coreapi-backend"
-description: "Rules for developing endpoints and handling state in the Fastify-based SCARline CoreAPI."
+description: "Rules for developing endpoints and handling state in the Fastify-based SCARline CoreAPI, including overlay display/window control, widget layouts, and Fastify/Zod validation."
 license: "Apache-2.0"
 ---
 
@@ -58,3 +58,16 @@ The CoreAPI holds the authoritative state machine for a Session (Study Run). How
 
 - Do not use heavier ORMs like Prisma or TypeORM. SCARline uses raw SQL with `pg` and connection pooling for performance.
 - Utilize PostgreSQL `JSONB` columns for variable data (like widget configs or sensor telemetry payload dumps) rather than heavily normalized relational tables for high-frequency logs.
+
+## 6. Overlay And Widget Layout Control
+
+CoreAPI owns the API boundary for overlay configuration; Admin Panel and overlay-web must not call the Electron control port directly except as an explicit UI fallback.
+
+- Expose and maintain `GET /api/system/overlay/displays` as the normalized display topology endpoint.
+- Proxy overlay lifecycle through the Process Manager: `/api/system/overlay/configure`, `/api/system/overlay/windows/open`, `/api/system/overlay/windows/update`, `/api/system/overlay/windows/close`, and `/api/system/overlay/reload`.
+- Use Electron device-independent pixels for overlay window specs.
+- Keep `view_layouts.target_display` as a layout-level fallback/default only.
+- Preserve per-widget `targetDisplay` in `view_layouts.layout_config.widgets[]` and use it when launching or updating each widget window.
+- Convert saved relative bounds to absolute virtual-desktop bounds only at launch time: `display.bounds.x + widget.x`, `display.bounds.y + widget.y`.
+- Convert live absolute browser/Electron window updates back to display-relative coordinates before persisting.
+- `/api/widgets/catalogue` must include normalized `ui` values from real `widget.json` files so Participant View can use preferred/minimum sizes.

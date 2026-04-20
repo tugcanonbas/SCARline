@@ -1,8 +1,26 @@
 import { apiAction, apiRequest } from '$lib/server/api';
 import { requireRole } from '$lib/server/rbac';
+import { error } from '@sveltejs/kit';
+
+function parseJsonObject(value: FormDataEntryValue | null) {
+  const text = String(value ?? '').trim();
+  if (!text) return {};
+  try {
+    const parsed = JSON.parse(text);
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+      throw error(400, 'Sensor metadata must be a JSON object');
+    }
+    return parsed;
+  } catch (parseError) {
+    if (parseError && typeof parseError === 'object' && 'status' in parseError) {
+      throw parseError;
+    }
+    throw error(400, 'Invalid sensor metadata JSON');
+  }
+}
 
 export const load = async ({ fetch, locals, params }) => {
-  const user = await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator', 'viewer']);
+  const user = await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
   return {
     config: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/sensor-config`, locals.accessToken),
     drivers: await apiRequest(fetch, locals.apiBase, '/sensors/drivers', locals.accessToken),
@@ -12,15 +30,43 @@ export const load = async ({ fetch, locals, params }) => {
 };
 
 export const actions = {
-  default: async ({ fetch, locals, params }) => {
+  preset: async ({ fetch, locals, params }) => {
     await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
+    const drivers = await apiRequest(fetch, locals.apiBase, '/sensors/drivers', locals.accessToken);
+    const sensors = drivers.map((driver: Record<string, unknown>) => ({
+      type: driver.sensorType,
+      driver: driver.driverId,
+      driverId: driver.driverId,
+      sample_rate: driver.driverId === 'logitech_g29' ? 100 : 30,
+      enabled: true,
+      required: driver.driverId === 'logitech_g29',
+      metadata: driver.driverId === 'logitech_g29'
+        ? { force_feedback: true }
+        : { preferred_source: 'embedded-or-usb' }
+    }));
+    const result = await apiAction(fetch, locals.apiBase, `/studies/${params.id}/sensor-config`, locals.accessToken, {
+      method: 'PUT',
+      body: JSON.stringify({ sensors })
+    }, 'Failed to save sensor configuration');
+    return result.ok ? undefined : result.failure;
+  },
+  save: async ({ fetch, locals, params, request }) => {
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
+    const formData = await request.formData();
+    const selectedDrivers = formData.getAll('driverId').map(String);
+    const sensors = selectedDrivers.map((driverId) => ({
+      type: String(formData.get(`${driverId}:sensorType`) || 'custom'),
+      driver: driverId,
+      driverId,
+      sample_rate: Number(formData.get(`${driverId}:sampleRate`) || 1),
+      enabled: true,
+      required: formData.get(`${driverId}:required`) === 'on',
+      metadata: parseJsonObject(formData.get(`${driverId}:metadata`))
+    }));
     const result = await apiAction(fetch, locals.apiBase, `/studies/${params.id}/sensor-config`, locals.accessToken, {
       method: 'PUT',
       body: JSON.stringify({
-        sensors: [
-          { type: 'steering_wheel', driver: 'logitech_g29', sample_rate: 100, metadata: { force_feedback: true } },
-          { type: 'camera', driver: 'usb_camera', sample_rate: 30, metadata: { preferred_source: 'embedded-or-usb' } }
-        ]
+        sensors
       })
     }, 'Failed to save sensor configuration');
     return result.ok ? undefined : result.failure;

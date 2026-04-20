@@ -1,4 +1,6 @@
 <script lang="ts">
+  import EmptyState from '$lib/components/admin/EmptyState.svelte';
+  import MetricCard from '$lib/components/admin/MetricCard.svelte';
   import KeyValueGrid from '$lib/components/KeyValueGrid.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
@@ -103,26 +105,10 @@
 />
 
 <div class="metric-grid">
-  <div class="metric-card">
-    <p class="metric-card__label">Status</p>
-    <p class="metric-card__value">{data.summary.status}</p>
-    <p class="metric-card__hint">Session lifecycle state</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Events</p>
-    <p class="metric-card__value">{data.summary.eventCount}</p>
-    <p class="metric-card__hint">Persisted event records</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Modalities</p>
-    <p class="metric-card__value">{data.summary.modalityCount}</p>
-    <p class="metric-card__hint">{sources} event sources</p>
-  </div>
-  <div class="metric-card">
-    <p class="metric-card__label">Duration</p>
-    <p class="metric-card__value">{durationLabel}</p>
-    <p class="metric-card__hint">Session elapsed time</p>
-  </div>
+  <MetricCard label="Status" value={data.summary.status} hint="Session lifecycle state" accent />
+  <MetricCard label="Events" value={data.summary.eventCount} hint="Persisted event records" />
+  <MetricCard label="Modalities" value={data.summary.modalityCount} hint={`${sources} event sources`} />
+  <MetricCard label="Duration" value={durationLabel} hint="Session elapsed time" />
 </div>
 
 <!-- ── Timeline visualization ─────────────────────────────────────────────── -->
@@ -168,18 +154,18 @@
   <SurfaceCard title="Event Stream" subtitle="Filtered event list with expandable payload detail.">
     <!-- Toolbar -->
     <div class="event-toolbar">
-      <form class="flex gap-2" method="GET">
+      <form class="toolbar" method="GET">
         <input
-          class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-2 text-sm"
+          class="toolbar__grow"
           min="1"
           max="1000"
           name="limit"
           type="number"
           value={data.limit}
         />
-        <button class="rounded-2xl border border-[--color-line] px-4 py-2 text-sm" type="submit">Reload</button>
+        <button class="button-secondary" type="submit">Reload</button>
       </form>
-      <div class="flex flex-wrap gap-2">
+      <div class="pill-row">
         {#each allModalities as mod}
           <button
             class="modality-filter-btn {filterModality === mod ? 'modality-filter-btn--active' : ''}"
@@ -189,15 +175,15 @@
           >{mod}</button>
         {/each}
       </div>
-      <div class="flex gap-2 items-center ml-auto">
+      <div class="toolbar__end">
         <input
           bind:value={searchFilter}
-          class="rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-3 py-2 text-xs"
+          class="toolbar__grow"
           placeholder="Search events…"
           type="search"
         />
         <button
-          class="rounded-2xl border border-[--color-line] px-3 py-2 text-xs"
+          class="button-secondary"
           onclick={exportCSV}
           type="button"
         >Export CSV</button>
@@ -218,15 +204,15 @@
             <span class="ml-auto text-xs text-slate-500 font-normal">{event.timestamp}</span>
           </summary>
           <div class="mt-3 grid gap-3 md:grid-cols-3">
-            <div class="rounded-2xl border border-[--color-line] bg-black/20 px-4 py-3 text-sm">
+            <div class="detail-panel">
               <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Source</p>
               <p class="mt-1 text-slate-100">{eventSource(event)}</p>
             </div>
-            <div class="rounded-2xl border border-[--color-line] bg-black/20 px-4 py-3 text-sm">
+            <div class="detail-panel">
               <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Modality</p>
               <p class="mt-1" style="color:{modalityColor(String(event.modality ?? 'unknown'))}">{event.modality ?? 'unknown'}</p>
             </div>
-            <div class="rounded-2xl border border-[--color-line] bg-black/20 px-4 py-3 text-sm">
+            <div class="detail-panel">
               <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Routing Key</p>
               <p class="mt-1 break-words text-slate-100">{event.routingKey ?? 'unknown'}</p>
             </div>
@@ -236,104 +222,12 @@
           </div>
         </details>
       {:else}
-        <p class="rounded-2xl border border-dashed border-[--color-line] px-4 py-6 text-sm text-slate-400">
-          {filteredEvents.length === 0 && events.length > 0
+        <EmptyState
+          message={filteredEvents.length === 0 && events.length > 0
             ? 'No events match the current filter.'
             : 'This session has no persisted events yet.'}
-        </p>
+        />
       {/each}
     </div>
   </SurfaceCard>
 </div>
-
-<style>
-  .timeline-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    margin-bottom: 0.875rem;
-    font-size: 0.6875rem;
-    color: #94a3b8;
-  }
-  .timeline-legend-item { display: flex; align-items: center; gap: 0.35rem; }
-  .timeline-legend-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  .timeline-bar {
-    display: flex;
-    flex-direction: column;
-    gap: 0.375rem;
-  }
-  .timeline-bar__track {
-    position: relative;
-    height: 24px;
-    background: rgba(0,0,0,0.2);
-    border: 1px solid var(--color-line);
-    border-radius: 0.375rem;
-    overflow: hidden;
-  }
-  .timeline-bar__tick {
-    position: absolute;
-    top: 0;
-    width: 2px;
-    height: 100%;
-    opacity: 0.75;
-    border-radius: 1px;
-    transform: translateX(-1px);
-  }
-  .timeline-bar__tick:hover { opacity: 1; z-index: 10; }
-  .timeline-bar__labels {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.625rem;
-    color: #475569;
-  }
-  .timeline-bar-empty {
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.75rem;
-    color: #475569;
-    border: 1px dashed var(--color-line);
-    border-radius: 0.375rem;
-  }
-
-  .event-toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    align-items: center;
-    margin-bottom: 0.75rem;
-  }
-
-  .modality-filter-btn {
-    font-size: 0.625rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    padding: 0.2rem 0.6rem;
-    border-radius: 999px;
-    border: 1px solid var(--color-line);
-    background: transparent;
-    color: #64748b;
-    cursor: pointer;
-    transition: all 0.1s;
-  }
-  .modality-filter-btn--active {
-    background: rgba(99,102,241,0.1);
-    border-color: #6366f1;
-    color: #a5b4fc;
-  }
-
-  .modality-dot {
-    display: inline-block;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-</style>

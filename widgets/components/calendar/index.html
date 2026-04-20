@@ -74,14 +74,13 @@
     </style>
 </head>
 
-<body class="bg-gray-200 min-h-screen flex items-center justify-center p-4">
+<body class="bg-transparent min-h-screen flex items-center justify-center p-4">
 
     <!-- Card Container: 150x129 (from meta.json) -->
     <div
-        class="bg-[#686d76] w-[150px] h-[129px] rounded-lg overflow-hidden shadow-lg relative text-white flex flex-col p-2 isolate">
+        class="bg-transparent w-[150px] h-[129px] rounded-lg overflow-hidden shadow-lg relative text-white flex flex-col p-2 isolate">
 
-        <!-- Grid Background Overlay -->
-        <div class="absolute inset-0 bg-grid pointer-events-none opacity-50 z-0"></div>
+
 
         <!-- Header -->
         <div class="relative z-10 flex items-center justify-between mb-1.5 px-1">
@@ -93,8 +92,10 @@
                 </svg>
             </button>
             <div class="text-center">
-                <div id="month-name" class="text-[10px] font-semibold leading-none" data-bind="calendar.month_label">February</div>
-                <div id="year-label" class="text-[8px] font-medium text-white/40 leading-none mt-0.5" data-bind="calendar.year_label">2026</div>
+                <div id="month-name" class="text-[10px] font-semibold leading-none" data-bind="calendar.month_label">
+                    February</div>
+                <div id="year-label" class="text-[8px] font-medium text-white/40 leading-none mt-0.5"
+                    data-bind="calendar.year_label">2026</div>
             </div>
             <button
                 class="w-5 h-5 flex items-center justify-center rounded border border-white/20 text-white/40 hover:text-white transition-colors">
@@ -139,6 +140,7 @@
             <span data-bind="calendar.event_3_time">13:00 - 14:30</span>
         </div>
     </div>
+    <script src="../../widget-runtime.js"></script>
 </body>
 
 </html>

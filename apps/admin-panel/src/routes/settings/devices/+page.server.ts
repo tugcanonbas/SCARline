@@ -29,7 +29,7 @@ function parseJsonObject(value: FormDataEntryValue | null) {
 }
 
 export const load = async ({ fetch, locals, url }) => {
-  await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'operator', 'viewer']);
+  await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
   const query = new URLSearchParams();
   const type = url.searchParams.get('type');
   const status = url.searchParams.get('status');
@@ -47,7 +47,7 @@ export const load = async ({ fetch, locals, url }) => {
 
 export const actions = {
   create: async ({ fetch, locals, request }) => {
-    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin']);
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
     const formData = await request.formData();
     await apiRequest(fetch, locals.apiBase, '/devices', locals.accessToken, {
       method: 'POST',
@@ -62,7 +62,7 @@ export const actions = {
     });
   },
   update: async ({ fetch, locals, request }) => {
-    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin']);
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
     const formData = await request.formData();
     const deviceId = String(formData.get('deviceId'));
     await apiRequest(fetch, locals.apiBase, `/devices/${deviceId}`, locals.accessToken, {
@@ -78,7 +78,7 @@ export const actions = {
     });
   },
   delete: async ({ fetch, locals, request }) => {
-    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin']);
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
     const formData = await request.formData();
     await apiRequest(fetch, locals.apiBase, `/devices/${String(formData.get('deviceId'))}`, locals.accessToken, {
       method: 'DELETE'

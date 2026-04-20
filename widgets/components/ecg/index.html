@@ -45,11 +45,11 @@
     </style>
 </head>
 
-<body class="bg-gray-200 min-h-screen flex items-center justify-center p-4">
+<body class="bg-transparent min-h-screen flex items-center justify-center p-4">
 
     <!-- Card Container (Size constrained by meta.json 316x197 in production, but handled by Tailwind here) -->
     <div
-        class="bg-[#686d76] w-[316px] h-[197px] rounded-2xl overflow-hidden shadow-2xl relative text-white flex flex-col">
+        class="bg-transparent w-[316px] h-[197px] rounded-2xl overflow-hidden shadow-2xl relative text-white flex flex-col">
 
         <!-- Grid Background Overlay -->
         <div class="absolute inset-0 bg-grid pointer-events-none"></div>
@@ -61,8 +61,8 @@
                 <div class="absolute inset-0 flex h-full w-[200%] wave-marquee"
                     data-bind="vitals.heart_rate_wave_duration" data-bind-style="--wave-duration" data-style-unit="s"
                     data-bind-text="false">
-                    <svg class="w-1/2 h-full shrink-0" preserveAspectRatio="none" data-bind="vitals.heart_rate_wave_scale"
-                        data-bind-style="--wave-scale" data-bind-text="false">
+                    <svg class="w-1/2 h-full shrink-0" preserveAspectRatio="none"
+                        data-bind="vitals.heart_rate_wave_scale" data-bind-style="--wave-scale" data-bind-text="false">
                         <path
                             d="M0,25 L10,25 L15,10 L20,40 L25,5 L30,30 L40,25 L50,25 L60,25 L70,25 L75,10 L80,40 L85,5 L90,30 L100,25 L110,25"
                             stroke="#22c55e" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke"
@@ -72,8 +72,8 @@
                             stroke="#22c55e" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke"
                             class="wave-trace drop-shadow-[0_0_2px_rgba(34,197,94,0.5)]" />
                     </svg>
-                    <svg class="w-1/2 h-full shrink-0" preserveAspectRatio="none" data-bind="vitals.heart_rate_wave_scale"
-                        data-bind-style="--wave-scale" data-bind-text="false">
+                    <svg class="w-1/2 h-full shrink-0" preserveAspectRatio="none"
+                        data-bind="vitals.heart_rate_wave_scale" data-bind-style="--wave-scale" data-bind-text="false">
                         <path
                             d="M0,25 L10,25 L15,10 L20,40 L25,5 L30,30 L40,25 L50,25 L60,25 L70,25 L75,10 L80,40 L85,5 L90,30 L100,25 L110,25"
                             stroke="#22c55e" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke"
@@ -89,9 +89,11 @@
             <div class="w-16 border-l border-white/10 flex flex-col justify-center items-end pr-2 bg-black/10">
                 <div class="text-[8px] font-bold text-green-500 w-full text-left pl-1 -mt-1">ECG <span
                         class="float-right text-[6px] opacity-70">♥</span></div>
+                <div class="text-[6px] text-green-400/80 w-full text-left pl-1 truncate" data-bind="vitals.ecg_status">
+                    Normal sinus</div>
                 <div class="text-[6px] text-green-500 w-full text-left pl-1 -mt-1" data-bind="vitals.unit">bpm</div>
-                <div class="text-2xl font-bold text-green-500 leading-none tracking-tighter" data-bind="vitals.heart_rate"
-                    data-format="number" data-decimals="0">102</div>
+                <div class="text-2xl font-bold text-green-500 leading-none tracking-tighter"
+                    data-bind="vitals.heart_rate" data-format="number" data-decimals="0">102</div>
             </div>
         </div>
 
@@ -123,10 +125,12 @@
             <!-- Data -->
             <div class="w-16 border-l border-white/10 flex flex-col justify-right items-end pr-2 bg-black/10">
                 <div class="text-[8px] font-bold text-red-500 w-full text-left pl-1">NIBP</div>
-                <div class="text-[6px] text-red-500 w-full text-left pl-1 -mt-1" data-bind="vitals.blood_pressure_unit">mmHg</div>
+                <div class="text-[6px] text-red-500 w-full text-left pl-1 -mt-1" data-bind="vitals.blood_pressure_unit">
+                    mmHg</div>
                 <div class="text-l font-bold text-red-500 leading-none text-right"><span
-                        data-bind="vitals.blood_pressure_diastolic" data-format="number" data-decimals="0">78</span><br><span
-                        data-bind="vitals.blood_pressure_systolic" data-format="number" data-decimals="0">123</span></div>
+                        data-bind="vitals.blood_pressure_diastolic" data-format="number"
+                        data-decimals="0">78</span><br><span data-bind="vitals.blood_pressure_systolic"
+                        data-format="number" data-decimals="0">123</span></div>
             </div>
         </div>
 
@@ -134,9 +138,8 @@
         <div class="h-[49.25px] shrink-0 flex border-b border-white/10 relative">
             <!-- Waveform -->
             <div class="flex-1 relative overflow-hidden">
-                <div class="absolute inset-0 flex h-full w-[200%] wave-marquee"
-                    data-bind="vitals.spo2_wave_duration" data-bind-style="--wave-duration" data-style-unit="s"
-                    data-bind-text="false">
+                <div class="absolute inset-0 flex h-full w-[200%] wave-marquee" data-bind="vitals.spo2_wave_duration"
+                    data-bind-style="--wave-duration" data-style-unit="s" data-bind-text="false">
                     <svg class="w-1/2 h-full shrink-0" preserveAspectRatio="none" data-bind="vitals.spo2_wave_scale"
                         data-bind-style="--wave-scale" data-bind-text="false">
                         <path
@@ -167,19 +170,17 @@
             <!-- Waveform -->
             <div class="flex-1 relative overflow-hidden">
                 <div class="absolute inset-0 flex h-full w-[200%] wave-marquee"
-                    data-bind="vitals.respiration_wave_duration" data-bind-style="--wave-duration"
-                    data-style-unit="s" data-bind-text="false">
+                    data-bind="vitals.respiration_wave_duration" data-bind-style="--wave-duration" data-style-unit="s"
+                    data-bind-text="false">
                     <svg class="w-1/2 h-full shrink-0" preserveAspectRatio="none"
-                        data-bind="vitals.respiration_wave_scale" data-bind-style="--wave-scale"
-                        data-bind-text="false">
+                        data-bind="vitals.respiration_wave_scale" data-bind-style="--wave-scale" data-bind-text="false">
                         <path
                             d="M0,40 L20,30 L40,40 L60,20 L80,40 L100,35 L120,40 L140,25 L160,40 L180,30 L200,40 L220,15 L240,40"
                             stroke="#d1d5db" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke"
                             class="wave-trace drop-shadow-[0_0_2px_rgba(209,213,219,0.5)]" />
                     </svg>
                     <svg class="w-1/2 h-full shrink-0" preserveAspectRatio="none"
-                        data-bind="vitals.respiration_wave_scale" data-bind-style="--wave-scale"
-                        data-bind-text="false">
+                        data-bind="vitals.respiration_wave_scale" data-bind-style="--wave-scale" data-bind-text="false">
                         <path
                             d="M0,40 L20,30 L40,40 L60,20 L80,40 L100,35 L120,40 L140,25 L160,40 L180,30 L200,40 L220,15 L240,40"
                             stroke="#d1d5db" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke"
@@ -190,14 +191,15 @@
             <!-- Data -->
             <div class="w-16 border-l border-white/10 flex flex-col justify-center items-end pr-2 bg-black/10">
                 <div class="text-[8px] font-bold text-gray-300 w-full text-left pl-1">RESP</div>
-                <div class="text-[6px] text-gray-300 w-full text-left pl-1 -mt-1" data-bind="vitals.respiration_unit">rpm</div>
+                <div class="text-[6px] text-gray-300 w-full text-left pl-1 -mt-1" data-bind="vitals.respiration_unit">
+                    rpm</div>
                 <div class="text-2xl font-bold text-gray-300 leading-none" data-bind="vitals.respiration_rate"
                     data-format="number" data-decimals="0">18</div>
             </div>
         </div>
 
     </div>
-
+    <script src="../../widget-runtime.js"></script>
 </body>
 
 </html>

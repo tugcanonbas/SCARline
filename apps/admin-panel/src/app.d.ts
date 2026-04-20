@@ -14,6 +14,7 @@ declare global {
         displayName: string;
       } | null;
       isAuthenticated: boolean;
+      docsUrl?: string;
     }
   }
 }

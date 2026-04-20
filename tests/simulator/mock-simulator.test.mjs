@@ -19,8 +19,28 @@ test('mock simulator supports deterministic YAML scenario catalogue and runtime 
   assert.match(source, /sensor\.gnss/);
   assert.match(source, /sensor\.imu/);
   assert.match(source, /RECONNECT_DELAY_SECONDS/);
+  assert.match(source, /MOCK_HEALTH_PORT/);
+  assert.match(source, /health_server/);
+  assert.match(source, /spawn-vehicle/);
+  assert.match(source, /simulationTime/);
+  assert.match(source, /telemetryRate/);
+  assert.match(source, /activeSession/);
+  assert.match(source, /sensor\.depth/);
+  assert.match(source, /sensor\.lidar/);
+  assert.match(source, /sensor\.radar/);
 
-  for (const scenario of ['city_drive', 'highway', 'parking', 'stop_go', 'collision_course']) {
+  for (const scenario of [
+    'city_drive',
+    'highway_cruise',
+    'rainy_city',
+    'night_drive',
+    'stop_and_go',
+    'parking_scenario',
+    'sensor_test',
+    'widget_test',
+    'stress_test',
+    'custom_template'
+  ]) {
     assert.match(scenarios, new RegExp(`${scenario}:`));
   }
 });

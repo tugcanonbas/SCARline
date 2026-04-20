@@ -1,4 +1,5 @@
 <script lang="ts">
+  import MetricCard from '$lib/components/admin/MetricCard.svelte';
   import KeyValueGrid from '$lib/components/KeyValueGrid.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import StatusBadge from '$lib/components/StatusBadge.svelte';
@@ -11,7 +12,7 @@
   const serviceCount = $derived(Object.keys(data.health ?? {}).length);
 </script>
 
-<div class="mx-auto max-w-4xl py-10">
+<div class="page-shell--wide py-10">
   <PageHeader
     eyebrow="Startup"
     title="Platform bootstrap state"
@@ -19,26 +20,10 @@
   />
 
   <div class="metric-grid">
-    <div class="metric-card">
-      <p class="metric-card__label">Bootstrap</p>
-      <p class="metric-card__value">{data.bootstrap.onboardingCompleted ? 'Ready' : 'Setup'}</p>
-      <p class="metric-card__hint">{data.bootstrap.onboardingCompleted ? 'Onboarding has completed' : 'Onboarding is still required'}</p>
-    </div>
-    <div class="metric-card">
-      <p class="metric-card__label">Health Keys</p>
-      <p class="metric-card__value">{serviceCount}</p>
-      <p class="metric-card__hint">Values returned by the health endpoint</p>
-    </div>
-    <div class="metric-card">
-      <p class="metric-card__label">Polling</p>
-      <p class="metric-card__value">Manual</p>
-      <p class="metric-card__hint">Refresh this page to update the static loader snapshot</p>
-    </div>
-    <div class="metric-card">
-      <p class="metric-card__label">Operator Path</p>
-      <p class="metric-card__value">Admin</p>
-      <p class="metric-card__hint">Continue to dashboard after services report ready</p>
-    </div>
+    <MetricCard label="Bootstrap" value={data.bootstrap.onboardingCompleted ? 'Ready' : 'Setup'} hint={data.bootstrap.onboardingCompleted ? 'Onboarding has completed' : 'Onboarding is still required'} accent />
+    <MetricCard label="Health Keys" value={serviceCount} hint="Values returned by the health endpoint" />
+    <MetricCard label="Polling" value="Manual" hint="Refresh this page to update the static loader snapshot" />
+    <MetricCard label="Operator Path" value="Admin" hint="Continue to dashboard after services report ready" />
   </div>
 
   <div class="mt-4">

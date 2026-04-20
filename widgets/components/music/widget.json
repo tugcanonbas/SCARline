@@ -3,7 +3,7 @@
   "name": "Music",
   "description": "Displays media playback and exposes playback controls.",
   "version": "1.0.0",
-  "category": "infotainment",
+  "category": "communication",
   "entry": "index.html",
   "bindings": {
     "media.track_title": {

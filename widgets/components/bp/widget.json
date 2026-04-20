@@ -3,7 +3,7 @@
   "name": "Blood Pressure",
   "description": "Displays current blood pressure.",
   "version": "1.0.0",
-  "category": "biometrics",
+  "category": "health",
   "entry": "index.html",
   "bindings": {
     "vitals.blood_pressure_systolic": {

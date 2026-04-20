@@ -3,7 +3,7 @@ import { requireRole } from '$lib/server/rbac';
 import { fail } from '@sveltejs/kit';
 
 export const load = async ({ fetch, locals, params }) => {
-  const user = await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator', 'viewer']);
+  const user = await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator']);
   const sessions = await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/sessions`, locals.accessToken);
   const layouts = await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/layouts`, locals.accessToken);
   const widgets = await apiRequest(fetch, locals.apiBase, '/widgets/catalogue', locals.accessToken);
@@ -130,6 +130,21 @@ export const actions = {
     const sessionId = String(formData.get('sessionId') ?? '');
     const reason = String(formData.get('reason') ?? '').trim() || null;
     return postSessionAction(fetch, locals, params.id, sessionId, 'cancel', { reason });
+  },
+  note: async ({ fetch, locals, params, request }) => {
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator']);
+    const formData = await request.formData();
+    const sessionId = String(formData.get('sessionId') ?? '');
+    const note = String(formData.get('note') ?? '').trim();
+    if (!sessionId) return fail(400, { message: 'Select a session first' });
+    if (!note) return fail(400, { message: 'Enter a note before saving' });
+
+    const result = await apiAction(fetch, locals.apiBase, `/studies/${params.id}/sessions/${sessionId}/notes`, locals.accessToken, {
+      method: 'POST',
+      body: JSON.stringify({ note })
+    }, 'Failed to save operator note');
+
+    return result.ok ? { noteSaved: true } : result.failure;
   },
   trigger: async ({ fetch, locals, params, request }) => {
     await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator']);

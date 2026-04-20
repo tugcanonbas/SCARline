@@ -47,14 +47,13 @@
     </style>
 </head>
 
-<body class="bg-gray-200 min-h-screen flex items-center justify-center p-4">
+<body class="bg-transparent min-h-screen flex items-center justify-center p-4">
 
     <!-- Card Container: 150x197 -->
     <div
-        class="bg-[#686d76] w-[150px] h-[197px] rounded-lg overflow-hidden shadow-md relative text-white flex flex-col items-center p-1 isolate">
+        class="bg-transparent w-[150px] h-[197px] rounded-lg overflow-hidden shadow-md relative text-white flex flex-col items-center p-1 isolate">
 
-        <!-- Grid Background Overlay -->
-        <div class="absolute inset-0 bg-grid pointer-events-none opacity-50 z-0"></div>
+
 
         <!-- Caller Info (Top) -->
         <div class="relative z-10 flex flex-col items-center mt-1 w-full">
@@ -75,11 +74,17 @@
             </div>
             <!-- Calling text with animated dots -->
             <div class="text-[8px] font-medium text-white/50 tracking-wide mt-1 flex items-center gap-0">
-                <span data-bind="call.status_label">Calling</span><span class="dot-1">.</span><span class="dot-2">.</span><span class="dot-3">.</span>
+                <span data-bind="call.status_label">Calling</span><span class="dot-1">.</span><span
+                    class="dot-2">.</span><span class="dot-3">.</span>
             </div>
             <!-- Call timer -->
-            <div id="call-timer" class="text-[9px] font-medium text-white/60 tracking-wide" data-bind="call.duration_label">
+            <div id="call-timer" class="text-[9px] font-medium text-white/60 tracking-wide"
+                data-bind="call.duration_label">
                 00:00
+            </div>
+            <div class="text-[7px] font-medium text-white/45 tracking-wide text-center px-3"
+                data-bind="call.note_label">
+                Waiting for answer
             </div>
         </div>
 
@@ -105,7 +110,7 @@
         </div>
 
     </div>
-
+    <script src="../../widget-runtime.js"></script>
 </body>
 
 </html>

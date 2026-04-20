@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EmptyState from '$lib/components/admin/EmptyState.svelte';
   import { appPath } from '$lib/paths';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
@@ -9,33 +10,33 @@
 <PageHeader eyebrow="Team" title="Researchers" description="Manage researcher profiles and their assigned studies.">
   {#snippet actions()}
     {#if data.canManage}
-      <a class="rounded-2xl bg-[--color-accent-strong] px-4 py-3 text-sm font-semibold text-white" href={appPath('/researchers/new')}>New Researcher</a>
+      <a class="button-primary" href={appPath('/researchers/new')}>New Researcher</a>
     {/if}
   {/snippet}
 </PageHeader>
 
 <SurfaceCard title="Directory">
-  <form class="mb-4 flex gap-3" method="GET">
-    <input class="min-w-0 flex-1 rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-3 text-sm" name="search" placeholder="Search name, email, institution" value={data.search ?? ''} />
-    <button class="rounded-2xl border border-[--color-line] px-4 py-3 text-sm" type="submit">Filter</button>
+  <form class="toolbar" method="GET">
+    <input class="toolbar__grow" name="search" placeholder="Search name, email, institution" value={data.search ?? ''} />
+    <button class="button-secondary" type="submit">Filter</button>
   </form>
 
-  <div class="space-y-3">
+  <div class="list-stack">
     {#each data.researchers as researcher}
-      <a class="block rounded-2xl border border-[--color-line] bg-[--color-panel-soft] px-4 py-4 transition hover:border-[--color-accent]/40" href={appPath(`/researchers/${researcher.id}`)}>
-        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <a class="entity-card" href={appPath(`/researchers/${researcher.id}`)}>
+        <div class="entity-card__header">
           <div>
-            <p class="font-semibold text-white">{researcher.name}</p>
-            <p class="text-sm text-slate-400">{researcher.email ?? 'No email'} · {researcher.institution ?? 'No institution'}</p>
+            <p class="entity-card__title">{researcher.name}</p>
+            <p class="entity-card__meta">{researcher.email ?? 'No email'} · {researcher.institution ?? 'No institution'}</p>
           </div>
-          <div class="text-sm text-slate-300">
+          <div class="entity-card__meta">
             <p>{researcher.role ?? 'Researcher'}</p>
             <p>{researcher.activeStudiesCount ?? 0} assigned studies</p>
           </div>
         </div>
       </a>
     {:else}
-      <p class="rounded-2xl border border-dashed border-[--color-line] px-4 py-6 text-sm text-slate-400">No researchers match the current filter.</p>
+      <EmptyState message="No researchers match the current filter." />
     {/each}
   </div>
 </SurfaceCard>

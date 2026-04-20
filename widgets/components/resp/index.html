@@ -45,31 +45,28 @@
     </style>
 </head>
 
-<body class="bg-gray-200 min-h-screen flex items-center justify-center p-4">
+<body class="bg-transparent min-h-screen flex items-center justify-center p-4">
 
     <!-- Card Container: 95x65 -->
     <div
-        class="bg-[#686d76] w-[95px] h-[65px] rounded-lg overflow-hidden shadow-md relative text-white flex p-1.5 isolate">
+        class="bg-transparent w-[95px] h-[65px] rounded-lg overflow-hidden shadow-md relative text-white flex p-1.5 isolate">
         <!-- Added isolate for z-index context -->
 
-        <!-- Grid Background Overlay -->
-        <div class="absolute inset-0 bg-grid pointer-events-none opacity-50 z-0"></div>
+
 
         <!-- Waveform (Left, larger and centered vertically) -->
         <div
             class="absolute left-0 top-0 bottom-0 w-[70%] text-gray-300 opacity-80 z-0 flex items-center overflow-hidden">
             <div class="flex h-full w-[200%] wave-marquee" data-bind="vitals.respiration_wave_duration"
                 data-bind-style="--wave-duration" data-style-unit="s" data-bind-text="false">
-                <svg class="w-1/2 h-full shrink-0" preserveAspectRatio="none"
-                    data-bind="vitals.respiration_wave_scale" data-bind-style="--wave-scale"
-                    data-bind-text="false">
+                <svg class="w-1/2 h-full shrink-0" preserveAspectRatio="none" data-bind="vitals.respiration_wave_scale"
+                    data-bind-style="--wave-scale" data-bind-text="false">
                     <path class="wave-trace"
                         d="M0,40 Q10,40 15,30 T30,40 Q40,40 45,25 T60,40 Q70,40 75,30 T90,40 Q100,40 105,25"
                         stroke="currentColor" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke" />
                 </svg>
-                <svg class="w-1/2 h-full shrink-0" preserveAspectRatio="none"
-                    data-bind="vitals.respiration_wave_scale" data-bind-style="--wave-scale"
-                    data-bind-text="false">
+                <svg class="w-1/2 h-full shrink-0" preserveAspectRatio="none" data-bind="vitals.respiration_wave_scale"
+                    data-bind-style="--wave-scale" data-bind-text="false">
                     <path class="wave-trace"
                         d="M0,40 Q10,40 15,30 T30,40 Q40,40 45,25 T60,40 Q70,40 75,30 T90,40 Q100,40 105,25"
                         stroke="currentColor" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke" />
@@ -97,7 +94,7 @@
         </div>
 
     </div>
-
+    <script src="../../widget-runtime.js"></script>
 </body>
 
 </html>

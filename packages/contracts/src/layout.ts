@@ -6,6 +6,7 @@ export const widgetInstanceSchema = z.object({
   id: z.string().uuid(),
   widgetId: z.string().min(1),
   windowMode: widgetWindowModeSchema,
+  targetDisplay: z.string().default('0'),
   order: z.number().int().default(0),
   x: z.number().int().default(0),
   y: z.number().int().default(0),

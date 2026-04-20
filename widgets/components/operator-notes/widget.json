@@ -3,7 +3,7 @@
   "name": "Operator Notes",
   "description": "Displays live researcher notes and reminders.",
   "version": "1.0.0",
-  "category": "researcher",
+  "category": "study",
   "entry": "index.html",
   "bindings": {
     "notes.title": {

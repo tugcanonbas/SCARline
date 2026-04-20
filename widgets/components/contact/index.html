@@ -21,14 +21,13 @@
     </style>
 </head>
 
-<body class="bg-gray-200 min-h-screen flex items-center justify-center p-4">
+<body class="bg-transparent min-h-screen flex items-center justify-center p-4">
 
     <!-- Card Container: 150x197 -->
     <div
-        class="bg-[#686d76] w-[150px] h-[197px] rounded-lg overflow-hidden shadow-md relative text-white flex flex-col isolate">
+        class="bg-transparent w-[150px] h-[197px] rounded-lg overflow-hidden shadow-md relative text-white flex flex-col isolate">
 
-        <!-- Grid Background Overlay -->
-        <div class="absolute inset-0 bg-grid pointer-events-none opacity-50 z-0"></div>
+
 
         <!-- Back Button -->
         <button type="button" class="absolute top-2 left-2 z-20 text-white/70 hover:text-white transition-colors">
@@ -89,7 +88,8 @@
                 <circle cx="12" cy="10" r="3" />
             </svg>
             <div class="text-[7px] font-medium text-white/50 leading-tight">
-                <span data-bind="contact.company">HCIS Lab</span><br><span data-bind="contact.email">susan.smith@scarline.dev</span>
+                <span data-bind="contact.company">HCIS Lab</span><br><span
+                    data-bind="contact.email">susan.smith@scarline.dev</span>
             </div>
         </div>
 
@@ -102,7 +102,7 @@
         </div>
 
     </div>
-
+    <script src="../../widget-runtime.js"></script>
 </body>
 
 </html>
