@@ -8,6 +8,9 @@
     displays = [],
     selectedDisplayIndex = 0,
     usingFallbackDisplay = false,
+    displayRects = [],
+    topologyHint = '',
+    selectedDisplayHint = '',
     layoutName = $bindable(''),
     targetDisplay = $bindable('0'),
     launchMode = $bindable<'transparent_electron' | 'browser_popup'>('transparent_electron'),
@@ -35,6 +38,9 @@
     displays: Array<Record<string, unknown>>;
     selectedDisplayIndex: number;
     usingFallbackDisplay?: boolean;
+    displayRects?: Array<Record<string, unknown>>;
+    topologyHint?: string;
+    selectedDisplayHint?: string;
     layoutName?: string;
     targetDisplay?: string;
     launchMode?: 'transparent_electron' | 'browser_popup';
@@ -73,27 +79,12 @@
     };
   }
 
-  const topology = $derived.by(() => {
-    const rects = displays.length > 0
-      ? displays.map(displayBounds)
-      : [{ x: 0, y: 0, width: 1920, height: 1080 }];
-    const minX = Math.min(...rects.map((rect) => rect.x), 0);
-    const minY = Math.min(...rects.map((rect) => rect.y), 0);
-    const maxX = Math.max(...rects.map((rect) => rect.x + rect.width), 1920);
-    const maxY = Math.max(...rects.map((rect) => rect.y + rect.height), 1080);
-    const width = Math.max(1, maxX - minX);
-    const height = Math.max(1, maxY - minY);
-    const scale = Math.min(1, 320 / width, 120 / height);
-    return { minX, minY, width: Math.round(width * scale), height: Math.round(height * scale), scale };
-  });
-
-  function topologyStyle(display: Record<string, unknown>) {
-    const bounds = displayBounds(display);
+  function displayRegionStyle(display: Record<string, unknown>) {
     return [
-      `left:${Math.round((bounds.x - topology.minX) * topology.scale)}px`,
-      `top:${Math.round((bounds.y - topology.minY) * topology.scale)}px`,
-      `width:${Math.max(12, Math.round(bounds.width * topology.scale))}px`,
-      `height:${Math.max(8, Math.round(bounds.height * topology.scale))}px`
+      `left:${Math.round(Number(display.x ?? 0))}px`,
+      `top:${Math.round(Number(display.y ?? 0))}px`,
+      `width:${Math.max(1, Math.round(Number(display.width ?? 1)))}px`,
+      `height:${Math.max(1, Math.round(Number(display.height ?? 1)))}px`
     ].join(';');
   }
 </script>
@@ -135,33 +126,35 @@
     </button>
   </div>
   <div class="layout-display-panel">
-    <div
-      class="layout-display-topology"
-      style={`width:${topology.width}px;height:${topology.height}px`}
-      aria-label="Connected display topology"
-    >
+    <div class="layout-display-panel__summary">
+      <p class="layout-display-panel__eyebrow">All screens workspace</p>
+      <p class="layout-display-panel__meta">
+        {topologyHint || `${displays.length} display${displays.length === 1 ? '' : 's'}`}
+        {#if usingFallbackDisplay}
+          · fallback
+        {/if}
+      </p>
+      {#if selectedDisplayHint}
+        <p class="layout-display-panel__submeta">Target display #{selectedDisplayIndex}: {selectedDisplayHint}</p>
+      {/if}
+    </div>
+    <div class="layout-display-panel__screens" aria-label="Connected display topology">
       {#each displays as display}
         {@const bounds = displayBounds(display)}
         {@const isSelected = Number(display.index ?? 0) === selectedDisplayIndex}
         <button
-          class={`layout-display-node ${isSelected ? 'layout-display-node--selected' : ''}`}
-          style={topologyStyle(display)}
+          class={`layout-display-chip ${isSelected ? 'layout-display-chip--selected' : ''}`}
           type="button"
           onclick={() => {
             targetDisplay = String(display.index ?? 0);
           }}
           title={`Display #${String(display.index ?? 0)} · ${bounds.width}×${bounds.height} @ ${bounds.x},${bounds.y}`}
         >
-          #{String(display.index ?? 0)}
+          <span>#{String(display.index ?? 0)}</span>
+          <small>{bounds.width}×{bounds.height}</small>
         </button>
       {/each}
     </div>
-    <p class="layout-display-panel__meta">
-      Selected participant display: {displayWidth}×{displayHeight}px
-      {#if usingFallbackDisplay}
-        · fallback
-      {/if}
-    </p>
   </div>
   <div class="layout-canvas-scroll">
     <div
@@ -174,6 +167,24 @@
       style={`width:${CANVAS_W}px;height:${CANVAS_H}px`}
     >
       <div class="layout-zone-outline" style="inset:0"></div>
+
+      {#each displayRects as display}
+        <button
+          class={`layout-display-region ${display.selected ? 'layout-display-region--selected' : ''}`}
+          style={displayRegionStyle(display)}
+          type="button"
+          onclick={(event) => {
+            event.stopPropagation();
+            targetDisplay = String(display.index ?? 0);
+          }}
+          title={`Display #${String(display.index ?? 0)} · ${String(display.sourceWidth ?? displayWidth)}×${String(display.sourceHeight ?? displayHeight)} @ ${String(display.sourceX ?? 0)},${String(display.sourceY ?? 0)}`}
+        >
+          <span class="layout-display-region__label">
+            <strong>Display #{String(display.index ?? 0)}</strong>
+            <small>{String(display.sourceWidth ?? displayWidth)}×{String(display.sourceHeight ?? displayHeight)}</small>
+          </span>
+        </button>
+      {/each}
 
       {#each placed as pw}
         {@const widgetId = String(pw.widgetId)}
@@ -244,6 +255,6 @@
     </div>
   </div>
   <p class="layout-canvas-hint">
-    {displayWidth}×{displayHeight} participant display scaled to {CANVAS_W}×{CANVAS_H}px · Drag to reposition · Click to select
+    All participant screens scaled to {CANVAS_W}×{CANVAS_H}px · Drag between screens to reassign · Click a screen to set the target display
   </p>
 </div>

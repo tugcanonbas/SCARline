@@ -56,7 +56,8 @@
     styleOverrides: Record<string, unknown>;
   };
 
-  const CANVAS_MAX_W = 860;
+  const CANVAS_MAX_W = 1040;
+  const CANVAS_MAX_H = 640;
   const FALLBACK_DISPLAY: OverlayDisplay = {
     index: 0,
     id: 'fallback-0',
@@ -132,11 +133,44 @@
       ?? detectedDisplays[0]
       ?? FALLBACK_DISPLAY
   );
-  const canvasScale = $derived(Math.min(1, CANVAS_MAX_W / Math.max(1, selectedDisplay.bounds.width)));
-  const CANVAS_W = $derived(Math.max(1, Math.round(selectedDisplay.bounds.width * canvasScale)));
-  const CANVAS_H = $derived(Math.max(1, Math.round(selectedDisplay.bounds.height * canvasScale)));
+  const displayTopology = $derived.by(() => {
+    const rects = detectedDisplays.length > 0
+      ? detectedDisplays.map((display) => display.bounds)
+      : [FALLBACK_DISPLAY.bounds];
+    const minX = Math.min(...rects.map((rect) => rect.x));
+    const minY = Math.min(...rects.map((rect) => rect.y));
+    const maxX = Math.max(...rects.map((rect) => rect.x + rect.width));
+    const maxY = Math.max(...rects.map((rect) => rect.y + rect.height));
+    const width = Math.max(1, maxX - minX);
+    const height = Math.max(1, maxY - minY);
+    const scale = Math.min(1, CANVAS_MAX_W / width, CANVAS_MAX_H / height);
+    return { minX, minY, width, height, scale };
+  });
+  const canvasScale = $derived(displayTopology.scale);
+  const CANVAS_W = $derived(Math.max(1, Math.round(displayTopology.width * canvasScale)));
+  const CANVAS_H = $derived(Math.max(1, Math.round(displayTopology.height * canvasScale)));
+  const displayCanvasRects = $derived(
+    detectedDisplays.map((display) => ({
+      index: display.index,
+      id: display.id,
+      label: display.label,
+      isPrimary: display.isPrimary,
+      selected: display.index === selectedDisplay.index,
+      x: toCanvas(display.bounds.x - displayTopology.minX),
+      y: toCanvas(display.bounds.y - displayTopology.minY),
+      width: toCanvas(display.bounds.width),
+      height: toCanvas(display.bounds.height),
+      sourceX: display.bounds.x,
+      sourceY: display.bounds.y,
+      sourceWidth: display.bounds.width,
+      sourceHeight: display.bounds.height
+    }))
+  );
   const displayHint = $derived(
     `${selectedDisplay.bounds.width}×${selectedDisplay.bounds.height} @ ${selectedDisplay.bounds.x},${selectedDisplay.bounds.y}`
+  );
+  const topologyHint = $derived(
+    `${detectedDisplays.length} screen${detectedDisplays.length === 1 ? '' : 's'} · ${displayTopology.width}×${displayTopology.height} workspace`
   );
 
   function toCanvas(value: number) {
@@ -169,6 +203,30 @@
     return displayForIndex(widget.targetDisplay).bounds;
   }
 
+  function displayAtGlobalPoint(globalX: number, globalY: number) {
+    const containing = detectedDisplays.find((display) => {
+      const bounds = display.bounds;
+      return globalX >= bounds.x
+        && globalX <= bounds.x + bounds.width
+        && globalY >= bounds.y
+        && globalY <= bounds.y + bounds.height;
+    });
+    if (containing) return containing;
+
+    return [...detectedDisplays].sort((left, right) => {
+      const leftDistance = distanceToDisplay(globalX, globalY, left);
+      const rightDistance = distanceToDisplay(globalX, globalY, right);
+      return leftDistance - rightDistance;
+    })[0] ?? selectedDisplay ?? FALLBACK_DISPLAY;
+  }
+
+  function distanceToDisplay(globalX: number, globalY: number, display: OverlayDisplay) {
+    const bounds = display.bounds;
+    const dx = Math.max(bounds.x - globalX, 0, globalX - (bounds.x + bounds.width));
+    const dy = Math.max(bounds.y - globalY, 0, globalY - (bounds.y + bounds.height));
+    return Math.hypot(dx, dy);
+  }
+
   function clampWidgetToDisplay(widget: PlacedWidget, displayIndex = widget.targetDisplay): PlacedWidget {
     const bounds = displayForIndex(displayIndex).bounds;
     const minSize = widgetMinimumSize(widget.widgetId);
@@ -185,10 +243,11 @@
   }
 
   function placedForCanvas(widget: PlacedWidget) {
+    const display = displayForIndex(widget.targetDisplay);
     return {
       ...widget,
-      x: toCanvas(widget.x),
-      y: toCanvas(widget.y),
+      x: toCanvas(display.bounds.x - displayTopology.minX + widget.x),
+      y: toCanvas(display.bounds.y - displayTopology.minY + widget.y),
       w: toCanvas(widget.w),
       h: toCanvas(widget.h)
     };
@@ -197,7 +256,7 @@
   const placedOnSelectedDisplay = $derived(
     placed.filter((widget) => Number(widget.targetDisplay) === selectedDisplay.index)
   );
-  const placedCanvas = $derived(placedOnSelectedDisplay.map((widget) => placedForCanvas(widget)));
+  const placedCanvas = $derived(placed.map((widget) => placedForCanvas(widget)));
 
   function getWidgetOverlayUrl(layoutId: string, instanceId: string, mode: 'transparent_electron' | 'browser_popup') {
     const url = new URL(`${window.location.origin}/overlay/${layoutId}`);
@@ -473,13 +532,16 @@
     const rect = canvasEl.getBoundingClientRect();
     const w = getPreferredWidth(draggingWidgetId);
     const h = getPreferredHeight(draggingWidgetId);
-    const x = clamp(fromCanvas(e.clientX - rect.left) - Math.round(w / 2), 0, Math.max(0, selectedDisplay.bounds.width - w));
-    const y = clamp(fromCanvas(e.clientY - rect.top) - Math.round(h / 2), 0, Math.max(0, selectedDisplay.bounds.height - h));
+    const globalX = fromCanvas(e.clientX - rect.left) + displayTopology.minX;
+    const globalY = fromCanvas(e.clientY - rect.top) + displayTopology.minY;
+    const display = displayAtGlobalPoint(globalX, globalY);
+    const x = clamp(Math.round(globalX - display.bounds.x) - Math.round(w / 2), 0, Math.max(0, display.bounds.width - w));
+    const y = clamp(Math.round(globalY - display.bounds.y) - Math.round(h / 2), 0, Math.max(0, display.bounds.height - h));
     placed = [...placed, {
       id: crypto.randomUUID(),
       widgetId: draggingWidgetId,
       windowMode: 'transparent_electron',
-      targetDisplay: String(selectedDisplay.index),
+      targetDisplay: String(display.index),
       order: placed.length,
       x,
       y,
@@ -501,17 +563,25 @@
     draggingPlacedId = id;
     selectedId = id;
     const widget = placed.find((p) => p.id === id)!;
+    targetDisplay = String(widget.targetDisplay);
     dragOffset = { x: fromCanvas(e.offsetX), y: fromCanvas(e.offsetY) };
     const onMove = (me: MouseEvent) => {
       if (!canvasEl || !draggingPlacedId) return;
       const rect = canvasEl.getBoundingClientRect();
       placed = placed.map((p) =>
         p.id === id
-          ? {
-              ...p,
-              x: clamp(fromCanvas(me.clientX - rect.left) - dragOffset.x, 0, Math.max(0, selectedDisplay.bounds.width - p.w)),
-              y: clamp(fromCanvas(me.clientY - rect.top) - dragOffset.y, 0, Math.max(0, selectedDisplay.bounds.height - p.h))
-            }
+          ? (() => {
+              const globalX = fromCanvas(me.clientX - rect.left) + displayTopology.minX - dragOffset.x;
+              const globalY = fromCanvas(me.clientY - rect.top) + displayTopology.minY - dragOffset.y;
+              const display = displayAtGlobalPoint(globalX + Math.round(p.w / 2), globalY + Math.round(p.h / 2));
+              targetDisplay = String(display.index);
+              return {
+                ...p,
+                targetDisplay: String(display.index),
+                x: clamp(Math.round(globalX - display.bounds.x), 0, Math.max(0, display.bounds.width - p.w)),
+                y: clamp(Math.round(globalY - display.bounds.y), 0, Math.max(0, display.bounds.height - p.h))
+              };
+            })()
           : p
       );
     };
@@ -542,8 +612,9 @@
     const minSize = widgetMinimumSize(widget.widgetId);
 
     const onMove = (me: MouseEvent) => {
-      const nextW = clamp(startW + fromCanvas(me.clientX - startX), minSize.width, Math.max(minSize.width, selectedDisplay.bounds.width - widget.x));
-      const nextH = clamp(startH + fromCanvas(me.clientY - startY), minSize.height, Math.max(minSize.height, selectedDisplay.bounds.height - widget.y));
+      const bounds = displayBoundsForWidget(widget);
+      const nextW = clamp(startW + fromCanvas(me.clientX - startX), minSize.width, Math.max(minSize.width, bounds.width - widget.x));
+      const nextH = clamp(startH + fromCanvas(me.clientY - startY), minSize.height, Math.max(minSize.height, bounds.height - widget.y));
       placed = placed.map((p) => (p.id === id ? { ...p, w: Math.round(nextW), h: Math.round(nextH) } : p));
     };
     const onUp = () => {
@@ -845,7 +916,7 @@
   <MetricCard label="Placed Widgets" value={placed.length} hint={`${placedOnSelectedDisplay.length} on selected display`} accent />
   <MetricCard label="Catalogue" value={data.widgets.length} hint="Available widgets" />
   <MetricCard label="Saved Layouts" value={data.layouts.length} hint="Persisted layout records" />
-  <MetricCard label="Display" value={`#${selectedDisplay.index}`} hint={usingFallbackDisplay ? 'Fallback display · 1920×1080' : displayHint} />
+  <MetricCard label="Screens" value={detectedDisplays.length} hint={usingFallbackDisplay ? 'Fallback display · 1920×1080' : topologyHint} />
 </div>
 
 {#if saveResult}
@@ -890,6 +961,9 @@
     displays={detectedDisplays}
     selectedDisplayIndex={selectedDisplay.index}
     {usingFallbackDisplay}
+    displayRects={displayCanvasRects}
+    {topologyHint}
+    selectedDisplayHint={displayHint}
     {saving}
     placed={placedCanvas}
     {getWidgetMeta}
