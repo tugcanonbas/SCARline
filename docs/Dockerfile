@@ -3,7 +3,8 @@ FROM node:22-alpine AS build
 WORKDIR /workspace
 
 RUN apk add --no-cache git
-RUN corepack enable
+ENV PATH /usr/local/bin:$PATH
+RUN /usr/local/bin/npm install -g pnpm@latest
 
 COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
 COPY docs ./docs

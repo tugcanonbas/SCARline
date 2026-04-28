@@ -1,0 +1,6 @@
+# Ignore all node_modules (recommended)
+node_modules
+**/node_modules
+
+# Specifically ignore the problematic Mermaid cache folder
+docs/node_modules/.ignored_mermaid

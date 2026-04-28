@@ -2,7 +2,7 @@ services:
   dev-deps:
     image: node:22-alpine
     working_dir: /workspace
-    command: ["/bin/sh", "-lc", "corepack enable && CI=true pnpm install --frozen-lockfile=false && pnpm --dir /workspace/packages/contracts build"]
+    command: ["/bin/sh", "-c", "set -x && /usr/local/bin/npm install -g pnpm@latest && CI=true pnpm install --frozen-lockfile=false && pnpm --dir /workspace/packages/contracts build"]
     volumes:
       - .:/workspace
       - scarline-node-modules:/workspace/node_modules
@@ -94,10 +94,14 @@ services:
     extends:
       file: ./docker-compose.yml
       service: docs
+    build:
+      context: .
+      dockerfile: docs/Dockerfile
+      target: build
     depends_on:
       dev-deps:
         condition: service_completed_successfully
-    command: ["pnpm", "--dir", "/workspace/docs", "dev", "--host", "0.0.0.0", "--port", "4040"]
+    command: ["/bin/sh", "-c", "/usr/local/bin/npm install -g pnpm@latest && pnpm --dir /workspace/docs dev"]
     volumes:
       - .:/workspace
       - scarline-node-modules:/workspace/node_modules
