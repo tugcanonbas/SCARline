@@ -148,8 +148,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:3000/admin/login || exit 1"]
       interval: 10s
-      timeout: 3s
-      retries: 3
+      timeout: 10s
+      retries: 10
+      start_period: 60s
     networks:
       - scarline-net
 
@@ -177,10 +178,11 @@ services:
       context: .
       dockerfile: docs/Dockerfile
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:4040/ || exit 1"]
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:4040/docs/ || exit 1"]
       interval: 10s
-      timeout: 3s
-      retries: 3
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - scarline-net
 
