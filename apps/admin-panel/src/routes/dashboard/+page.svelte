@@ -31,6 +31,17 @@
     message?: string;
   };
 
+  type ActiveStudy = {
+    id: string;
+    name: string;
+    description: string | null;
+    status: string;
+    participantCount: number;
+    sessionCount: number;
+    createdAt: string;
+    updatedAt: string;
+  };
+
   let {
     data,
   }: {
@@ -41,6 +52,7 @@
         totalParticipants: number;
         totalEvents: number;
         recentSessions: RecentSession[];
+        activeStudyItems: ActiveStudy[];
         componentHealth: ComponentHealth[];
       };
       token: string | null;
@@ -55,10 +67,10 @@
 
   function mergeRecentSession(session: RecentSession) {
     const current = untrack(() => recentSessions);
-    recentSessions = [session, ...current.filter((entry) => entry.id !== session.id)].slice(
-      0,
-      5,
-    );
+    recentSessions = [
+      session,
+      ...current.filter((entry) => entry.id !== session.id),
+    ].slice(0, 5);
   }
 
   function mergeComponentHealthEntry(component: ComponentHealth) {
@@ -184,75 +196,92 @@
 </script>
 
 <PageHeader
-  eyebrow="Mission Control"
+  eyebrow="Ready to dig into some user studies?"
   title="Dashboard"
-  description="Health, study state, and recent session activity for the current lab runtime."
+  description="View quick actions, component status, and currently active user studies."
 >
   {#snippet actions()}
     <div class="action-strip">
-      <a href={appPath("/user-studies/new")}>Create study</a>
-      <a href={appPath("/session-logs")}>Review logs</a>
-      <a href={appPath("/settings/components")}>Component health</a>
       <a href={appPath("/startup")}>Startup view</a>
     </div>
   {/snippet}
 </PageHeader>
 
 <div class="metric-grid">
-  <MetricCard label="Active Studies" value={data.dashboard.activeStudies} hint="Studies ready for operator work" accent />
-  <MetricCard label="Total Sessions" value={data.dashboard.totalSessions} hint={`${runningSessions.length} currently running`} />
-  <MetricCard label="Participants" value={data.dashboard.totalParticipants} hint="Anonymized participant records" />
-  <MetricCard label="Captured Events" value={data.dashboard.totalEvents} hint="Persisted research events" />
+  <SurfaceCard
+    title="New User Study"
+    subtitle="Create and configure a new user study."
+    icon="plus"
+    href={appPath("/user-studies/new")}
+    accent
+  />
+  <SurfaceCard
+    title="View All Logs"
+    subtitle="Browse and export collected data."
+    icon="list"
+    href={appPath("/session-logs")}
+    accent
+  />
+  <SurfaceCard
+    title="View All User Studies"
+    subtitle="Browse user studies."
+    icon="test-tube-diagonal"
+    href={appPath("/user-studies")}
+    accent
+  />
+  <SurfaceCard
+    title="View All Researchers"
+    subtitle="View and edit researchers."
+    icon="user"
+    href={appPath("/researchers")}
+    accent
+  />
 </div>
 
-<div class="mt-4 section-grid section-grid--balanced">
-  <SurfaceCard
-    title="Active Study Operations"
-    subtitle="Start from the latest running sessions or move into setup when no session is live."
-  >
-    <div class="list-stack">
-      {#each runningSessions as session}
+<div class="mt-4 section-grid">
+<SurfaceCard title="Active User Studies">
+    <div class="detail-grid-3">
+      <div class="detail-panel">
+        <p class="technical-label">Active studies</p>
+        <p class="technical-value">{data.dashboard.activeStudies}</p>
+      </div>
+      <div class="detail-panel">
+        <p class="technical-label">Total sessions</p>
+        <p class="technical-value">{data.dashboard.totalSessions}</p>
+      </div>
+    </div>
+    <div class="list-stack mt-4">
+      {#each data.dashboard.activeStudyItems as study}
         <a
-          class="entity-card"
-          href={appPath(`/user-studies/${session.studyId}/active-study`)}
+          class="entity-card entity-card--tight"
+          href={appPath(`/user-studies/${study.id}/overview`)}
         >
-          <div class="entity-card__header">
-            <div class="min-w-0">
-              <p class="entity-card__title">
-                {session.name ?? `Session ${shortId(session.id)}`}
-              </p>
-              <div class="pill-row mt-2">
-                <span class="status-badge status-badge--soft"
-                  >Study {shortId(session.studyId)}</span
-                >
-                <span class="status-badge status-badge--soft"
-                  >Participant {shortId(session.participantId) === "—"
-                    ? "unassigned"
-                    : shortId(session.participantId)}</span
-                >
-                <span class="status-badge status-badge--soft"
-                  >Condition {shortId(session.conditionId) === "—"
-                    ? "none"
-                    : shortId(session.conditionId)}</span
-                >
-              </div>
+          <div class="min-w-0">
+            <p class="entity-card__title truncate">{study.name}</p>
+            <div class="pill-row mt-1">
+              <span class="status-badge status-badge--soft"
+                >{study.participantCount} participants</span
+              >
+              <span class="status-badge status-badge--soft"
+                >{study.sessionCount} sessions</span
+              >
             </div>
-
-            <div class="toolbar__end">
-              <StatusBadge status={session.status} />
-              <span class="status-badge status-badge--soft">Open controls</span>
-            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <StatusBadge status={study.status} />
           </div>
         </a>
       {:else}
-        <EmptyState message="Use Study Setup to create a session, then start it from the session queue." />
-        <div class="action-strip">
-          <a href={appPath("/user-studies")}>Open studies</a>
-        </div>
+        <EmptyState message="No studies are currently active." />
       {/each}
     </div>
+    <div class="action-strip mt-4">
+      <a href={appPath("/user-studies")}>Browse all studies</a>
+    </div>
   </SurfaceCard>
+</div>
 
+<div class="mt-4 section-grid">
   <SurfaceCard title="Component Health">
     <div class="detail-grid-3">
       <div class="detail-panel">
@@ -278,13 +307,15 @@
           <StatusBadge status={component.status} />
         </div>
       {:else}
-        <EmptyState message="No component health events have been received yet." />
+        <EmptyState
+          message="No component health events have been received yet."
+        />
       {/each}
     </div>
   </SurfaceCard>
 </div>
 
-<div class="mt-4 section-grid section-grid--sidebar">
+<div class="mt-4 section-grid">
   <SurfaceCard
     title="Operational Summary"
     subtitle="Use the current study runtime and component state to decide the next operator action."
@@ -325,44 +356,8 @@
 
       <div class="action-strip">
         <a href={appPath("/user-studies")}>Open studies</a>
-        <a href={appPath("/session-logs")}>Inspect events</a>
+        <a class="secondary" href={appPath("/session-logs")}>Inspect events</a>
       </div>
-    </div>
-  </SurfaceCard>
-
-  <SurfaceCard title="Recent Sessions">
-    <div class="list-stack">
-      {#each recentSessions as session}
-        <a
-          class="entity-card"
-          href={appPath(`/user-studies/${session.studyId}/sessions`)}
-        >
-          <div class="entity-card__header">
-            <div class="min-w-0">
-              <p class="entity-card__title">
-                {session.name ?? `Session ${shortId(session.id)}`}
-              </p>
-              <div class="pill-row mt-2">
-                <span class="status-badge status-badge--soft">Study {shortId(session.studyId)}</span>
-                <span class="status-badge status-badge--soft">Participant {shortId(session.participantId) === "—" ? "unassigned" : shortId(session.participantId)}</span>
-                <span class="status-badge status-badge--soft">Condition {shortId(session.conditionId) === "—" ? "none" : shortId(session.conditionId)}</span>
-              </div>
-              <p class="entity-card__meta mt-2">
-                Review queue, session controls, and recorded notes from the study workspace.
-              </p>
-            </div>
-
-            <div class="toolbar__end">
-              <StatusBadge status={session.status} />
-              <p class="entity-card__meta">
-                {formatDate(sessionTimestamp(session))}
-              </p>
-            </div>
-          </div>
-        </a>
-      {:else}
-        <EmptyState message="No sessions have been created yet." />
-      {/each}
     </div>
   </SurfaceCard>
 </div>

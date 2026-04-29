@@ -163,9 +163,9 @@
       data-collapsed={sidebarCollapsed ? "true" : "false"}
     >
       <div class="scarline-brand">
-        <p class="scarline-brand-kicker">SCARline</p>
-        <h1 class="scarline-brand-title">Research Ops</h1>
-        <p class="scarline-brand-subtitle">Operational research console</p>
+        <p class="scarline-brand-kicker">HCIS Lab @THI</p>
+        <h1 class="scarline-brand-title">SCARline Hub</h1>
+        <p class="scarline-brand-subtitle">Rapid-Prototyping platform</p>
       </div>
 
       <button
