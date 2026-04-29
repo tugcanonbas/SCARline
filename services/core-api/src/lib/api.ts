@@ -812,6 +812,24 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
          (SELECT COUNT(*)::text FROM session_events) AS total_events`
     );
     const recentSessions = await queryMany(pool, `SELECT * FROM sessions ORDER BY created_at DESC LIMIT 5`);
+    const activeStudyRows = await queryMany(pool, `
+      SELECT studies.id,
+             studies.name,
+             studies.description,
+             studies.status,
+             studies.created_at,
+             studies.updated_at,
+             COUNT(DISTINCT participants.id) AS participant_count,
+             COUNT(DISTINCT sessions.id) AS session_count
+      FROM studies
+      LEFT JOIN participants ON participants.study_id = studies.id
+      LEFT JOIN sessions ON sessions.study_id = studies.id
+      WHERE studies.status = 'active'
+      GROUP BY studies.id
+      ORDER BY studies.created_at DESC
+      LIMIT 5
+    `);
+
     const data = dashboardSchema.parse({
       activeStudies: Number(counts?.active_studies ?? 0),
       totalSessions: Number(counts?.total_sessions ?? 0),
@@ -830,6 +848,16 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
         durationSeconds: row.duration_seconds,
         runtimeMetadata: row.runtime_metadata ?? {},
         notes: row.notes
+      })),
+      activeStudyItems: activeStudyRows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        status: row.status,
+        participantCount: Number(row.participant_count),
+        sessionCount: Number(row.session_count),
+        createdAt: row.created_at.toISOString(),
+        updatedAt: row.updated_at.toISOString()
       })),
       componentHealth: components.list()
     });
