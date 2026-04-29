@@ -239,7 +239,7 @@
 </div>
 
 <div class="mt-4 section-grid">
-<SurfaceCard title="Active User Studies">
+  <SurfaceCard title="Active User Studies">
     <div class="detail-grid-3">
       <div class="detail-panel">
         <p class="technical-label">Active studies</p>
@@ -276,7 +276,7 @@
       {/each}
     </div>
     <div class="action-strip mt-4">
-      <a href={appPath("/user-studies")}>Browse all studies</a>
+      <a href={appPath("/user-studies")}>View All</a>
     </div>
   </SurfaceCard>
 </div>

@@ -2,19 +2,21 @@
   let {
     label,
     value,
-    hint = '',
+    hint = "",
     accent = false,
-    valueContent
+    actions,
+    valueContent,
   } = $props<{
     label: string;
     value?: string | number;
     hint?: string;
     accent?: boolean;
+    actions?: () => unknown;
     valueContent?: () => unknown;
   }>();
 </script>
 
-<div class={`metric-card ${accent ? 'metric-card--accent' : ''}`}>
+<div class={`metric-card ${accent ? "metric-card--accent" : ""}`}>
   <p class="metric-card__label">{label}</p>
   {#if valueContent}
     <div class="metric-card__content">
