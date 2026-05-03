@@ -1,5 +1,6 @@
 <script lang="ts">
   import { appPath } from '$lib/paths';
+  import { ArrowLeft } from 'lucide-svelte';
 
   let { studyId, current } = $props<{
     studyId: string;
@@ -23,6 +24,9 @@
 </script>
 
 <nav class="study-tabs">
+  <a class="study-tab" href={appPath("/user-studies")} aria-label="Back to all user studies">
+    <ArrowLeft size={16} />
+  </a>
   {#each tabs as tab}
     <a
       class={`study-tab ${current === tab.href ? 'study-tab--active' : ''}`}

@@ -327,15 +327,18 @@ body {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
-      width: 100%;
-      padding: 10px 12px !important;
-      margin: -6px 0 18px;
+      padding: 6px !important;
       border: 1px solid var(--scarline-grey) !important;
       border-radius: var(--scarline-radius-md) !important;
       background: var(--scarline-black) !important;
       color: var(--scarline-white) !important;
-      font-weight: 700;
+      cursor: pointer;
+      position: relative;
+      z-index: 50;
+    }
+
+    .scarline-sidebar-toggle svg {
+      pointer-events: none;
     }
 
     .scarline-sidebar-toggle:hover {
@@ -353,6 +356,9 @@ body {
   }
 
   .scarline-brand {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 32px;
     border-bottom: 1px solid var(--scarline-border);
     padding-bottom: 16px;
@@ -498,6 +504,9 @@ body {
 
     .scarline-sidebar--collapsed .scarline-brand,
     html[data-scarline-sidebar="collapsed"] .scarline-sidebar .scarline-brand {
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
       margin-bottom: 18px;
       padding-bottom: 12px;
     }
@@ -724,6 +733,9 @@ body {
   }
 
   .study-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     border: 1px solid var(--scarline-border);
     border-radius: 999px;
     background: var(--scarline-black);
@@ -735,9 +747,14 @@ body {
     text-decoration: none;
   }
 
-  .study-tab[aria-current="page"] {
-    background: var(--scarline-white);
-    color: var(--scarline-black);
+  .study-tab[aria-current="page"],
+  .study-tab--active {
+    background: var(--scarline-white) !important;
+    color: var(--scarline-black) !important;
+  }
+
+  .metric-grid.study {
+    margin-bottom: 20px;
   }
 
   .kv-grid {

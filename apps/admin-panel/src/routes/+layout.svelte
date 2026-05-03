@@ -71,27 +71,9 @@
 
   const utilityNavigation = $derived([
     {
-      href: "/settings/system",
-      label: "System",
+      href: "/settings",
+      label: "Settings",
       icon: Settings2,
-      roles: adminRoles,
-    },
-    {
-      href: "/settings/users",
-      label: "Users",
-      icon: UserRoundCog,
-      roles: adminRoles,
-    },
-    {
-      href: "/settings/devices",
-      label: "Devices",
-      icon: Settings2,
-      roles: designRoles,
-    },
-    {
-      href: "/settings/components",
-      label: "Components",
-      icon: MonitorCog,
       roles: designRoles,
     },
     {
@@ -163,26 +145,27 @@
       data-collapsed={sidebarCollapsed ? "true" : "false"}
     >
       <div class="scarline-brand">
-        <p class="scarline-brand-kicker">HCIS Lab @THI</p>
-        <h1 class="scarline-brand-title">SCARline Hub</h1>
-        <p class="scarline-brand-subtitle">Rapid-Prototyping platform</p>
+        <div class="branding">
+          <p class="scarline-brand-kicker">HCIS Lab @THI</p>
+          <h1 class="scarline-brand-title">SCARline Hub</h1>
+          <p class="scarline-brand-subtitle">Rapid-Prototyping platform</p>
+        </div>
+        <div class="toggle-button">
+          <button
+            class="scarline-sidebar-toggle"
+            aria-controls="scarline-sidebar"
+            aria-pressed={sidebarCollapsed}
+            onclick={handleSidebarToggle}
+            type="button"
+          >
+            {#if sidebarCollapsed}
+              <ChevronRight size={30} strokeWidth={1.9} />
+            {:else}
+              <ChevronLeft size={30} strokeWidth={1.9} />
+            {/if}
+          </button>
+        </div>
       </div>
-
-      <button
-        class="scarline-sidebar-toggle"
-        aria-controls="scarline-sidebar"
-        aria-pressed={sidebarCollapsed}
-        onclick={handleSidebarToggle}
-        type="button"
-      >
-        {#if sidebarCollapsed}
-          <ChevronRight size={18} strokeWidth={1.9} />
-          <span class="scarline-sidebar-toggle__label">Expand sidebar</span>
-        {:else}
-          <ChevronLeft size={18} strokeWidth={1.9} />
-          <span class="scarline-sidebar-toggle__label">Collapse sidebar</span>
-        {/if}
-      </button>
 
       <div class="scarline-sidebar-body">
         <div class="scarline-nav-primary">
