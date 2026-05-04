@@ -6,6 +6,7 @@
   import StatusBadge from "$lib/components/StatusBadge.svelte";
   import StudyTabs from "$lib/components/StudyTabs.svelte";
   import SurfaceCard from "$lib/components/SurfaceCard.svelte";
+  import { Users } from "lucide-svelte";
 
   let { data } = $props();
   const studyItems = $derived([
@@ -46,24 +47,7 @@
   eyebrow="Study"
   title={data.study.name}
   description={data.study.description ?? ""}
->
-  {#snippet actions()}
-    <div class="action-strip">
-      <a href={appPath(`/user-studies/${data.study.id}/sessions`)}
-        >Open sessions</a
-      >
-      <a href={appPath(`/user-studies/${data.study.id}/participants`)}
-        >Participants</a
-      >
-      <a href={appPath(`/user-studies/${data.study.id}/conditions`)}
-        >Conditions</a
-      >
-      <a href={appPath(`/user-studies/${data.study.id}/active-study`)}
-        >Operator view</a
-      >
-    </div>
-  {/snippet}
-</PageHeader>
+></PageHeader>
 <StudyTabs
   studyId={data.study.id}
   current={`/user-studies/${data.study.id}/overview`}
@@ -73,7 +57,9 @@
   <MetricCard
     label="Participants"
     value={participantCount}
-    hint="Records attached to this study"
+    href={appPath(`/user-studies/${data.study.id}/participants`)}
+    hrefText="Manage"
+    icon={Users}
   />
   <MetricCard
     label="Conditions"

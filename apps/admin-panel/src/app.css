@@ -725,7 +725,7 @@ body {
 
   .study-tabs {
     display: flex;
-    gap: 8px;
+    gap: 0px;
     margin-bottom: 24px;
     overflow-x: auto;
     padding-bottom: 4px;
@@ -737,7 +737,6 @@ body {
     align-items: center;
     gap: 8px;
     border: 1px solid var(--scarline-border);
-    border-radius: 999px;
     background: var(--scarline-black);
     color: var(--scarline-white);
     padding: 9px 14px;
@@ -747,14 +746,30 @@ body {
     text-decoration: none;
   }
 
+  .study-tab+.study-tab {
+    border-left: none;
+  }
+
+  .study-tab:first-child {
+    border-top-left-radius: 999px;
+    border-bottom-left-radius: 999px;
+  }
+
+  .study-tab:last-child {
+    border-top-right-radius: 999px;
+    border-bottom-right-radius: 999px;
+  }
+
   .study-tab[aria-current="page"],
   .study-tab--active {
     background: var(--scarline-white) !important;
     color: var(--scarline-black) !important;
   }
 
-  .metric-grid.study {
+  .study-data {
     margin-bottom: 20px;
+    display: flex;
+    gap: 16px;
   }
 
   .kv-grid {
@@ -834,6 +849,10 @@ body {
     line-height: 1.35;
   }
 
+  .metric-card__link {
+    margin-top: 10px;
+  }
+
   .action-strip {
     display: flex;
     flex-wrap: wrap;
@@ -897,9 +916,8 @@ body {
   }
 
   .technical-panel {
-    border: 1px solid var(--scarline-border);
     border-radius: var(--scarline-radius-lg);
-    background: var(--scarline-black);
+    background: var(--scarline-grey);
     padding: 16px;
   }
 
@@ -1529,6 +1547,7 @@ body {
   .entity-card {
     border: 1px solid var(--scarline-border);
     border-radius: var(--scarline-radius-lg);
+    background: var(--scarline-black);
     padding: 16px;
     display: grid;
     gap: 16px;

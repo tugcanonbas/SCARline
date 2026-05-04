@@ -1,4 +1,6 @@
 <script lang="ts">
+  import type { Component } from "svelte";
+
   let {
     label,
     value,
@@ -6,6 +8,9 @@
     accent = false,
     actions,
     valueContent,
+    href,
+    hrefText,
+    icon,
   } = $props<{
     label: string;
     value?: string | number;
@@ -13,6 +18,9 @@
     accent?: boolean;
     actions?: () => unknown;
     valueContent?: () => unknown;
+    href?: string;
+    hrefText?: string;
+    icon?: Component<any> | null;
   }>();
 </script>
 
@@ -27,5 +35,13 @@
   {/if}
   {#if hint}
     <p class="metric-card__hint">{hint}</p>
+  {/if}
+  {#if href}
+    <a class="metric-card__link button-secondary" {href}>
+      {#if icon}
+        <svelte:component this={icon} size={16} />
+      {/if}
+      {hrefText}
+    </a>
   {/if}
 </div>
