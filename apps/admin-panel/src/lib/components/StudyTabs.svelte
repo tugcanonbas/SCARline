@@ -6,6 +6,7 @@
     ScanEye,
     CarFront,
     GalleryThumbnails,
+    TestTubeDiagonal,
   } from "lucide-svelte";
 
   let { studyId, current, icon } = $props<{
@@ -19,8 +20,11 @@
 
     return [
       { href: `${basePath}/overview`, label: "Overview", icon: FileText },
-      { href: `${basePath}/conditions`, label: "Conditions" },
-      { href: `${basePath}/sessions`, label: "Sessions" },
+      {
+        href: `${basePath}/conditions`,
+        label: "Conditions",
+        icon: TestTubeDiagonal,
+      },
       {
         href: `${basePath}/carla-config`,
         label: "CARLA Config",
