@@ -22,6 +22,7 @@ function parseJsonObject(value: FormDataEntryValue | null) {
 export const load = async ({ fetch, locals, params }) => {
   const user = await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
   return {
+    study: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}`, locals.accessToken),
     config: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/sensor-config`, locals.accessToken),
     drivers: await apiRequest(fetch, locals.apiBase, '/sensors/drivers', locals.accessToken),
     studyId: params.id,

@@ -684,9 +684,10 @@ body {
 
   .surface-card__title {
     color: var(--scarline-white);
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 700;
-    line-height: 28px;
+    line-height: 20px;
+    font-family: "IBM Plex Mono", ui-sans-serif, system-ui, sans-serif;
   }
 
   .surface-card__subtitle {

@@ -209,28 +209,28 @@
 
 <div class="metric-grid">
   <SurfaceCard
-    title="New User Study"
+    title="New user study"
     subtitle="Create and configure a new user study."
     icon="plus"
     href={appPath("/user-studies/new")}
     accent
   />
   <SurfaceCard
-    title="View All Logs"
+    title="View logs"
     subtitle="Browse and export collected data."
     icon="list"
     href={appPath("/session-logs")}
     accent
   />
   <SurfaceCard
-    title="View All User Studies"
+    title="View user studies"
     subtitle="Browse user studies."
     icon="test-tube-diagonal"
     href={appPath("/user-studies")}
     accent
   />
   <SurfaceCard
-    title="View All Researchers"
+    title="Manage researchers"
     subtitle="View and edit researchers."
     icon="user"
     href={appPath("/researchers")}

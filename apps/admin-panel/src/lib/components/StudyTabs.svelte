@@ -27,7 +27,7 @@
       },
       {
         href: `${basePath}/carla-config`,
-        label: "CARLA Config",
+        label: "CARLA Setup",
         icon: CarFront,
       },
       { href: `${basePath}/sensors`, label: "Sensors", icon: ScanEye },

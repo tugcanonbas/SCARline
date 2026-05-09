@@ -4,6 +4,7 @@ import { requireRole } from '$lib/server/rbac';
 export const load = async ({ fetch, locals, params }) => {
   const user = await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
   return {
+    study: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}`, locals.accessToken),
     conditions: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/conditions`, locals.accessToken),
     studyId: params.id,
     canManage: user.roles?.some((role: string) => role === 'admin' || role === 'researcher') ?? false
