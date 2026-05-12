@@ -6,12 +6,6 @@
   let { data } = $props();
 </script>
 
-<PageHeader
-  eyebrow="System"
-  title="Devices"
-  description="Register lab hardware, monitor live status, and keep display/runtime metadata aligned with the device registry."
-/>
-
 <div class="section-grid section-grid--sidebar">
   <SurfaceCard title="Register Device">
     <form class="form-stack" method="POST" action="?/create">

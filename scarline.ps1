@@ -213,8 +213,8 @@ function Start-Carla {
 function Stop-Carla {
   $pidFile = Join-Path $PidDir "carla.pid"
   if (Test-Path $pidFile) {
-    $processId = Get-Content $pidFile
-    Stop-Process -Id $processId -ErrorAction SilentlyContinue
+    $targetPid = Get-Content $pidFile
+    Stop-Process -Id $targetPid -ErrorAction SilentlyContinue
     Remove-Item $pidFile -Force
   }
 }
@@ -255,8 +255,8 @@ function Start-OverlayDesktop {
 function Stop-OverlayDesktop {
   $pidFile = Join-Path $PidDir "overlay.pid"
   if (Test-Path $pidFile) {
-    $processId = Get-Content $pidFile
-    Stop-Process -Id $processId -ErrorAction SilentlyContinue
+    $targetPid = Get-Content $pidFile
+    Stop-Process -Id $targetPid -ErrorAction SilentlyContinue
     Remove-Item $pidFile -Force
   }
 }
@@ -284,8 +284,8 @@ function Start-IpcServer {
 function Stop-IpcServer {
   $pidFile = Join-Path $PidDir "ipc.pid"
   if (Test-Path $pidFile) {
-    $processId = Get-Content $pidFile
-    Stop-Process -Id $processId -ErrorAction SilentlyContinue
+    $targetPid = Get-Content $pidFile
+    Stop-Process -Id $targetPid -ErrorAction SilentlyContinue
     Remove-Item $pidFile -Force
   }
 }
@@ -391,8 +391,8 @@ while (`$true) {
 function Stop-Supervisor {
   $pidFile = Join-Path $PidDir "supervisor.pid"
   if (Test-Path $pidFile) {
-    $processId = Get-Content $pidFile
-    Stop-Process -Id $processId -ErrorAction SilentlyContinue
+    $targetPid = Get-Content $pidFile
+    Stop-Process -Id $targetPid -ErrorAction SilentlyContinue
     Remove-Item $pidFile -Force
   }
 }
