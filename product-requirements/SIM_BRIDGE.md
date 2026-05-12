@@ -84,7 +84,7 @@ When an adapter connects to `/adapter`, it must send a registration message:
   "payload": {
     "adapterId": "carla-client-1",
     "simulatorType": "carla",
-    "simulatorVersion": "0.9.15",
+    "simulatorVersion": "0.9.16",
     "capabilities": [
       "map-loading",
       "weather-control",

@@ -213,8 +213,8 @@ function Start-Carla {
 function Stop-Carla {
   $pidFile = Join-Path $PidDir "carla.pid"
   if (Test-Path $pidFile) {
-    $pid = Get-Content $pidFile
-    Stop-Process -Id $pid -ErrorAction SilentlyContinue
+    $processId = Get-Content $pidFile
+    Stop-Process -Id $processId -ErrorAction SilentlyContinue
     Remove-Item $pidFile -Force
   }
 }
@@ -240,7 +240,7 @@ function Start-OverlayDesktop {
 
   $env:OVERLAY_URL = if ($env:OVERLAY_URL) { $env:OVERLAY_URL } else { "http://localhost:$env:SCARLINE_PORT/overlay/?chrome=transparent" }
   $env:OVERLAY_CONTROL_PORT = $OverlayControlPort
-  $process = Start-Process -FilePath "pnpm" -ArgumentList @("--dir", (Join-Path $RootDir "apps/desktop-overlay"), "start") -RedirectStandardOutput (Join-Path $LogDir "overlay-desktop.log") -RedirectStandardError (Join-Path $LogDir "overlay-desktop.err.log") -PassThru
+  $process = Start-Process -FilePath "pnpm.cmd" -ArgumentList @("--dir", (Join-Path $RootDir "apps/desktop-overlay"), "start") -RedirectStandardOutput (Join-Path $LogDir "overlay-desktop.log") -RedirectStandardError (Join-Path $LogDir "overlay-desktop.err.log") -PassThru
   Set-Content -Path $pidFile -Value $process.Id
   Start-Sleep -Seconds 2
   if (-not (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) {
@@ -255,8 +255,8 @@ function Start-OverlayDesktop {
 function Stop-OverlayDesktop {
   $pidFile = Join-Path $PidDir "overlay.pid"
   if (Test-Path $pidFile) {
-    $pid = Get-Content $pidFile
-    Stop-Process -Id $pid -ErrorAction SilentlyContinue
+    $processId = Get-Content $pidFile
+    Stop-Process -Id $processId -ErrorAction SilentlyContinue
     Remove-Item $pidFile -Force
   }
 }
@@ -284,8 +284,8 @@ function Start-IpcServer {
 function Stop-IpcServer {
   $pidFile = Join-Path $PidDir "ipc.pid"
   if (Test-Path $pidFile) {
-    $pid = Get-Content $pidFile
-    Stop-Process -Id $pid -ErrorAction SilentlyContinue
+    $processId = Get-Content $pidFile
+    Stop-Process -Id $processId -ErrorAction SilentlyContinue
     Remove-Item $pidFile -Force
   }
 }
@@ -391,8 +391,8 @@ while (`$true) {
 function Stop-Supervisor {
   $pidFile = Join-Path $PidDir "supervisor.pid"
   if (Test-Path $pidFile) {
-    $pid = Get-Content $pidFile
-    Stop-Process -Id $pid -ErrorAction SilentlyContinue
+    $processId = Get-Content $pidFile
+    Stop-Process -Id $processId -ErrorAction SilentlyContinue
     Remove-Item $pidFile -Force
   }
 }
