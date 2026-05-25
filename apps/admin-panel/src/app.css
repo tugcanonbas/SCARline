@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,200..900;1,200..900&display=swap');
 
 @theme {
   --color-panel: #121212;
@@ -10,7 +10,7 @@
   --color-positive: #1f7a45;
   --color-warning: rgba(255, 255, 255, 0.6);
   --color-danger: #9d2a2a;
-  --font-sans: "IBM Plex Mono", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Source Code Pro", ui-sans-serif, system-ui, sans-serif;
 }
 
 :root {
@@ -77,7 +77,7 @@ body {
     font-size: 30px;
     font-weight: 700;
     line-height: 1.15;
-    font-family: "IBM Plex Mono", ui-sans-serif, system-ui, sans-serif;
+    font-family: "Source Code Pro", ui-sans-serif, system-ui, sans-serif;
   }
 
   h2 {
@@ -579,8 +579,8 @@ body {
     font-weight: 700;
     line-height: 24px;
     text-transform: uppercase;
-    font-family: "IBM Plex Mono", ui-sans-serif, system-ui, sans-serif;
-    letter-spacing: 0.35em;
+    font-family: "Source Code Pro", ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: 0.25em;
   }
 
   .page-header__title {
@@ -687,7 +687,6 @@ body {
     font-size: 18px;
     font-weight: 700;
     line-height: 20px;
-    font-family: "IBM Plex Mono", ui-sans-serif, system-ui, sans-serif;
   }
 
   .surface-card__subtitle {
@@ -776,7 +775,7 @@ body {
     margin-bottom: 20px;
     display: flex;
     gap: 16px;
-    font-family: "IBM Plex Mono", ui-sans-serif, system-ui, sans-serif;
+    font-family: "Source Code Pro", ui-sans-serif, system-ui, sans-serif;
     font-size: 12px;
   }
 
@@ -935,7 +934,7 @@ body {
     line-height: 24px;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    font-family: "IBM Plex Mono", ui-sans-serif, system-ui, sans-serif;
+    font-family: "Source Code Pro", ui-sans-serif, system-ui, sans-serif;
   }
 
   .technical-value {
@@ -1242,7 +1241,7 @@ body {
 
   .status-badge {
     gap: 6px;
-    font-family: "IBM Plex Mono", ui-sans-serif, system-ui, sans-serif;
+    font-family: "Source Code Pro", ui-sans-serif, system-ui, sans-serif;
   }
 
   .status-badge--success {
@@ -1525,6 +1524,7 @@ body {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+    margin-bottom: 20px;
   }
 
   .toolbar {
