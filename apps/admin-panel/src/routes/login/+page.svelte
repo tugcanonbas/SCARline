@@ -10,13 +10,10 @@
   <PageHeader
     eyebrow="Authentication"
     title="Login to SCARline"
-    description="Use the first admin account created during onboarding."
+    description="Enter your username and password to log in."
   />
 
-  <SurfaceCard
-    title="Login"
-    subtitle="Enter your username and password to sign in."
-  >
+  <SurfaceCard title="" subtitle="">
     <form class="form-stack" method="POST">
       <input name="redirectTo" type="hidden" value={data.redirectTo ?? ""} />
 
