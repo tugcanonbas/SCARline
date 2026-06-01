@@ -63,13 +63,21 @@ export const simulatorEventTypeSchema = z.enum([
 export const IO_EVENT_TYPES = {
   steering: 'io.steering',
   camera: 'io.camera',
-  driverStatus: 'io.driver_status'
+  driverStatus: 'io.driver_status',
+  blink: 'io.blink',
+  gesture: 'io.gesture',
+  eyeTracker: 'io.eye_tracker',
+  heartRate: 'io.heart_rate'
 } as const;
 
 export const ioEventTypeSchema = z.enum([
   IO_EVENT_TYPES.steering,
   IO_EVENT_TYPES.camera,
-  IO_EVENT_TYPES.driverStatus
+  IO_EVENT_TYPES.driverStatus,
+  IO_EVENT_TYPES.blink,
+  IO_EVENT_TYPES.gesture,
+  IO_EVENT_TYPES.eyeTracker,
+  IO_EVENT_TYPES.heartRate
 ]);
 
 export const simulatorCommandActionSchema = z.enum([
@@ -164,4 +172,40 @@ export const ioSessionCommandSchema = z.object({
   sessionId: z.string().uuid(),
   studyId: z.string().uuid(),
   sensors: z.array(z.record(z.string(), z.unknown())).default([])
+});
+
+// ---------------------------------------------------------------------------
+// IO Sensor Event Payload Schemas
+// ---------------------------------------------------------------------------
+
+export const ioBlinkEventPayloadSchema = z.object({
+  earLeft: z.number().nullable(),
+  earRight: z.number().nullable(),
+  earAvg: z.number().nullable(),
+  blinkDetected: z.boolean(),
+  blinkCount: z.number().int().nonnegative(),
+  eyesClosed: z.boolean(),
+  connected: z.boolean()
+});
+
+export const ioGestureEventPayloadSchema = z.object({
+  gestureId: z.string(),
+  confidence: z.number().min(0).max(1),
+  handedness: z.enum(['left', 'right', 'unknown']),
+  connected: z.boolean()
+});
+
+export const ioEyeTrackerEventPayloadSchema = z.object({
+  gaze: z.object({
+    x: z.number().nullable(),
+    y: z.number().nullable()
+  }),
+  pupilDiameter: z.number().nullable(),
+  connected: z.boolean()
+});
+
+export const ioHeartRateEventPayloadSchema = z.object({
+  heartRateBpm: z.number().nullable(),
+  rrIntervalMs: z.number().nullable(),
+  connected: z.boolean()
 });
