@@ -23,7 +23,7 @@ function isBashAvailable() {
   }
 }
 
-const shouldSkipBashTests = process.platform === 'win32' && !isBashAvailable();
+const shouldSkipBashTests = process.platform === 'win32';
 const toBashPath = (p) => process.platform === 'win32' ? "./" + path.relative(root, p).replace(/\\/g, '/') : p;
 const skipMessage = 'bash not available on Windows — install Git Bash or WSL to run';
 

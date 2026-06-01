@@ -17,6 +17,7 @@
 | S-012 | infra/database | purge_old_session_events() creada | 0 | 74→74 pass / 0 fail / 4 skip | 1 | pg_cron no disponible en postgres:15 — ejecución manual documentada |
 | S-012b | infra/database | imagen custom postgres:15+pg_cron, job scheduler activo 03:00 UTC | 0 | 74→74 pass / 0 fail / 4 skip | 1 | — |
 | S-013 | apps/admin-panel | docs/admin-panel-coverage.md — 60 rutas mapeadas, endpoints huérfanos identificados | 0 | 74→74 pass / 0 fail / 4 skip | 1 | — |
+| S-014 | tests/infra | ~~ISSUE-004~~ 4 tests infra Windows → skipped explícito ✅ | 0 | 74→74 pass / 0 fail / 4 skip | 1 | Reemplaza solución frágil de S-008 |
 
 ## Backlog
 ### 🔴 Crítico
