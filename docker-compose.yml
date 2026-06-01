@@ -74,6 +74,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    ports:
+      - "5672:5672"
     volumes:
       - scarline-rmqdata:/var/lib/rabbitmq
       - ./infra/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
