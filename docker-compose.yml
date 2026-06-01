@@ -18,7 +18,10 @@ services:
       - scarline-net
 
   postgres:
-    image: postgres:15
+    build:
+      context: ./infra/database
+      dockerfile: Dockerfile
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-scarline}
       POSTGRES_USER: ${POSTGRES_USER:-scarline}
@@ -30,6 +33,8 @@ services:
       retries: 5
     volumes:
       - scarline-pgdata:/var/lib/postgresql/data
+      - ./infra/database/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./infra/database/initdb:/docker-entrypoint-initdb.d:ro
     networks:
       - scarline-net
 
