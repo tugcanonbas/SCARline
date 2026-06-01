@@ -27,7 +27,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-scarline}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-scarline}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-scarline} -d ${POSTGRES_DB:-scarline}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-scarline} -d ${POSTGRES_DB:-scarline}"]
       interval: 5s
       timeout: 3s
       retries: 5
