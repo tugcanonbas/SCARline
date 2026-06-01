@@ -19,6 +19,7 @@ services:
 
   postgres:
     image: postgres:15
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-scarline}
       POSTGRES_USER: ${POSTGRES_USER:-scarline}
@@ -30,6 +31,7 @@ services:
       retries: 5
     volumes:
       - scarline-pgdata:/var/lib/postgresql/data
+      - ./infra/database/postgresql.conf:/etc/postgresql/postgresql.conf:ro
     networks:
       - scarline-net
 
