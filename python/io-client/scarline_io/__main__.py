@@ -15,7 +15,7 @@ import yaml
 
 from .drivers.base import SensorDriver
 from .drivers.heart_rate import HeartRateDriver
-from .drivers.eye_tracker import EyeTrackerDriver
+from .drivers.eye_tracker import EyeTrackerDriver, GazeDriver
 from .drivers.logitech_g29 import LogitechG29Driver
 from .drivers.usb_camera import UsbCameraDriver
 
@@ -27,6 +27,7 @@ DRIVER_FACTORIES: dict[str, Callable[[], SensorDriver]] = {
     "usb_camera": UsbCameraDriver,
     "heart_rate": HeartRateDriver,
     "eye_tracker": EyeTrackerDriver,
+    "gaze": GazeDriver,
 }
 
 
