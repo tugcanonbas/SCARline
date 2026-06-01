@@ -14,6 +14,9 @@
 | S-009 | python/mock-simulator | apply-control null-safe: float(None)→mantener estado + key alias steer/steeringAngle + try/except wrapper | 0 | 73→74 pass / 0 fail / 4 skip | 1 | Bug preexistente detectado en verificación manual E2E |
 | S-010 | python/io-client | Dockerfile multi-stage build: reduce tamaño imagen de 936MB a 462MB, elimina dependencias de compilación y ejecuta como usuario no-root scarline | 0 | 74→74 pass / 0 fail / 4 skip | 1 | Eliminado libgl1 para evitar dependencias innecesarias de Mesa/X11 |
 | S-011 | infra/database | Habilita pg_stat_statements y agrega 4 índices en session_events (routing_key, created_at, session_id, session_routing composite) | 0 | 74→74 pass / 0 fail / 4 skip | 1 | — |
+| S-012 | infra/database | purge_old_session_events() creada | 0 | 74→74 pass / 0 fail / 4 skip | 1 | pg_cron no disponible en postgres:15 — ejecución manual documentada |
+| S-012b | infra/database | imagen custom postgres:15+pg_cron, job scheduler activo 03:00 UTC | 0 | 74→74 pass / 0 fail / 4 skip | 1 | — |
+| S-013 | apps/admin-panel | docs/admin-panel-coverage.md — 60 rutas mapeadas, endpoints huérfanos identificados | 0 | 74→74 pass / 0 fail / 4 skip | 1 | — |
 
 ## Backlog
 ### 🔴 Crítico
@@ -56,3 +59,6 @@
 - ~~[ISSUE-016]~~ pin mediapipe==0.10.14 en requirements.txt — acción manual (no sprint)
 - ~~[ISSUE-A]~~ Dockerfile multi-stage build en io-client — S-010
 - ~~[ISSUE-B]~~ postgresql.conf + migration 001 índices session_events + pg_stat_statements habilitado — S-011
+- ~~[ISSUE-C]~~ session_events sin retención — resuelto con purge_old_session_events() (S-012) y pg_cron (S-012b)
+- ~~[ISSUE-C2]~~ Scheduler para purge_old_session_events() — imagen custom postgres:15+pg_cron (S-012b)
+- ~~[ISSUE-D]~~ cobertura UI↔backend desconocida — docs/admin-panel-coverage.md (S-013)
