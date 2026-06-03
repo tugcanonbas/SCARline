@@ -67,7 +67,8 @@ export const IO_EVENT_TYPES = {
   blink: 'io.blink',
   gesture: 'io.gesture',
   eyeTracker: 'io.eye_tracker',
-  heartRate: 'io.heart_rate'
+  heartRate: 'io.heart_rate',
+  ecg: 'io.ecg'
 } as const;
 
 export const ioEventTypeSchema = z.enum([
@@ -77,7 +78,8 @@ export const ioEventTypeSchema = z.enum([
   IO_EVENT_TYPES.blink,
   IO_EVENT_TYPES.gesture,
   IO_EVENT_TYPES.eyeTracker,
-  IO_EVENT_TYPES.heartRate
+  IO_EVENT_TYPES.heartRate,
+  IO_EVENT_TYPES.ecg
 ]);
 
 export const simulatorCommandActionSchema = z.enum([
@@ -207,5 +209,12 @@ export const ioEyeTrackerEventPayloadSchema = z.object({
 export const ioHeartRateEventPayloadSchema = z.object({
   heartRateBpm: z.number().nullable(),
   rrIntervalMs: z.number().nullable(),
+  connected: z.boolean()
+});
+
+export const ioEcgEventPayloadSchema = z.object({
+  ecgSamples: z.array(z.number()).nullable(),
+  sampleRate: z.number().nullable(),
+  dataLostCount: z.number().nullable(),
   connected: z.boolean()
 });

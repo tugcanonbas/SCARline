@@ -153,7 +153,7 @@ test('blink detection runs in degraded mode without webcam', { skip: PYTHON === 
 import json
 from scarline_io.drivers.eye_tracker import BlinkDetectionDriver
 d = BlinkDetectionDriver()
-init_ok = d.initialize({"sample_rate": 5})
+init_ok = d.initialize({"sample_rate": 5, "camera_index": 999})
 d.start()
 reading = d.read()
 print(json.dumps({
@@ -260,7 +260,7 @@ test('eye tracker degraded mode returns null gaze and pupil', { skip: PYTHON ===
 import json
 from scarline_io.drivers.eye_tracker import GazeDriver
 d = GazeDriver()
-d.initialize({"sample_rate": 5})
+d.initialize({"sample_rate": 5, "camera_index": 999})
 d.start()
 reading = d.read()
 print(json.dumps({
@@ -488,4 +488,174 @@ print(json.dumps({
   assert.equal(result.brake, null, 'degraded brake must be null');
   assert.equal(result.connected_flag, false, 'degraded reading must report disconnected');
   assert.equal(result.source, 'baseline-unavailable', 'degraded source marker');
+});
+
+// ---------------------------------------------------------------------------
+// ECG Driver — behavioral tests via Python subprocess
+// ---------------------------------------------------------------------------
+
+test('ecg driver runs in degraded mode without sifi-bridge-py', { skip: PYTHON === null && 'python not in PATH' }, () => {
+  const script = `
+import json
+import sys
+
+# Force sifi_bridge_py to be unavailable
+sys.modules['sifi_bridge_py'] = None
+
+from scarline_io.drivers.ecg import ECGDriver
+d = ECGDriver()
+init_ok = d.initialize({})
+d.start()
+reading = d.read()
+print(json.dumps({
+    "init_ok": init_ok,
+    "connected": d.is_connected(),
+    "has_reading": reading is not None,
+    "ecgSamples": reading.data.get("ecgSamples") if reading else "MISSING",
+    "connected_flag": reading.data.get("connected") if reading else "MISSING",
+    "source": reading.metadata.get("source") if reading else "MISSING"
+}))
+`;
+  const result = JSON.parse(runPythonScript(script));
+  assert.equal(result.init_ok, false, 'init should fail without sifi-bridge-py');
+  assert.equal(result.connected, false, 'should not be connected');
+  assert.equal(result.has_reading, true, 'degraded mode must produce a reading');
+  assert.equal(result.ecgSamples, null, 'degraded ecgSamples must be null');
+  assert.equal(result.connected_flag, false, 'degraded reading must report disconnected');
+  assert.equal(result.source, 'baseline-unavailable', 'degraded source marker');
+});
+
+test('ecg driver get_metadata returns driver_id ecg and sensor_type ecg', { skip: PYTHON === null && 'python not in PATH' }, () => {
+  const script = `
+import json
+import sys
+
+sys.modules['sifi_bridge_py'] = None
+
+from scarline_io.drivers.ecg import ECGDriver
+d = ECGDriver()
+m = d.get_metadata()
+print(json.dumps({
+    "driver_id": m.driver_id,
+    "sensor_type": m.sensor_type,
+    "display_name": m.display_name,
+    "sample_rate": m.sample_rate
+}))
+`;
+  const result = JSON.parse(runPythonScript(script));
+  assert.equal(result.driver_id, 'ecg');
+  assert.equal(result.sensor_type, 'ecg');
+  assert.ok(result.display_name.length > 0, 'display_name must not be empty');
+  assert.ok(result.sample_rate > 0, 'sample_rate must be positive');
+});
+
+test('ecg driver is registered in DRIVER_FACTORIES', { skip: PYTHON === null && 'python not in PATH' }, () => {
+  const mainSource = readFileSync(
+    path.join(root, 'python/io-client/scarline_io/__main__.py'),
+    'utf8'
+  );
+  // Verify the import line exists
+  assert.match(mainSource, /from \.drivers\.ecg import ECGDriver/,
+    'ECGDriver must be imported in __main__.py');
+  // Verify the DRIVER_FACTORIES entry exists
+  assert.match(mainSource, /"ecg":\s*ECGDriver/,
+    'ECG must be registered in DRIVER_FACTORIES');
+
+  // Also verify the driver is instantiable via Python
+  const script = `
+import json
+import sys
+
+sys.modules['sifi_bridge_py'] = None
+
+from scarline_io.drivers.ecg import ECGDriver
+d = ECGDriver()
+m = d.get_metadata()
+print(json.dumps({
+    "registered": m.driver_id == "ecg",
+    "instantiable": True
+}))
+`;
+  const result = JSON.parse(runPythonScript(script));
+  assert.equal(result.registered, true, 'driver_id must be ecg');
+  assert.equal(result.instantiable, true, 'driver must be instantiable');
+});
+
+test('io client health server rmq proxy handles GET and returns CORS headers', { skip: PYTHON === null && 'python not in PATH' }, () => {
+  const script = `
+import asyncio
+import http.server
+import threading
+import urllib.request
+import urllib.parse
+import json
+import os
+
+# 1. Start a mock RabbitMQ Management HTTP Server on a free port
+class MockRMQHandler(http.server.BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        pass
+    def do_GET(self):
+        if self.path == "/api/queues/%2F":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps([{"name": "scarline.io-client.commands"}]).encode("utf8"))
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+mock_server = http.server.HTTPServer(("127.0.0.1", 0), MockRMQHandler)
+mock_port = mock_server.server_port
+mock_thread = threading.Thread(target=mock_server.serve_forever, daemon=True)
+mock_thread.start()
+
+# 2. Configure AMQP_URL to point to this mock server
+os.environ["AMQP_URL"] = f"amqp://scarline:scarline@localhost:{mock_port}"
+# Reload/Import module after env var is set
+import scarline_io.__main__ as main
+main.AMQP_URL = f"amqp://scarline:scarline@localhost:{mock_port}"
+
+# 3. Start the health server in an event loop
+health_port = 9095
+loop = asyncio.new_event_loop()
+
+async def run_server():
+    server = await asyncio.start_server(main.handle_health_request, "127.0.0.1", health_port)
+    async with server:
+        await asyncio.sleep(2.0)
+
+def loop_thread_func():
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(run_server())
+
+t = threading.Thread(target=loop_thread_func, daemon=True)
+t.start()
+
+import time
+time.sleep(0.5)  # Wait for health server to start
+
+# 4. Make request to the proxy
+try:
+    req = urllib.request.Request(f"http://127.0.0.1:{health_port}/rmq/queues/%2F")
+    with urllib.request.urlopen(req) as response:
+        status = response.status
+        cors = response.headers.get("Access-Control-Allow-Origin")
+        body = response.read().decode("utf8")
+        print(status)
+        print(cors)
+        print(body)
+except Exception as e:
+    print(f"ERROR: {e}")
+finally:
+    # 5. Clean shutdown
+    mock_server.shutdown()
+    mock_server.server_close()
+`;
+
+  const result = runPythonScript(script).split('\n').map(line => line.trim());
+  assert.equal(result[0], '200');
+  assert.equal(result[1], '*');
+  const body = JSON.parse(result[2]);
+  assert.equal(body[0].name, 'scarline.io-client.commands');
 });

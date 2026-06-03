@@ -297,11 +297,23 @@ test('io.heart_rate event type has correct schema', async () => {
   assert.match(source, /heartRateBpm:\s*z\.number\(\)\.nullable\(\)/, 'heartRateBpm field required');
   assert.match(source, /rrIntervalMs:\s*z\.number\(\)\.nullable\(\)/, 'rrIntervalMs field required');
   // All IO payload schemas must include connected field
-  for (const schema of ['ioBlinkEventPayloadSchema', 'ioGestureEventPayloadSchema', 'ioEyeTrackerEventPayloadSchema', 'ioHeartRateEventPayloadSchema']) {
+  for (const schema of ['ioBlinkEventPayloadSchema', 'ioGestureEventPayloadSchema', 'ioEyeTrackerEventPayloadSchema', 'ioHeartRateEventPayloadSchema', 'ioEcgEventPayloadSchema']) {
     const schemaBlock = source.slice(source.indexOf(`export const ${schema}`));
     const endOfBlock = schemaBlock.indexOf('});');
     const block = schemaBlock.slice(0, endOfBlock);
     assert.match(block, /connected:\s*z\.boolean\(\)/, `${schema} must include connected field`);
   }
+});
+
+test('io.ecg event type has correct schema', async () => {
+  const source = await readFile(path.join(root, 'packages/contracts/src/rabbitmq.ts'), 'utf8');
+  // Event type registered
+  assert.match(source, /ecg:\s*'io\.ecg'/, 'io.ecg must be in IO_EVENT_TYPES');
+  assert.match(source, /IO_EVENT_TYPES\.ecg/, 'io.ecg must be in ioEventTypeSchema');
+  // Payload schema exists with correct fields
+  assert.match(source, /export const ioEcgEventPayloadSchema/, 'ioEcgEventPayloadSchema must be exported');
+  assert.match(source, /ecgSamples:\s*z\.array\(z\.number\(\)\)\.nullable\(\)/, 'ecgSamples field required');
+  assert.match(source, /sampleRate:\s*z\.number\(\)\.nullable\(\)/, 'sampleRate field required');
+  assert.match(source, /dataLostCount:\s*z\.number\(\)\.nullable\(\)/, 'dataLostCount field required');
 });
 

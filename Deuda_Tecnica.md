@@ -18,6 +18,9 @@
 | S-012b | infra/database | imagen custom postgres:15+pg_cron, job scheduler activo 03:00 UTC | 0 | 74→74 pass / 0 fail / 4 skip | 1 | — |
 | S-013 | apps/admin-panel | docs/admin-panel-coverage.md — 60 rutas mapeadas, endpoints huérfanos identificados | 0 | 74→74 pass / 0 fail / 4 skip | 1 | — |
 | S-014 | tests/infra | ~~ISSUE-004~~ 4 tests infra Windows → skipped explícito ✅ | 0 | 74→74 pass / 0 fail / 4 skip | 1 | Reemplaza solución frágil de S-008 |
+| S-015 | python/io-client + tests/simulator | RabbitMQ Management HTTP proxy transparente en health server: `/rmq/` → CORS headers + Basic Auth desde AMQP_URL + puerto dinámico | 0 | 74→75 pass / 0 fail / 4 skip | 1 | Port hardcodeado 15672 ignoraba mock port en test — fix: usar parsedamqp.port si != 5672 |
+| S-016 | python/io-client + tools/ecg-monitor.html + tests/simulator | ECG monitor HTML con proxy CORS: cola efímera RabbitMQ + polling real + teardown en Disconnect | 0 | 75→76 pass / 0 fail / 4 skip | 1 | — |
+| S-017 | apps/admin-panel | ECG canvas en active-study: `$effect` extrae `io.ecg` de `$telemetry`, buffer circular 500pts, `<canvas>` requestAnimationFrame en ActiveStudyTelemetryPanel | **1** (ecg.py + config fuera de scope durante E2E — revertidos) | 76→77 pass / 0 fail / 4 skip | 1 | AG intentó resolver conectividad BLE desde su entorno (sin acceso a hardware físico) — ver constraint agregado a backend-agent.md |
 
 ## Backlog
 ### 🔴 Crítico
@@ -42,6 +45,7 @@
 - [x] ~~[ISSUE-010] MediaPipe blink/gesture sensor driver: crear driver que detecte parpadeos y gestos via webcam local y publique eventos RabbitMQ — falta: driver completo, config, tests, integración con io-client~~
 - [x] ~~[ISSUE-011] Eye tracker real: integrar SDK de eye tracking real (Tobii/Pupil Labs) o MediaPipe FaceMesh — falta: driver implementation, calibración funcional~~
 - [x] ~~[ISSUE-012] Heart rate real: integrar sensor BLE/USB de frecuencia cardíaca — falta: protocolo BLE, driver, config~~
+- ~~[ISSUE-017] ECGDriver SiFi Labs BLE — resuelto S-015~~
 
 ## Resuelto
 <!-- tachar ~~texto~~ al cerrar sprint. Nunca eliminar. -->
@@ -63,3 +67,4 @@
 - ~~[ISSUE-C]~~ session_events sin retención — resuelto con purge_old_session_events() (S-012) y pg_cron (S-012b)
 - ~~[ISSUE-C2]~~ Scheduler para purge_old_session_events() — imagen custom postgres:15+pg_cron (S-012b)
 - ~~[ISSUE-D]~~ cobertura UI↔backend desconocida — docs/admin-panel-coverage.md (S-013)
+- ~~[ISSUE-017]~~ ECGDriver sifi-bridge-py BLE + degraded mode — S-015
