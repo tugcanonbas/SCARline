@@ -60,12 +60,12 @@
 </div>
 
 <div class="mt-4">
-  <SurfaceCard
-    title="Filters"
-    subtitle="Filter the persisted event stream without changing the underlying query contract."
-  >
+  <SurfaceCard title="Sessions" subtitle="Find and manage sessions.">
     <form class="flex flex-col gap-4" method="GET">
-      <div class="filter-bar filter-bar--5">
+      <div
+        class="filter-bar"
+        style="grid-template-columns: 1fr 1fr 1fr 1fr 1fr auto;"
+      >
         <select class="w-full" style="width: 100%;" name="studyId">
           <option value="">All studies</option>
           {#each data.studies as study}
@@ -79,7 +79,7 @@
           class="w-full"
           style="width: 100%;"
           name="sessionId"
-          placeholder="Session UUID"
+          placeholder="Session ID"
           value={data.filters.sessionId}
         />
         <input
@@ -105,8 +105,6 @@
           type="number"
           value={data.filters.limit}
         />
-      </div>
-      <div class="flex items-center justify-end gap-4 mt-2">
         <button class="button-primary" type="submit"
           ><Filter size={24} strokeWidth={1.5} /> Filter</button
         >
@@ -115,15 +113,7 @@
         <span class="entity-card__meta">{data.logs.length} results</span>
       </div>
     </form>
-  </SurfaceCard>
-</div>
-
-<div class="mt-4">
-  <SurfaceCard
-    title="Event Timeline"
-    subtitle="Timeline-like view of persisted events; open a row for session-level detail."
-  >
-    <div class="timeline-list">
+    <div class="timeline-list mt-4">
       {#each data.logs as entry}
         <a
           class="timeline-entry block"

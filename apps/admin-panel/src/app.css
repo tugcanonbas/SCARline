@@ -1344,9 +1344,8 @@ body {
   }
 
   .button-danger {
-    border: 1px solid rgba(157, 42, 42, 0.25) !important;
+    border: 1px solid var(--scarline-danger) !important;
     border-radius: var(--scarline-radius-md) !important;
-    background: var(--scarline-danger-bg) !important;
     color: var(--scarline-danger) !important;
   }
 
@@ -1555,6 +1554,7 @@ body {
     .filter-bar--6 {
       grid-template-columns: 1fr 1fr 1fr 1fr 0.6fr auto;
     }
+
     .filter-bar--5 {
       grid-template-columns: repeat(5, 1fr);
     }
