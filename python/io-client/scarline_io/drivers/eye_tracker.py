@@ -120,7 +120,7 @@ def _compute_pupil_diameter(landmarks: Any) -> float | None:
 class BlinkDetectionDriver(SensorDriver):
     """Webcam-based blink detection using MediaPipe FaceMesh and EAR ratio.
 
-    Publishes to topic: events.{studyId}.{runId}.sensor.io.blink_detection
+    Publishes to topic: events.{studyId}.{runId}.sensor.io.blink
 
     Runs in degraded mode (stub data, no exceptions) when cv2 or mediapipe
     are unavailable or the webcam cannot be opened.
@@ -140,14 +140,14 @@ class BlinkDetectionDriver(SensorDriver):
 
     def get_metadata(self) -> SensorMetadata:
         return SensorMetadata(
-            driver_id="blink_detection",
-            sensor_type="blink_detection",
+            driver_id="blink",
+            sensor_type="blink",
             display_name="MediaPipe Blink Detection",
             version="1.0.0",
             sample_rate=self.sample_rate,
             custom_fields={
                 "driverClass": "mediapipe-facemesh",
-                "capabilities": ["blink_detection", "ear_ratio"],
+                "capabilities": ["blink", "ear_ratio"],
                 "ear_threshold": self.ear_threshold,
                 "consec_frames": self.consec_frames,
             },

@@ -110,8 +110,8 @@ print(rk)
   const result = runPythonScript(script);
   assert.equal(
     result,
-    `events.${studyId}.${runId}.sensor.io.blink_detection`,
-    'routing key must target sensor.io.blink_detection topic'
+    `events.${studyId}.${runId}.sensor.io.blink`,
+    'routing key must target sensor.io.blink topic'
   );
 });
 
@@ -132,8 +132,8 @@ print(json.dumps({
 `;
 
   const result = JSON.parse(runPythonScript(script));
-  assert.equal(result.driver_id, 'blink_detection');
-  assert.equal(result.sensor_type, 'blink_detection');
+  assert.equal(result.driver_id, 'blink');
+  assert.equal(result.sensor_type, 'blink');
   assert.ok(result.display_name.length > 0, 'display_name must not be empty');
   assert.ok(result.version.length > 0, 'version must not be empty');
   assert.ok(result.sample_rate > 0, 'sample_rate must be positive');
@@ -299,7 +299,7 @@ test('gaze driver degraded mode returns null gaze', { skip: PYTHON === null && '
 import json
 from scarline_io.drivers.eye_tracker import GazeDriver
 d = GazeDriver()
-d.initialize({"sample_rate": 5})
+d.initialize({"sample_rate": 5, "camera_index": 999})
 d.start()
 reading = d.read()
 print(json.dumps({

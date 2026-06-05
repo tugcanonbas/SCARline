@@ -18,11 +18,15 @@ try:
 except Exception:  # pragma: no cover
     serial = None
 
+# Bluetooth SIG Heart Rate Service UUID 0x180D
 HR_SERVICE_UUID = "0000180d-0000-1000-8000-00805f9b34fb"
+# Bluetooth SIG Heart Rate Measurement Characteristic UUID 0x2A37
 HR_MEASUREMENT_UUID = "00002a37-0000-1000-8000-00805f9b34fb"
 
 
 class HeartRateDriver(SensorDriver):
+    """Heart rate monitor driver supporting BLE (Bluetooth SIG Heart Rate Service UUID 0x180D, Heart Rate Measurement Characteristic UUID 0x2A37) and fallback serial with format BPM:<valor>."""
+
     def __init__(self) -> None:
         self.sample_rate = 1
         self.active = False
@@ -171,6 +175,7 @@ class HeartRateDriver(SensorDriver):
                     try:
                         data = await client.read_gatt_char(HR_MEASUREMENT_UUID)
                         flags = data[0]
+                        # bit 0 = Heart Rate Value Format (0 = 8-bit BPM, 1 = 16-bit BPM)
                         if flags & 0x01:
                             self._last_bpm = float(int.from_bytes(data[1:3], byteorder="little"))
                             offset = 3
@@ -178,6 +183,7 @@ class HeartRateDriver(SensorDriver):
                             self._last_bpm = float(data[1])
                             offset = 2
                         
+                        # bit 4 = RR-Interval (0 = not present, 1 = present)
                         if flags & 0x10 and len(data) >= offset + 2:
                             rr = int.from_bytes(data[offset:offset+2], byteorder="little")
                             self._last_rr = float((rr / 1024.0) * 1000.0)
