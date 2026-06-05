@@ -251,3 +251,9 @@ python/**/site-packages/
 Estado_Cero.md
 CONTEXTO_ORCHESTRATOR.md
 Deuda_Tecnica.md
+
+# ECG dev artifacts and sifibridge binary
+sifibridge.exe
+python/io-client/sifibridge.exe
+tools/ecg-monitor.html
+tools/ecg_realtime_raw.py
