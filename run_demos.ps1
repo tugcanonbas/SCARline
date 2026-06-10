@@ -3,21 +3,19 @@ Write-Host "Iniciando Demos de Sensores de SCARline..." -ForegroundColor Cyan
 # Definir la URL de RabbitMQ para los simuladores
 $env:AMQP_URL = "amqp://scarline:scarline@localhost:5672/"
 
-# Iniciar Cámara (demo_camera_server.py)
+$processes = @()
+
 Write-Host "Levantando MediaPipe Blink Detection..."
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd python\io-client; python demo_camera_server.py"
+$processes += Start-Process python -ArgumentList "python\io-client\demo_camera_server.py" -NoNewWindow -PassThru
 
-# Iniciar ECG (demo_ecg.py) — Live mode, connects to SiFi Bridge BLE
 Write-Host "Levantando ECG via SiFi Bridge BLE..."
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd python\io-client; python demo_ecg.py"
+$processes += Start-Process python -ArgumentList "python\io-client\demo_ecg.py" -NoNewWindow -PassThru
 
-# Iniciar Volante (demo_g29.py)
 Write-Host "Levantando Simulador de Volante G29..."
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd python\io-client; python demo_g29.py --dry-run"
+$processes += Start-Process python -ArgumentList "python\io-client\demo_g29.py --dry-run" -NoNewWindow -PassThru
 
-Write-Host "Scripts de Python iniciados en ventanas separadas." -ForegroundColor Green
 Write-Host "Levantando Servidor Web para los Dashboards..." -ForegroundColor Cyan
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd tools\dashboards; python -m http.server 8000"
+$processes += Start-Process python -ArgumentList "-m http.server 8000 --directory tools\dashboards" -NoNewWindow -PassThru
 
 Write-Host "Abriendo los Dashboards en el navegador..." -ForegroundColor Yellow
 Start-Sleep -Seconds 2
@@ -26,4 +24,22 @@ Start-Process "http://localhost:8000/ecg.html"
 Start-Process "http://localhost:8000/g29.html"
 Start-Process "http://localhost:8000/combined.html"
 
-Write-Host "¡Listo! Los dashboards están disponibles en el navegador." -ForegroundColor Green
+Write-Host ""
+Write-Host "¡Todo está corriendo en esta terminal!" -ForegroundColor Green
+Write-Host "⚠️  PRESIONA 'Ctrl + C' AQUÍ PARA DETENER TODOS LOS SENSORES DE FORMA SEGURA ⚠️" -ForegroundColor Red
+Write-Host ""
+
+try {
+    # Esperar infinitamente hasta que el usuario presione Ctrl+C
+    Wait-Process -Id $processes.Id
+}
+finally {
+    Write-Host "`nDeteniendo todos los procesos..." -ForegroundColor Yellow
+    foreach ($p in $processes) {
+        if (-not $p.HasExited) {
+            # El Ctrl+C ya debió llegarles porque comparten la consola, pero por si acaso
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+        }
+    }
+    Write-Host "Procesos finalizados." -ForegroundColor Green
+}
