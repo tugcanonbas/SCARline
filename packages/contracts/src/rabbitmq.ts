@@ -187,7 +187,19 @@ export const ioBlinkEventPayloadSchema = z.object({
   blinkDetected: z.boolean(),
   blinkCount: z.number().int().nonnegative(),
   eyesClosed: z.boolean(),
-  connected: z.boolean()
+  connected: z.boolean(),
+  mar: z.number().optional(),
+  yawnDetected: z.boolean().optional(),
+  headPose: z.object({
+    pitch: z.number(),
+    yaw: z.number(),
+    roll: z.number(),
+  }).optional(),
+  gazePoint: z.object({
+    x: z.number(),
+    y: z.number(),
+  }).optional(),
+  eyebrowDistance: z.number().optional()
 });
 
 export const ioGestureEventPayloadSchema = z.object({
