@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SCARline - Combined Sensor Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { margin: 0; padding: 20px; box-sizing: border-box; font-family: 'Inter', sans-serif; background: #11111b; color: #cdd6f4; height: 100vh; display: flex; flex-direction: column; overflow: hidden; gap: 20px; }
+        h1 { display: none; } /* Replaced by dashboard design */
+        
+        .panel { background: #181825; padding: 20px; border-radius: 8px; border: 1px solid #313244; display: flex; flex-direction: column; min-height: 0; }
+        .panel-title { color: #a6adc8; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px; border-bottom: 1px solid #313244; padding-bottom: 10px; flex-shrink: 0; }
+        
+        /* Typography */
+        .metric { font-size: 18px; font-weight: bold; color: #a6e3a1; }
+        .label { font-size: 10px; color: #a6adc8; }
+        .val { font-family: monospace; font-size: 12px; margin-top: 5px; text-align: center; }
+
+        /* Row 1: Driver Status Bar */
+        .status-bar { height: 12vh; background: #1a1a2e; border: 1px solid #313244; border-radius: 8px; display: flex; align-items: center; justify-content: space-around; padding: 0 20px; flex-shrink: 0; }
+        .status-item { display: flex; flex-direction: column; align-items: center; }
+        .status-divider { width: 1px; height: 40px; background: #313244; }
+        .fatigue-badge-container { display: flex; align-items: center; gap: 15px; }
+        .fatigue-badge-circle { width: 50px; height: 50px; border-radius: 50%; background: #4caf50; color: #11111b; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.5rem; transition: background-color 0.2s ease; }
+        .fatigue-badge-label { font-weight: bold; letter-spacing: 1px; color: #4caf50; font-size: 1.2rem; transition: color 0.2s ease; }
+        .status-bar .metric { font-size: 0.85rem; margin-top: 5px; }
+        .status-bar .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; }
+
+        /* Row 2: Middle Row */
+        .middle-row { display: grid; grid-template-columns: 4fr 3fr 3fr; gap: 20px; flex: 1; min-height: 0; }
+        
+        /* Col 1: Camera */
+        .cam-content { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; }
+        .video-container { flex: 1; border: 1px solid #313244; border-radius: 4px; overflow: hidden; background: #11111b; display: flex; align-items: center; justify-content: center; min-height: 0; }
+        .video-container img { width: 100%; height: auto; max-height: 100%; object-fit: contain; }
+        .cam-metrics-grid { display: grid; gap: 5px; flex-shrink: 0; }
+        .gaze-pose-grid { grid-template-columns: repeat(3, 1fr); margin-top: 10px; }
+        .eyes-grid { grid-template-columns: repeat(2, 1fr); margin-top: 10px; padding-top: 10px; border-top: 1px solid #313244; }
+        .cam-metrics-grid .metric { font-size: 0.85rem; }
+        .cam-metrics-grid .label { font-size: 9px; }
+        .ear-bar-bg { width: 100%; height: 10px; background: #313244; border-radius: 5px; overflow: hidden; margin-top: 5px; }
+        .ear-bar-fill { height: 100%; width: 0%; background: #a6e3a1; transition: width 0.1s linear; }
+
+        /* Col 2: Heart Rate */
+        .hr-content { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+        .bpm-container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 0; flex-shrink: 0; }
+        .bpm-value { font-size: 2.5rem; font-weight: bold; color: #f38ba8; }
+        .bpm-label { font-size: 0.75rem; color: #a6adc8; }
+        .ecg-container { flex: 1; position: relative; min-height: 0; border-top: 1px solid #313244; padding-top: 15px; margin-top: 5px; }
+        
+        /* Col 3: G29 */
+        .g29-content { display: flex; flex-direction: row; align-items: center; justify-content: space-evenly; flex: 1; min-height: 0; }
+        .wheel-container { position: relative; width: 140px; height: 140px; }
+        .wheel { width: 140px; height: 140px; border: 8px solid #45475a; border-radius: 50%; box-sizing: border-box; position: absolute; transition: transform 0.05s linear; }
+        .wheel::before { content: ''; position: absolute; top: -8px; left: 58px; width: 8px; height: 16px; background: #f38ba8; }
+        .pedals { display: flex; gap: 40px; }
+        .bar-container { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        .bar-bg { width: 30px; height: 120px; background: #313244; border-radius: 4px; position: relative; overflow: hidden; }
+        .bar-fill { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; transition: height 0.05s linear; }
+        .throttle .bar-fill { background: #a6e3a1; }
+        .brake .bar-fill { background: #f38ba8; }
+
+        /* Row 3: Firehose */
+        .log-panel { flex: 0 0 26vh; transition: flex-basis 0.25s ease; min-height: 32px; padding-bottom: 0; overflow: hidden; }
+        .log-panel.collapsed { flex-basis: 32px; padding-bottom: 20px; }
+        .log-panel.collapsed .panel-title { margin-bottom: 0; border-bottom: none; padding-bottom: 0; }
+        .log-panel.collapsed .log-container { display: none; }
+        .log-container { background: #1e1e2e; border: 1px solid #313244; flex: 1; overflow-y: auto; padding: 10px; font-family: monospace; font-size: 11px; border-radius: 4px; min-height: 0; }
+        .toggle-btn { cursor: pointer; color: #89b4fa; font-weight: bold; }
+        .toggle-btn:hover { color: #b4befe; }
+    </style>
+</head>
+<body>
+    <!-- Driver Status Bar -->
+    <div class="status-bar" id="driver-status">
+        <div class="status-item">
+            <div class="fatigue-badge-container">
+                <div class="fatigue-badge-circle" id="sbFatigueScore">0</div>
+                <div class="fatigue-badge-label" id="sbFatigueStatus">ALERT</div>
+            </div>
+        </div>
+        <div class="status-divider"></div>
+        <div class="status-item">
+            <div class="label">EAR</div>
+            <div class="metric" id="sbEar">—</div>
+        </div>
+        <div class="status-divider"></div>
+        <div class="status-item">
+            <div class="label">MAR</div>
+            <div class="metric" id="sbMar">—</div>
+        </div>
+        <div class="status-divider"></div>
+        <div class="status-item">
+            <div class="label">Yawn</div>
+            <div class="metric" id="sbYawn">—</div>
+        </div>
+        <div class="status-divider"></div>
+        <div class="status-item">
+            <div class="label">Blinks</div>
+            <div class="metric" id="sbBlinks">—</div>
+        </div>
+        <div class="status-divider"></div>
+        <div class="status-item">
+            <div class="label">Roll</div>
+            <div class="metric" id="sbRoll">—</div>
+        </div>
+    </div>
+
+    <!-- Middle Row -->
+    <div class="middle-row">
+        <!-- Facial Telemetry (40%) -->
+        <div class="panel cam-panel">
+            <div class="panel-title">Facial Telemetry</div>
+            <div class="cam-content">
+                <div class="video-container">
+                    <img src="http://localhost:8089/video_feed" alt="Start demo_camera_server.py">
+                </div>
+                <!-- Gaze & Pose -->
+                <div class="cam-metrics-grid gaze-pose-grid">
+                    <div><div class="label">Pitch</div><div class="metric" id="pitchVal">—</div></div>
+                    <div><div class="label">Yaw</div><div class="metric" id="yawVal">—</div></div>
+                    <div><div class="label">Roll</div><div class="metric" id="rollVal">—</div></div>
+                    <div><div class="label">Gaze X</div><div class="metric" id="gazeXVal">—</div></div>
+                    <div><div class="label">Gaze Y</div><div class="metric" id="gazeYVal">—</div></div>
+                    <div><div class="label">Eyebrow Δ</div><div class="metric" id="eyebrowVal">—</div></div>
+                </div>
+                <!-- Ojos -->
+                <div class="cam-metrics-grid eyes-grid">
+                    <div>
+                        <div class="label">EAR</div>
+                        <div class="ear-bar-bg"><div class="ear-bar-fill" id="earBarFill"></div></div>
+                    </div>
+                    <div><div class="label">Status</div><div class="metric" id="camStatus" style="color:#a6e3a1;">—</div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Heart Rate (30%) -->
+        <div class="panel hr-panel">
+            <div class="panel-title">Heart Rate</div>
+            <div class="hr-content">
+                <div class="bpm-container">
+                    <div class="bpm-value" id="bpm-value">—</div>
+                    <div class="bpm-label">BPM</div>
+                </div>
+                <div class="ecg-container">
+                    <canvas id="ecgChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- G29 Telemetry (30%) -->
+        <div class="panel g29-panel">
+            <div class="panel-title">Logitech G29 Telemetry</div>
+            <div class="g29-content">
+                <div>
+                    <div class="wheel-container">
+                        <div class="wheel" id="steeringWheel"></div>
+                    </div>
+                    <div class="val" id="steeringVal" style="margin-top: 15px;">0.00°</div>
+                </div>
+                <div class="pedals">
+                    <div class="bar-container throttle">
+                        <div class="bar-bg"><div class="bar-fill" id="throttleBar"></div></div>
+                        <div class="label">Throttle</div>
+                        <div class="val" id="throttleVal">0.00</div>
+                    </div>
+                    <div class="bar-container brake">
+                        <div class="bar-bg"><div class="bar-fill" id="brakeBar"></div></div>
+                        <div class="label">Brake</div>
+                        <div class="val" id="brakeVal">0.00</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Event Firehose -->
+    <div class="panel log-panel" id="firehose-panel">
+        <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0; padding-bottom: 0; border-bottom: none;">
+            <span>Event Firehose (Live JSON)</span>
+            <span class="toggle-btn" id="firehose-toggle" onclick="toggleFirehose()">▲ Hide</span>
+        </div>
+        <div class="log-container" id="jsonLog" style="margin-top: 15px;"></div>
+    </div>
+
+    <script src="common.js"></script>
+    <script>
+        function toggleFirehose() {
+            const panel = document.getElementById('firehose-panel');
+            const toggle = document.getElementById('firehose-toggle');
+            panel.classList.toggle('collapsed');
+            if (panel.classList.contains('collapsed')) {
+                toggle.textContent = '▼ Show';
+            } else {
+                toggle.textContent = '▲ Hide';
+            }
+        }
+
+        function computeFatigueIndex(payload) {
+          let score = 0;
+          if (payload.ear != null) {
+            const earNorm = Math.max(0, Math.min(1, (0.30 - payload.ear) / 0.30));
+            score += earNorm * 40;
+          }
+          if (payload.mar != null) {
+            const marNorm = Math.max(0, Math.min(1, payload.mar / 0.6));
+            score += marNorm * 30;
+          }
+          if (payload.yawnDetected === true) score += 15;
+          if (payload.headPose?.pitch != null) {
+            const pitchNorm = Math.max(0, Math.min(1, -payload.headPose.pitch / 0.3));
+            score += pitchNorm * 15;
+          }
+          return Math.round(Math.min(100, score));
+        }
+
+        // Status Bar
+        const sbFatigueScore = document.getElementById('sbFatigueScore');
+        const sbFatigueStatus = document.getElementById('sbFatigueStatus');
+        const sbEar = document.getElementById('sbEar');
+        const sbMar = document.getElementById('sbMar');
+        const sbYawn = document.getElementById('sbYawn');
+        const sbBlinks = document.getElementById('sbBlinks');
+        const sbRoll = document.getElementById('sbRoll');
+        
+        // Facial Telemetry
+        const pitchVal = document.getElementById('pitchVal');
+        const yawVal = document.getElementById('yawVal');
+        const rollVal = document.getElementById('rollVal');
+        const gazeXVal = document.getElementById('gazeXVal');
+        const gazeYVal = document.getElementById('gazeYVal');
+        const eyebrowVal = document.getElementById('eyebrowVal');
+        const earBarFill = document.getElementById('earBarFill');
+        const camStatus = document.getElementById('camStatus');
+        
+        // G29
+        const steeringWheel = document.getElementById('steeringWheel');
+        const steeringVal = document.getElementById('steeringVal');
+        const throttleBar = document.getElementById('throttleBar');
+        const throttleVal = document.getElementById('throttleVal');
+        const brakeBar = document.getElementById('brakeBar');
+        const brakeVal = document.getElementById('brakeVal');
+
+        // ECG / BPM
+        const ctx = document.getElementById('ecgChart').getContext('2d');
+        const bpmValue = document.getElementById('bpm-value');
+        const MAX_POINTS = 500;
+        const ecgData = Array(MAX_POINTS).fill(0);
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Array(MAX_POINTS).fill(''),
+                datasets: [{ data: ecgData, borderColor: '#00ff88', borderWidth: 1.5, pointRadius: 0, tension: 0.1 }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, animation: false,
+                scales: { x: { display: false }, y: { grid: { color: '#313244' }, ticks: { color: '#a6adc8' } } },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        const jsonLog = document.getElementById('jsonLog');
+
+        connectSCARline((message) => {
+            const p = message.payload;
+            const rk = message.routingKey;
+            
+            if (rk.includes('.blink')) {
+                // Status Bar Mappings
+                sbEar.textContent = p.earAvg != null ? p.earAvg.toFixed(3) : (p.eyeAspectRatio != null ? p.eyeAspectRatio.toFixed(3) : '—');
+                sbMar.textContent = p.mar != null ? p.mar.toFixed(3) : '—';
+                
+                if (p.yawnDetected === true) { sbYawn.textContent = "YES"; sbYawn.style.color = "#a6e3a1"; }
+                else if (p.yawnDetected === false) { sbYawn.textContent = "NO"; sbYawn.style.color = "#a6adc8"; }
+                else { sbYawn.textContent = "—"; sbYawn.style.color = "#a6adc8"; }
+                
+                sbBlinks.textContent = p.blinkCount != null ? p.blinkCount : '—';
+                sbRoll.textContent = p.headPose && p.headPose.roll != null ? (p.headPose.roll > 0 ? '+' : '') + p.headPose.roll.toFixed(2) + '°' : '—';
+
+                // Fatigue Update
+                p.ear = p.earAvg ?? p.eyeAspectRatio; // Alias for formula
+                const fatigue = computeFatigueIndex(p);
+                sbFatigueScore.textContent = fatigue;
+                
+                if (fatigue <= 39) {
+                    sbFatigueScore.style.backgroundColor = '#4caf50';
+                    sbFatigueStatus.style.color = '#4caf50';
+                    sbFatigueStatus.textContent = "ALERT";
+                } else if (fatigue <= 69) {
+                    sbFatigueScore.style.backgroundColor = '#ff9800';
+                    sbFatigueStatus.style.color = '#ff9800';
+                    sbFatigueStatus.textContent = "DROWSY";
+                } else {
+                    sbFatigueScore.style.backgroundColor = '#f44336';
+                    sbFatigueStatus.style.color = '#f44336';
+                    sbFatigueStatus.textContent = "FATIGUED";
+                }
+
+                // Facial Telemetry Panel
+                pitchVal.textContent = p.headPose && p.headPose.pitch != null ? (p.headPose.pitch > 0 ? '+' : '') + p.headPose.pitch.toFixed(4) : '—';
+                yawVal.textContent = p.headPose && p.headPose.yaw != null ? (p.headPose.yaw > 0 ? '+' : '') + p.headPose.yaw.toFixed(4) : '—';
+                rollVal.textContent = p.headPose && p.headPose.roll != null ? (p.headPose.roll > 0 ? '+' : '') + p.headPose.roll.toFixed(4) + '°' : '—';
+                gazeXVal.textContent = p.gazePoint && p.gazePoint.x != null ? p.gazePoint.x.toFixed(3) : '—';
+                gazeYVal.textContent = p.gazePoint && p.gazePoint.y != null ? p.gazePoint.y.toFixed(3) : '—';
+                eyebrowVal.textContent = p.eyebrowDistance != null ? p.eyebrowDistance.toFixed(4) : '—';
+
+                // EAR Bar logic (0 to 0.4 max)
+                if (p.ear != null) {
+                    const earPercent = Math.min(100, Math.max(0, (p.ear / 0.4) * 100));
+                    earBarFill.style.width = earPercent + '%';
+                } else {
+                    earBarFill.style.width = '0%';
+                }
+
+                // Eyes Status
+                if (p.blinkDetected) { camStatus.textContent = "BLINK!"; camStatus.style.color = "#f9e2af"; }
+                else if (p.eyesClosed) { camStatus.textContent = "CLOSED"; camStatus.style.color = "#f38ba8"; }
+                else { camStatus.textContent = "OPEN"; camStatus.style.color = "#a6e3a1"; }
+            } 
+            else if (rk.endsWith('io.heart_rate') || rk.includes('.heart_rate')) {
+                if (p.heartRate != null) {
+                    bpmValue.textContent = Math.round(p.heartRate);
+                }
+            }
+            else if (rk.includes('.steering')) {
+                const degrees = (p.steeringAngle || 0) * 450;
+                steeringWheel.style.transform = `rotate(${degrees}deg)`;
+                steeringVal.textContent = degrees.toFixed(1) + '°';
+                const throttle = p.throttle || 0;
+                const brake = p.brake || 0;
+                throttleBar.style.height = `${throttle * 100}%`;
+                throttleVal.textContent = throttle.toFixed(2);
+                brakeBar.style.height = `${brake * 100}%`;
+                brakeVal.textContent = brake.toFixed(2);
+            }
+            else if (rk.includes('.ecg')) {
+                if (p.ecgSamples) {
+                    p.ecgSamples.forEach(val => { ecgData.shift(); ecgData.push(val); });
+                    chart.update();
+                }
+            }
+            
+            if (rk.includes('.blink') || rk.includes('.steering') || rk.includes('.ecg') || rk.includes('.heart_rate')) {
+                appendLog(jsonLog, p, 25);
+            }
+        });
+    </script>
+</body>
+</html>

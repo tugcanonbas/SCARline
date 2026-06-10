@@ -92,7 +92,8 @@ class ECGDriver(SensorDriver):
             self._ecg_thread.start()
             self.connected = True
             return True
-        except Exception:
+        except Exception as e:
+            print(f"[ECG DRIVER] initialize() failed: {type(e).__name__}: {e}")
             self.connected = False
             return False
 
@@ -186,8 +187,8 @@ class ECGDriver(SensorDriver):
         """Background thread: pull ECG packets from the SiFi Bridge queue."""
         while not self._stop_event.is_set():
             try:
-                packet = self._sb.get_data()
-                if packet and packet.get("packet_type") == "ecg":
+                packet = self._sb.get_ecg()
+                if packet:
                     self._last_packet = packet
             except Exception:
                 pass
