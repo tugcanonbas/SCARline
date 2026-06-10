@@ -16,7 +16,6 @@ import os
 import sys
 import time
 import uuid
-import webbrowser
 
 # Ensure scarline_io package is importable
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
@@ -207,17 +206,6 @@ def generate_synthetic_ecg(t_start: float, count: int = 50) -> list[float]:
 
 
 # ---------------------------------------------------------------------------
-# Dashboard helper
-# ---------------------------------------------------------------------------
-
-def open_dashboard(name: str = "ecg.html") -> None:
-    dash_path = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "tools", "dashboards", name)
-    )
-    webbrowser.open(dash_path)
-
-
-# ---------------------------------------------------------------------------
 # Run modes
 # ---------------------------------------------------------------------------
 
@@ -234,8 +222,6 @@ async def run_dry() -> None:
     except Exception as e:
         print(f"[DEMO ECG] Failed to connect to RabbitMQ at {amqp_url}: {e}")
         return
-
-    open_dashboard("ecg.html")
 
     bpm_est = BPMEstimator()
     published = 0
@@ -310,8 +296,6 @@ async def run_live(mac: str | None = None) -> None:
         sys.exit(1)
 
     print("[DEMO ECG] SiFi Bridge connected! Starting ECG stream...")
-
-    open_dashboard("ecg.html")
 
     try:
         connection = await aio_pika.connect_robust(amqp_url)

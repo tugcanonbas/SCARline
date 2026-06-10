@@ -8,7 +8,6 @@ import os
 import sys
 import time
 import uuid
-import webbrowser
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import cv2
@@ -131,9 +130,6 @@ async def run_live() -> None:
         print("[DEMO CAMERA] ERROR: Failed to initialize camera driver.", file=sys.stderr)
         sys.exit(1)
         
-    dash_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "tools", "dashboards", "camera.html"))
-    webbrowser.open(dash_path)
-    
     threading.Thread(target=run_http_server, daemon=True).start()
     
     driver.start()

@@ -58,15 +58,20 @@ echo "   PID: $HTTP_PID"
 # Wait for HTTP server to be ready
 sleep 2
 
-# --- Open Combined Dashboard ---
-DASHBOARD_URL="http://localhost:$HTTP_PORT/combined.html"
-echo "🖥️  Opening Combined Dashboard: $DASHBOARD_URL"
+# --- Open Dashboards ---
+echo "🖥️  Opening Dashboards in browser..."
 if command -v xdg-open &>/dev/null; then
-    xdg-open "$DASHBOARD_URL" 2>/dev/null || true
+    xdg-open "http://localhost:$HTTP_PORT/camera.html" 2>/dev/null || true
+    xdg-open "http://localhost:$HTTP_PORT/ecg.html" 2>/dev/null || true
+    xdg-open "http://localhost:$HTTP_PORT/g29.html" 2>/dev/null || true
+    xdg-open "http://localhost:$HTTP_PORT/combined.html" 2>/dev/null || true
 elif command -v open &>/dev/null; then
-    open "$DASHBOARD_URL" 2>/dev/null || true
+    open "http://localhost:$HTTP_PORT/camera.html" 2>/dev/null || true
+    open "http://localhost:$HTTP_PORT/ecg.html" 2>/dev/null || true
+    open "http://localhost:$HTTP_PORT/g29.html" 2>/dev/null || true
+    open "http://localhost:$HTTP_PORT/combined.html" 2>/dev/null || true
 else
-    echo "   (Could not auto-open browser. Navigate to $DASHBOARD_URL manually)"
+    echo "   (Could not auto-open browser. Navigate to http://localhost:$HTTP_PORT/combined.html manually)"
 fi
 
 echo ""

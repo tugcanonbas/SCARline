@@ -13,7 +13,6 @@ import os
 import sys
 import time
 import uuid
-import webbrowser
 
 # Ensure scarline_io package is importable when running from python/io-client/
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
@@ -87,9 +86,6 @@ async def run_dry() -> None:
         print(f"[DEMO G29] Failed to connect to RabbitMQ: {e}")
         return
 
-    dash_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "tools", "dashboards", "g29.html"))
-    webbrowser.open(dash_path)
-
     t = 0.0
     try:
         while True:
@@ -133,9 +129,6 @@ async def run_live() -> None:
         print("[DEMO G29] ERROR: Failed to initialize G29 driver. Is the wheel connected?", file=sys.stderr)
         sys.exit(1)
     driver.start()
-
-    dash_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "tools", "dashboards", "g29.html"))
-    webbrowser.open(dash_path)
 
     connection = await aio_pika.connect_robust(amqp_url)
     channel = await connection.channel()

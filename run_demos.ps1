@@ -19,8 +19,11 @@ Write-Host "Scripts de Python iniciados en ventanas separadas." -ForegroundColor
 Write-Host "Levantando Servidor Web para los Dashboards..." -ForegroundColor Cyan
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd tools\dashboards; python -m http.server 8000"
 
-Write-Host "Abriendo el Dashboard Combinado en el navegador..." -ForegroundColor Yellow
+Write-Host "Abriendo los Dashboards en el navegador..." -ForegroundColor Yellow
 Start-Sleep -Seconds 2
+Start-Process "http://localhost:8000/camera.html"
+Start-Process "http://localhost:8000/ecg.html"
+Start-Process "http://localhost:8000/g29.html"
 Start-Process "http://localhost:8000/combined.html"
 
-Write-Host "¡Listo! El dashboard está disponible en: http://localhost:8000/combined.html" -ForegroundColor Green
+Write-Host "¡Listo! Los dashboards están disponibles en el navegador." -ForegroundColor Green
