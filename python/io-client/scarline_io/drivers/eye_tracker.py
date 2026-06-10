@@ -137,6 +137,61 @@ class BlinkDetectionDriver(SensorDriver):
         self._face_mesh: Any = None
         self._blink_counter = 0
         self._frame_counter = 0
+        self.last_frame: Any = None
+        self.last_landmarks: Any = None
+
+    def _compute_mar(self, landmarks: Any) -> float:
+        try:
+            p_top = landmarks[13]
+            p_bottom = landmarks[14]
+            p_left = landmarks[78]
+            p_right = landmarks[308]
+            v_dist = _landmark_dist(p_top, p_bottom)
+            h_dist = _landmark_dist(p_left, p_right)
+            if h_dist < 1e-6:
+                return 0.0
+            return round(v_dist / h_dist, 4)
+        except Exception:
+            return 0.0
+
+    def _compute_head_pose(self, landmarks: Any, w: int, h: int) -> dict[str, float]:
+        try:
+            nose = landmarks[1]
+            chin = landmarks[152]
+            left_eye = landmarks[33]
+            right_eye = landmarks[263]
+            
+            n_y = nose.y * h
+            c_y = chin.y * h
+            n_x = nose.x * w
+            le_x = left_eye.x * w
+            re_x = right_eye.x * w
+            le_y = left_eye.y * h
+            re_y = right_eye.y * h
+            
+            pitch = (n_y - c_y) / h
+            yaw = (n_x - (le_x + re_x) / 2.0) / w
+            roll = math.degrees(math.atan2(re_y - le_y, re_x - le_x))
+            
+            return {
+                "pitch": round(pitch, 4),
+                "yaw": round(yaw, 4),
+                "roll": round(roll, 4)
+            }
+        except Exception:
+            return {"pitch": 0.0, "yaw": 0.0, "roll": 0.0}
+
+    def _compute_gaze(self, landmarks: Any) -> dict[str, float]:
+        gx, gy = _compute_gaze(landmarks)
+        return {"x": gx if gx is not None else 0.5, "y": gy if gy is not None else 0.5}
+
+    def _compute_eyebrow_distance(self, landmarks: Any, h: int) -> float:
+        try:
+            p_left = landmarks[107]
+            p_right = landmarks[336]
+            return round(_landmark_dist(p_left, p_right), 4)
+        except Exception:
+            return 0.0
 
     def get_metadata(self) -> SensorMetadata:
         return SensorMetadata(
@@ -223,6 +278,11 @@ class BlinkDetectionDriver(SensorDriver):
                     "blink_count": self._blink_counter,
                     "eyes_closed": False,
                     "connected": False,
+                    "mar": None,
+                    "yawnDetected": None,
+                    "headPose": None,
+                    "gazePoint": None,
+                    "eyebrowDistance": None,
                 },
                 metadata={"source": "baseline-unavailable"},
             )
@@ -240,6 +300,11 @@ class BlinkDetectionDriver(SensorDriver):
                     "blink_count": self._blink_counter,
                     "eyes_closed": False,
                     "connected": False,
+                    "mar": None,
+                    "yawnDetected": None,
+                    "headPose": None,
+                    "gazePoint": None,
+                    "eyebrowDistance": None,
                 },
                 metadata={"source": "baseline-unavailable"},
             )
@@ -247,11 +312,14 @@ class BlinkDetectionDriver(SensorDriver):
         if not ok or frame is None:
             return None
 
+        self.last_frame = frame.copy()
+
         # Convert BGR → RGB for MediaPipe
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = self._face_mesh.process(rgb)
 
         if not results or not results.multi_face_landmarks:
+            self.last_landmarks = None
             return SensorReading(
                 timestamp=time.time(),
                 data={
@@ -262,11 +330,17 @@ class BlinkDetectionDriver(SensorDriver):
                     "blink_count": self._blink_counter,
                     "eyes_closed": False,
                     "connected": True,
+                    "mar": None,
+                    "yawnDetected": None,
+                    "headPose": None,
+                    "gazePoint": None,
+                    "eyebrowDistance": None,
                 },
                 metadata={"source": "mediapipe-facemesh", "face_detected": False},
             )
 
         landmarks = results.multi_face_landmarks[0].landmark
+        self.last_landmarks = landmarks
         ear_left = _eye_aspect_ratio(landmarks, _LEFT_EYE)
         ear_right = _eye_aspect_ratio(landmarks, _RIGHT_EYE)
         ear_avg = (ear_left + ear_right) / 2.0
@@ -281,6 +355,13 @@ class BlinkDetectionDriver(SensorDriver):
                 blink_detected = True
             self._frame_counter = 0
 
+        h, w, _ = frame.shape
+        mar = self._compute_mar(landmarks)
+        yawn_detected = mar > 0.6
+        head_pose = self._compute_head_pose(landmarks, w, h)
+        gaze_point = self._compute_gaze(landmarks)
+        eyebrow_dist = self._compute_eyebrow_distance(landmarks, h)
+
         return SensorReading(
             timestamp=time.time(),
             data={
@@ -291,6 +372,11 @@ class BlinkDetectionDriver(SensorDriver):
                 "blink_count": self._blink_counter,
                 "eyes_closed": eyes_closed,
                 "connected": True,
+                "mar": mar,
+                "yawnDetected": yawn_detected,
+                "headPose": head_pose,
+                "gazePoint": gaze_point,
+                "eyebrowDistance": eyebrow_dist,
             },
             metadata={"source": "mediapipe-facemesh", "face_detected": True},
         )
