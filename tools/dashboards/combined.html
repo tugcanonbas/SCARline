@@ -319,12 +319,13 @@
                 else { camStatus.textContent = "OPEN"; camStatus.style.color = "#a6e3a1"; }
             } 
             else if (rk.endsWith('io.heart_rate') || rk.includes('.heart_rate')) {
-                if (p.heartRate != null) {
-                    bpmValue.textContent = Math.round(p.heartRate);
+                const hr = p.heartRateBpm ?? p.heartRate;
+                if (hr != null) {
+                    bpmValue.textContent = Math.round(hr);
                 }
             }
             else if (rk.includes('.steering')) {
-                const degrees = (p.steeringAngle || 0) * 450;
+                const degrees = (p.steer ?? p.steeringAngle ?? 0) * 450;
                 steeringWheel.style.transform = `rotate(${degrees}deg)`;
                 steeringVal.textContent = degrees.toFixed(1) + '°';
                 const throttle = p.throttle || 0;
