@@ -24,7 +24,7 @@
     "contact.company": {
       "type": "string",
       "description": "Selected contact company.",
-      "default": "HCIS Lab"
+      "default": "SCARline Lab"
     }
   },
   "actions": {
