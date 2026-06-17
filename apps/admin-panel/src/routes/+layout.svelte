@@ -146,7 +146,7 @@
     >
       <div class="scarline-brand">
         <div class="branding">
-          <p class="scarline-brand-kicker">HCIS Lab @THI</p>
+          <p class="scarline-brand-kicker">SCARline Lab</p>
           <h1 class="scarline-brand-title">SCARline Hub</h1>
           <p class="scarline-brand-subtitle">Rapid-Prototyping platform</p>
         </div>
