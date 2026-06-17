@@ -12,12 +12,6 @@
   const pmReachable = $derived(!data.processManager?.unavailable);
 </script>
 
-<PageHeader
-  eyebrow="System"
-  title="System Settings"
-  description="Runtime configuration and Process Manager controls for the current SCARline lab node."
-/>
-
 <div class="metric-grid">
   <MetricCard label="Process Manager" value={pmReachable ? 'Ready' : 'Down'} hint="IPC-backed status and controls" accent />
   <MetricCard label="Platform Port" value={data.configuration.platformPort ?? 8088} hint="Single-domain Nginx entrypoint" />

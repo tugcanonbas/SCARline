@@ -812,6 +812,24 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
          (SELECT COUNT(*)::text FROM session_events) AS total_events`
     );
     const recentSessions = await queryMany(pool, `SELECT * FROM sessions ORDER BY created_at DESC LIMIT 5`);
+    const activeStudyRows = await queryMany(pool, `
+      SELECT studies.id,
+             studies.name,
+             studies.description,
+             studies.status,
+             studies.created_at,
+             studies.updated_at,
+             COUNT(DISTINCT participants.id) AS participant_count,
+             COUNT(DISTINCT sessions.id) AS session_count
+      FROM studies
+      LEFT JOIN participants ON participants.study_id = studies.id
+      LEFT JOIN sessions ON sessions.study_id = studies.id
+      WHERE studies.status = 'active'
+      GROUP BY studies.id
+      ORDER BY studies.created_at DESC
+      LIMIT 5
+    `);
+
     const data = dashboardSchema.parse({
       activeStudies: Number(counts?.active_studies ?? 0),
       totalSessions: Number(counts?.total_sessions ?? 0),
@@ -830,6 +848,16 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
         durationSeconds: row.duration_seconds,
         runtimeMetadata: row.runtime_metadata ?? {},
         notes: row.notes
+      })),
+      activeStudyItems: activeStudyRows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        status: row.status,
+        participantCount: Number(row.participant_count),
+        sessionCount: Number(row.session_count),
+        createdAt: row.created_at.toISOString(),
+        updatedAt: row.updated_at.toISOString()
       })),
       componentHealth: components.list()
     });
@@ -891,24 +919,42 @@ export async function registerApi(app: FastifyInstance, deps: Dependencies): Pro
     const payload = z.object({
       name: z.string().min(1),
       description: z.string().optional(),
-      createdBy: z.string().uuid().nullable().optional()
+      createdBy: z.string().uuid().nullable().optional(),
+      researcherIds: z.array(z.string().uuid()).optional()
     }).parse(request.body ?? {});
 
-    const study = await queryOne(pool, `
+    const actorId = getActorUserId(request, config);
+    let creatorResearcherId = payload.createdBy;
+    if (!creatorResearcherId && actorId) {
+      const user = await queryOne<{ researcher_id: string }>(pool, `SELECT researcher_id FROM users WHERE id = $1`, [actorId]);
+      creatorResearcherId = user?.researcher_id ?? null;
+    }
+
+    const study = await queryOne<{ id: string; name: string; description: string | null; status: string; created_at: Date; updated_at: Date }>(pool, `
       INSERT INTO studies (name, description, created_by)
       VALUES ($1, $2, $3)
       RETURNING id, name, description, status, created_at, updated_at
-    `, [payload.name, payload.description ?? null, payload.createdBy ?? null]);
+    `, [payload.name, payload.description ?? null, creatorResearcherId]);
 
     if (study) {
       await pool.query(`INSERT INTO carla_configurations (study_id) VALUES ($1) ON CONFLICT (study_id) DO NOTHING`, [study.id]);
       await pool.query(`INSERT INTO sensor_configurations (study_id) VALUES ($1) ON CONFLICT (study_id) DO NOTHING`, [study.id]);
-      if (payload.createdBy) {
+      
+      const researchersToLink = new Set<string>();
+      if (creatorResearcherId) researchersToLink.add(creatorResearcherId);
+      if (payload.researcherIds) {
+        for (const id of payload.researcherIds) {
+          researchersToLink.add(id);
+        }
+      }
+
+      for (const researcherId of researchersToLink) {
+        if (!researcherId) continue;
         await pool.query(
           `INSERT INTO study_researchers (study_id, researcher_id, role)
-           VALUES ($1, $2, 'owner')
+           VALUES ($1, $2, $3)
            ON CONFLICT (study_id, researcher_id) DO NOTHING`,
-          [study.id, payload.createdBy]
+          [study.id, researcherId, researcherId === creatorResearcherId ? 'owner' : 'contributor']
         );
       }
       await logActivity(pool, {

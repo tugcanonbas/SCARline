@@ -1,5 +1,11 @@
 <script lang="ts">
-  let { eyebrow = '', title, description = '', actions, className = '' } = $props<{
+  let {
+    eyebrow = "",
+    title,
+    description = "",
+    actions,
+    className = "",
+  } = $props<{
     eyebrow?: string;
     title: string;
     description?: string;

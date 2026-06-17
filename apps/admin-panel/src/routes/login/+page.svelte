@@ -1,7 +1,7 @@
 <script lang="ts">
-  import InlineNotice from '$lib/components/admin/InlineNotice.svelte';
-  import PageHeader from '$lib/components/PageHeader.svelte';
-  import SurfaceCard from '$lib/components/SurfaceCard.svelte';
+  import InlineNotice from "$lib/components/admin/InlineNotice.svelte";
+  import PageHeader from "$lib/components/PageHeader.svelte";
+  import SurfaceCard from "$lib/components/SurfaceCard.svelte";
 
   let { data, form } = $props();
 </script>
@@ -9,13 +9,13 @@
 <div class="page-shell--centered py-16">
   <PageHeader
     eyebrow="Authentication"
-    title="Sign into SCARline"
-    description="Use the first admin account created during onboarding."
+    title="Login to SCARline"
+    description="Enter your username and password to log in."
   />
 
-  <SurfaceCard title="Operator Access" subtitle="JWT-backed session for Admin Panel and Overlay WebSocket connections.">
+  <SurfaceCard title="" subtitle="">
     <form class="form-stack" method="POST">
-      <input name="redirectTo" type="hidden" value={data.redirectTo ?? ''} />
+      <input name="redirectTo" type="hidden" value={data.redirectTo ?? ""} />
 
       <label class="form-field">
         <span>Username</span>
@@ -31,7 +31,7 @@
         <InlineNotice tone="danger" message={form.message} />
       {/if}
 
-      <button class="button-primary" type="submit">Sign In</button>
+      <button class="button-primary" type="submit">Login</button>
     </form>
   </SurfaceCard>
 </div>

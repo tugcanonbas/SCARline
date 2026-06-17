@@ -2,7 +2,8 @@ FROM node:22-alpine
 
 WORKDIR /workspace
 
-RUN corepack enable
+ENV PATH /usr/local/bin:$PATH
+RUN /usr/local/bin/npm install -g pnpm@latest
 
 COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages ./packages
