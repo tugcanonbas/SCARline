@@ -30,7 +30,7 @@
         : undefined}
     >
       <Settings2 size={16} />
-      System Settings
+      System
     </a>
     <a
       class={`study-tab ${page.url.pathname.includes("/settings/users") ? "study-tab--active" : ""}`}
@@ -40,7 +40,7 @@
         : undefined}
     >
       <UserRoundCog size={16} />
-      User Accounts
+      Accounts
     </a>
   {/if}
   {#if data.user?.roles?.includes("admin") || data.user?.roles?.includes("researcher")}
@@ -62,7 +62,7 @@
         : undefined}
     >
       <Server size={16} />
-      System Status
+      Component Status
     </a>
   {/if}
 </div>

@@ -159,8 +159,7 @@
   <MetricCard
     label="Conditions"
     value={data.conditions.length}
-    hint="Defined study variants"
-    accent
+    hint="Study variants defined"
   />
   <MetricCard
     label="Weather Overrides"

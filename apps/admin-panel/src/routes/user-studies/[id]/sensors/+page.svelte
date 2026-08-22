@@ -57,7 +57,6 @@
     label="Driver Catalogue"
     value={driverCount}
     hint="Drivers offered by the current host"
-    accent
   />
   <MetricCard
     label="Configured Sensors"
@@ -76,7 +75,7 @@
   />
 </div>
 
-<div class="section-grid section-grid--sidebar">
+<div class="section-grid section-grid--sidebar mt-4">
   <SurfaceCard
     title="Driver Configuration"
     subtitle="Enable study sensors, sampling rates, metadata, and required/best-effort behavior."

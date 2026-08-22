@@ -61,8 +61,8 @@ body {
   }
 
   ::selection {
-    background: var(--scarline-white);
-    color: var(--scarline-black);
+    background: var(--scarline-black);
+    color: var(--scarline-white);
   }
 
   h1,
@@ -1601,10 +1601,6 @@ body {
     padding: 16px;
   }
 
-  .detail-panel--soft {
-    background: linear-gradient(180deg, var(--scarline-black) 0%, #f7f7f7 100%);
-  }
-
   .empty-state {
     border: 1px dashed var(--scarline-border);
     border-radius: var(--scarline-radius-lg);
@@ -1672,7 +1668,6 @@ body {
   .telemetry-tile {
     border: 1px solid var(--scarline-border);
     border-radius: 14px;
-    background: linear-gradient(180deg, #ffffff 0%, #f7f7f7 100%);
     padding: 12px;
     display: flex;
     flex-direction: column;
@@ -1732,7 +1727,6 @@ body {
   .layout-properties {
     border: 1px solid var(--scarline-border);
     border-radius: var(--scarline-radius-lg);
-    background: linear-gradient(180deg, #ffffff 0%, #f7f7f7 100%);
     padding: 14px;
   }
 
@@ -1824,10 +1818,6 @@ body {
     place-items: center;
     border: 1px solid var(--scarline-grey);
     border-radius: 10px;
-    background:
-      linear-gradient(var(--scarline-grey-16) 1px, transparent 1px),
-      linear-gradient(90deg, var(--scarline-grey-16) 1px, transparent 1px),
-      #fafafa;
     background-size: 20px 20px;
     overflow: hidden;
     pointer-events: none;
@@ -1911,7 +1901,6 @@ body {
     gap: 12px;
     border: 1px solid var(--scarline-border);
     border-radius: 12px;
-    background: linear-gradient(180deg, #ffffff 0%, #f4f4f4 100%);
     padding: 10px 12px;
   }
 
@@ -1983,7 +1972,7 @@ body {
     background:
       linear-gradient(var(--scarline-grey-16) 1px, transparent 1px),
       linear-gradient(90deg, var(--scarline-grey-16) 1px, transparent 1px),
-      #f8f8f8;
+      var(--scarline-black);
     background-size: 32px 32px;
     border: 1px solid var(--scarline-border);
     border-radius: var(--scarline-radius-lg);
@@ -2028,7 +2017,7 @@ body {
     gap: 7px;
     border: 1px solid var(--scarline-border);
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.92);
+    background: var(--scarline-black);
     padding: 4px 8px;
     font-size: 10px;
     line-height: 1;
