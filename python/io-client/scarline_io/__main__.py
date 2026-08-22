@@ -14,8 +14,9 @@ import aio_pika
 import yaml
 
 from .drivers.base import SensorDriver
+from .drivers.ecg import ECGDriver
 from .drivers.heart_rate import HeartRateDriver
-from .drivers.eye_tracker import EyeTrackerDriver
+from .drivers.eye_tracker import EyeTrackerDriver, GazeDriver
 from .drivers.logitech_g29 import LogitechG29Driver
 from .drivers.usb_camera import UsbCameraDriver
 
@@ -23,10 +24,12 @@ CONFIG_PATH = pathlib.Path(os.environ.get("IO_CLIENT_CONFIG", "/workspace/python
 AMQP_URL = os.environ.get("AMQP_URL", "amqp://scarline:scarline@rabbitmq:5672")
 
 DRIVER_FACTORIES: dict[str, Callable[[], SensorDriver]] = {
+    "ecg": ECGDriver,
     "logitech_g29": LogitechG29Driver,
     "usb_camera": UsbCameraDriver,
     "heart_rate": HeartRateDriver,
     "eye_tracker": EyeTrackerDriver,
+    "gaze": GazeDriver,
 }
 
 
@@ -97,28 +100,117 @@ def refresh_health_sensors(active_drivers: dict[str, SensorDriver], sensor_healt
 
 
 async def handle_health_request(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-    request_line = await reader.readline()
-    parts = request_line.decode("utf8", errors="ignore").split()
-    path = parts[1] if len(parts) >= 2 else "/"
+    try:
+        request_line = await reader.readline()
+        parts = request_line.decode("utf8", errors="ignore").split()
+        if not parts:
+            writer.close()
+            return
+        method = parts[0].upper()
+        path = parts[1] if len(parts) >= 2 else "/"
 
-    while True:
-        line = await reader.readline()
-        if line in {b"\r\n", b"\n", b""}:
-            break
+        # Parse request headers
+        headers = {}
+        while True:
+            line = await reader.readline()
+            if line in {b"\r\n", b"\n", b""}:
+                break
+            line_str = line.decode("utf8", errors="ignore").strip()
+            if ":" in line_str:
+                k, v = line_str.split(":", 1)
+                headers[k.strip().lower()] = v.strip()
 
-    status_code = 200 if path in {"/", "/health"} else 404
-    body = json.dumps(HEALTH_STATE | {"service": "io-client"}).encode("utf8")
-    reason = "OK" if status_code == 200 else "Not Found"
-    headers = (
-        f"HTTP/1.1 {status_code} {reason}\r\n"
-        "Content-Type: application/json\r\n"
-        f"Content-Length: {len(body)}\r\n"
-        "Connection: close\r\n\r\n"
-    )
-    writer.write(headers.encode("utf8") + body)
-    await writer.drain()
-    writer.close()
-    await writer.wait_closed()
+        if method == "OPTIONS":
+            headers_str = (
+                "HTTP/1.1 204 No Content\r\n"
+                "Access-Control-Allow-Origin: *\r\n"
+                "Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n"
+                "Access-Control-Allow-Headers: *\r\n"
+                "Connection: close\r\n\r\n"
+            )
+            writer.write(headers_str.encode("utf8"))
+        elif path.startswith("/rmq/"):
+            import http.client
+            import urllib.parse
+            import base64
+
+            target_path = path[5:]
+            content_length = int(headers.get("content-length", 0))
+            body_bytes = b""
+            if content_length > 0:
+                body_bytes = await reader.readexactly(content_length)
+
+            try:
+                parsed_amqp = urllib.parse.urlparse(AMQP_URL)
+                rmq_host = parsed_amqp.hostname or "localhost"
+                rmq_port = 15672
+                if parsed_amqp.port and parsed_amqp.port != 5672:
+                    rmq_port = parsed_amqp.port
+                rmq_user = parsed_amqp.username or "scarline"
+                rmq_pass = parsed_amqp.password or "scarline"
+
+                auth_str = f"{rmq_user}:{rmq_pass}"
+                auth_b64 = base64.b64encode(auth_str.encode("utf8")).decode("utf8")
+
+                conn = http.client.HTTPConnection(rmq_host, rmq_port, timeout=5.0)
+                req_headers = {
+                    "Authorization": f"Basic {auth_b64}",
+                    "Content-Type": "application/json",
+                }
+                conn.request(method, f"/api/{target_path}", body=body_bytes, headers=req_headers)
+
+                resp = conn.getresponse()
+                resp_status = resp.status
+                resp_reason = resp.reason
+                resp_body = resp.read()
+                conn.close()
+
+                resp_headers = (
+                    f"HTTP/1.1 {resp_status} {resp_reason}\r\n"
+                    "Content-Type: application/json\r\n"
+                    "Access-Control-Allow-Origin: *\r\n"
+                    "Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n"
+                    "Access-Control-Allow-Headers: *\r\n"
+                    f"Content-Length: {len(resp_body)}\r\n"
+                    "Connection: close\r\n\r\n"
+                )
+                writer.write(resp_headers.encode("utf8") + resp_body)
+            except Exception as e:
+                err_body = json.dumps({"error": str(e)}).encode("utf8")
+                resp_headers = (
+                    "HTTP/1.1 502 Bad Gateway\r\n"
+                    "Content-Type: application/json\r\n"
+                    "Access-Control-Allow-Origin: *\r\n"
+                    "Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n"
+                    "Access-Control-Allow-Headers: *\r\n"
+                    f"Content-Length: {len(err_body)}\r\n"
+                    "Connection: close\r\n\r\n"
+                )
+                writer.write(resp_headers.encode("utf8") + err_body)
+        else:
+            status_code = 200 if path in {"/", "/health"} else 404
+            body = json.dumps(HEALTH_STATE | {"service": "io-client"}).encode("utf8")
+            reason = "OK" if status_code == 200 else "Not Found"
+            headers_str = (
+                f"HTTP/1.1 {status_code} {reason}\r\n"
+                "Content-Type: application/json\r\n"
+                "Access-Control-Allow-Origin: *\r\n"
+                "Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n"
+                "Access-Control-Allow-Headers: *\r\n"
+                f"Content-Length: {len(body)}\r\n"
+                "Connection: close\r\n\r\n"
+            )
+            writer.write(headers_str.encode("utf8") + body)
+
+        await writer.drain()
+    except Exception:
+        pass
+    finally:
+        try:
+            writer.close()
+            await writer.wait_closed()
+        except Exception:
+            pass
 
 
 async def health_server(port: int) -> None:
@@ -175,10 +267,12 @@ def enabled_configured_sensors(config: dict) -> list[dict]:
 def merge_with_configured_defaults(session_sensor: dict, configured_sensors: Iterable[dict]) -> dict:
     key = driver_key(session_sensor)
     defaults = next((sensor for sensor in configured_sensors if driver_key(sensor) == key), {})
-    return {
-        **defaults,
-        **flatten_sensor_config(session_sensor),
-    }
+    merged = {**defaults}
+    for k, v in flatten_sensor_config(session_sensor).items():
+        if v is None or v == "" or v == {}:
+            continue
+        merged[k] = v
+    return merged
 
 
 def routing_key_for_sensor(sensor_type: str, study_id: str, run_id: str) -> str:
@@ -458,6 +552,8 @@ async def main() -> None:
                     run_id = data["sessionId"]
                     session_sensors = data.get("sensors") or configured_sensors
                     update_health(activeSession=run_id)
+                    # Purge all old entries — session entries completely replace them
+                    sensor_health.clear()
                     for sensor_config in session_sensors:
                         if not isinstance(sensor_config, dict):
                             continue

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { execFile } from "node:child_process";
+import { execFile, execSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -12,6 +12,20 @@ const root = path.resolve(
   "../..",
 );
 const execFileAsync = promisify(execFile);
+
+function isBashAvailable() {
+  try {
+    const out = execSync('bash --version', { stdio: 'pipe' }).toString();
+    if (process.platform === 'win32' && out.toLowerCase().includes('linux')) return false; // Reject WSL, only accept Git Bash
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const shouldSkipBashTests = process.platform === 'win32';
+const toBashPath = (p) => process.platform === 'win32' ? "./" + path.relative(root, p).replace(/\\/g, '/') : p;
+const skipMessage = 'bash not available on Windows — install Git Bash or WSL to run';
 
 test("rabbitmq definitions expose milestone queues and exchanges", async () => {
   const definitions = JSON.parse(
@@ -202,8 +216,8 @@ test("overlay web exposes widget validation and relative gateway assets", async 
   assert.match(source, /__SCARLINE_OVERLAY_CONTROL_ORIGIN/);
 });
 
-test("scarline preserves CARLA paths and skips CARLA validation in --no-carla mode", async () => {
-  const tempDir = await mkdtemp(path.join(tmpdir(), "scarline-launcher-"));
+test("scarline preserves CARLA paths and skips CARLA validation in --no-carla mode", { skip: shouldSkipBashTests ? skipMessage : false }, async () => {
+  const tempDir = await mkdtemp(path.join(root, "scarline-launcher-"));
 
   try {
     const configPath = path.join(tempDir, ".scarline.yaml");
@@ -218,7 +232,7 @@ test("scarline preserves CARLA paths and skips CARLA validation in --no-carla mo
         "  server_port: 2000",
       ].join("\n"),
     );
-    await writeFile(harnessPath, script.replace(/\nmain "\$@"\s*$/, "\n"));
+    await writeFile(harnessPath, script.replace(/\r/g, '').replace(/\nmain "\$@"\s*$/, "\n"));
 
     const { stdout } = await execFileAsync(
       "bash",
@@ -226,8 +240,8 @@ test("scarline preserves CARLA paths and skips CARLA validation in --no-carla mo
         "-lc",
         'source "$1"; CONFIG_FILE="$2"; validate_port_available(){ :; }; load_config; [[ "$CARLA_SERVER_PATH" == "/opt/carla/CarlaUE4.sh" ]]; NO_CARLA=true; validate_prerequisites; printf "%s" "$CARLA_SERVER_PATH"',
         "--",
-        harnessPath,
-        configPath,
+        toBashPath(harnessPath),
+        toBashPath(configPath),
       ],
       { cwd: root },
     );
@@ -238,14 +252,14 @@ test("scarline preserves CARLA paths and skips CARLA validation in --no-carla mo
   }
 });
 
-test("scarline compose wrapper forwards compose files and subcommands", async () => {
-  const tempDir = await mkdtemp(path.join(tmpdir(), "scarline-compose-"));
+test("scarline compose wrapper forwards compose files and subcommands", { skip: shouldSkipBashTests ? skipMessage : false }, async () => {
+  const tempDir = await mkdtemp(path.join(root, "scarline-compose-"));
 
   try {
     const harnessPath = path.join(tempDir, "scarline-harness.sh");
     const script = await readFile(path.join(root, "scarline"), "utf8");
 
-    await writeFile(harnessPath, script.replace(/\nmain "\$@"\s*$/, "\n"));
+    await writeFile(harnessPath, script.replace(/\r/g, '').replace(/\nmain "\$@"\s*$/, "\n"));
 
     const { stdout } = await execFileAsync(
       "bash",
@@ -253,8 +267,8 @@ test("scarline compose wrapper forwards compose files and subcommands", async ()
         "-lc",
         'source "$1"; ROOT_DIR="$2"; DEV_MODE=true; docker(){ printf "%s\\n" "$@"; }; compose ps --format json',
         "--",
-        harnessPath,
-        root,
+        toBashPath(harnessPath),
+        toBashPath(root),
       ],
       { cwd: root },
     );
@@ -275,12 +289,12 @@ test("scarline compose wrapper forwards compose files and subcommands", async ()
   }
 });
 
-test("scarline launcher validates node and pnpm requirements before startup", async () => {
-  const tempDir = await mkdtemp(path.join(tmpdir(), "scarline-reqs-"));
+test("scarline launcher validates node and pnpm requirements before startup", { skip: shouldSkipBashTests ? skipMessage : false }, async () => {
+  const tempDir = await mkdtemp(path.join(root, "scarline-reqs-"));
   try {
     const harnessPath = path.join(tempDir, "scarline-harness.sh");
     const script = await readFile(path.join(root, "scarline"), "utf8");
-    await writeFile(harnessPath, script.replace(/\nmain "\$@"\s*$/, "\n"));
+    await writeFile(harnessPath, script.replace(/\r/g, '').replace(/\nmain "\$@"\s*$/, "\n"));
 
     // Test outdated node (v14)
     try {
@@ -290,7 +304,7 @@ test("scarline launcher validates node and pnpm requirements before startup", as
           "-lc",
           'source "$1"; node(){ echo "v14.0.0"; }; check_runtime_requirements',
           "--",
-          harnessPath,
+        toBashPath(harnessPath),
         ],
         { cwd: root },
       );
@@ -316,8 +330,8 @@ test("scarline launcher validates node and pnpm requirements before startup", as
           "-lc",
           'source "$1"; export PATH="$2:/usr/bin:/bin"; check_runtime_requirements',
           "--",
-          harnessPath,
-          mockBin,
+        toBashPath(harnessPath),
+        toBashPath(mockBin),
         ],
         { cwd: root },
       );
@@ -331,12 +345,12 @@ test("scarline launcher validates node and pnpm requirements before startup", as
   }
 });
 
-test("launcher correctly configures IPC socket paths for cross-platform fallback", async () => {
-  const tempDir = await mkdtemp(path.join(tmpdir(), "scarline-ipc-"));
+test("launcher correctly configures IPC socket paths for cross-platform fallback", { skip: shouldSkipBashTests ? skipMessage : false }, async () => {
+  const tempDir = await mkdtemp(path.join(root, "scarline-ipc-"));
   try {
     const harnessPath = path.join(tempDir, "scarline-harness.sh");
     const script = await readFile(path.join(root, "scarline"), "utf8");
-    await writeFile(harnessPath, script.replace(/\nmain "\$@"\s*$/, "\n"));
+    await writeFile(harnessPath, script.replace(/\r/g, '').replace(/\nmain "\$@"\s*$/, "\n"));
 
     // Test macOS (Darwin) TCP fallback
     const { stdout: macOut } = await execFileAsync(
@@ -345,7 +359,7 @@ test("launcher correctly configures IPC socket paths for cross-platform fallback
         "-lc",
         'source "$1"; uname(){ echo "Darwin"; }; PM_CONTROL_PORT=9999; load_config; printf "%s" "$SOCKET_PATH"',
         "--",
-        harnessPath,
+        toBashPath(harnessPath),
       ],
       { cwd: root },
     );
@@ -358,7 +372,7 @@ test("launcher correctly configures IPC socket paths for cross-platform fallback
         "-lc",
         'source "$1"; uname(){ echo "Linux"; }; load_config; printf "%s" "$SOCKET_PATH"',
         "--",
-        harnessPath,
+        toBashPath(harnessPath),
       ],
       { cwd: root },
     );

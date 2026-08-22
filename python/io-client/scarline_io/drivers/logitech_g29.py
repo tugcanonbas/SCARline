@@ -64,8 +64,13 @@ class LogitechG29Driver(SensorDriver):
         if self.device is None:
             return SensorReading(
                 timestamp=time.time(),
-                data=self.state | {"connected": False},
-                metadata={"source": "stub"},
+                data={
+                    "steeringAngle": None,
+                    "throttle": None,
+                    "brake": None,
+                    "connected": False
+                },
+                metadata={"source": "baseline-unavailable"},
             )
 
         try:

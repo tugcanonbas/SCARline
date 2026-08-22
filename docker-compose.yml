@@ -18,18 +18,23 @@ services:
       - scarline-net
 
   postgres:
-    image: postgres:15
+    build:
+      context: ./infra/database
+      dockerfile: Dockerfile
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-scarline}
       POSTGRES_USER: ${POSTGRES_USER:-scarline}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-scarline}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-scarline} -d ${POSTGRES_DB:-scarline}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-scarline} -d ${POSTGRES_DB:-scarline}"]
       interval: 5s
       timeout: 3s
       retries: 5
     volumes:
       - scarline-pgdata:/var/lib/postgresql/data
+      - ./infra/database/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./infra/database/initdb:/docker-entrypoint-initdb.d:ro
     networks:
       - scarline-net
 
@@ -74,6 +79,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    ports:
+      - "5672:5672"
     volumes:
       - scarline-rmqdata:/var/lib/rabbitmq
       - ./infra/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
