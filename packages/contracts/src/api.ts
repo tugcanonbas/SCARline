@@ -96,6 +96,7 @@ export const dashboardSchema = z.object({
   totalParticipants: z.number().int().nonnegative(),
   totalEvents: z.number().int().nonnegative(),
   recentSessions: z.array(sessionSchema),
+  activeStudyItems: z.array(studySummarySchema),
   componentHealth: z.array(z.object({
     componentId: ComponentIdSchema,
     status: HealthStatusSchema,

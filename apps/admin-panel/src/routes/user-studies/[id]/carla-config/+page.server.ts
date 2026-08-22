@@ -4,6 +4,7 @@ import { requireRole } from '$lib/server/rbac';
 export const load = async ({ fetch, locals, params }) => {
   const user = await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
   return {
+    study: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}`, locals.accessToken),
     config: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/carla-config`, locals.accessToken),
     maps: await apiRequest(fetch, locals.apiBase, '/carla/presets/maps', locals.accessToken),
     weather: await apiRequest(fetch, locals.apiBase, '/carla/presets/weather', locals.accessToken),

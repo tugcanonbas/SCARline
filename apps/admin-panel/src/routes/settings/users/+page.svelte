@@ -1,17 +1,11 @@
 <script lang="ts">
-  import EmptyState from '$lib/components/admin/EmptyState.svelte';
-  import PageHeader from '$lib/components/PageHeader.svelte';
-  import SurfaceCard from '$lib/components/SurfaceCard.svelte';
+  import EmptyState from "$lib/components/admin/EmptyState.svelte";
+  import PageHeader from "$lib/components/PageHeader.svelte";
+  import SurfaceCard from "$lib/components/SurfaceCard.svelte";
 
   let { data } = $props();
-  const roles = ['admin', 'researcher', 'operator', 'viewer'];
+  const roles = ["admin", "researcher", "operator", "viewer"];
 </script>
-
-<PageHeader
-  eyebrow="Access"
-  title="Users"
-  description="Admin-managed accounts, role assignment, activation state, and optional researcher profile linkage."
-/>
 
 <div class="section-grid section-grid--sidebar">
   <SurfaceCard title="Create Account">
@@ -50,7 +44,12 @@
         <div class="choice-grid">
           {#each roles as role}
             <label class="form-choice-card">
-              <input name="roles" type="checkbox" value={role} checked={role === 'viewer'} />
+              <input
+                name="roles"
+                type="checkbox"
+                value={role}
+                checked={role === "viewer"}
+              />
               <span>{role}</span>
             </label>
           {/each}
@@ -62,7 +61,7 @@
     </form>
   </SurfaceCard>
 
-  <SurfaceCard title="Accounts">
+  <SurfaceCard title="Existing Accounts">
     <div class="list-stack">
       {#each data.users as user}
         <div class="entity-card">
@@ -71,11 +70,14 @@
             <div class="form-grid-2">
               <label class="form-field form-field--compact">
                 <span>Display Name</span>
-                <input name="displayName" value={user.displayName ?? user.display_name ?? ''} />
+                <input
+                  name="displayName"
+                  value={user.displayName ?? user.display_name ?? ""}
+                />
               </label>
               <label class="form-field form-field--compact">
                 <span>Email</span>
-                <input name="email" type="email" value={user.email ?? ''} />
+                <input name="email" type="email" value={user.email ?? ""} />
               </label>
             </div>
             <div class="form-grid-2">
@@ -84,26 +86,44 @@
                 <select name="researcherId">
                   <option value="">No profile link</option>
                   {#each data.researchers as researcher}
-                    <option value={researcher.id} selected={(user.researcherId ?? user.researcher_id) === researcher.id}>{researcher.name}</option>
+                    <option
+                      value={researcher.id}
+                      selected={(user.researcherId ?? user.researcher_id) ===
+                        researcher.id}>{researcher.name}</option
+                    >
                   {/each}
                 </select>
               </label>
               <label class="form-field form-field--compact">
                 <span>New Password</span>
-                <input minlength="8" name="password" placeholder="Leave unchanged" type="password" />
+                <input
+                  minlength="8"
+                  name="password"
+                  placeholder="Leave unchanged"
+                  type="password"
+                />
               </label>
             </div>
             <div class="choice-grid choice-grid--4">
               {#each roles as role}
                 <label class="form-choice-card">
-                  <input name="roles" type="checkbox" value={role} checked={(user.roles ?? []).includes(role)} />
+                  <input
+                    name="roles"
+                    type="checkbox"
+                    value={role}
+                    checked={(user.roles ?? []).includes(role)}
+                  />
                   <span>{role}</span>
                 </label>
               {/each}
             </div>
             <div class="toolbar">
               <label class="form-choice-card">
-                <input name="isActive" type="checkbox" checked={user.isActive ?? user.is_active} />
+                <input
+                  name="isActive"
+                  type="checkbox"
+                  checked={user.isActive ?? user.is_active}
+                />
                 <span>Active account for {user.username}</span>
               </label>
               <button class="button-chip" type="submit">Save</button>

@@ -11,6 +11,7 @@ export const load = async ({ fetch, locals, params }) => {
     : null;
   const widgets = await apiRequest(fetch, locals.apiBase, '/widgets/catalogue', locals.accessToken);
   return {
+    study: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}`, locals.accessToken),
     layouts,
     participantLayout,
     widgets,
@@ -70,10 +71,10 @@ export const actions = {
       };
     }
 
-    const body = { 
+    const body = {
       ...layoutConfig,
-      name, 
-      type: 'participant', 
+      name,
+      type: 'participant',
       targetDisplay,
       studyId: params.id
     };

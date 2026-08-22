@@ -186,5 +186,18 @@ export default withMermaid(defineConfig({
       message: 'SCARline Product Documentation',
       copyright: 'Copyright SCARline'
     }
+  },
+  vite: {
+    server: {
+      watch: {
+        usePolling: true,
+        interval: 1000
+      },
+      host: '0.0.0.0',
+      port: 4040,
+      hmr: {
+        clientPort: 8088
+      }
+    }
   }
 }));
