@@ -5,7 +5,7 @@ const configSchema = z.object({
   PORT: z.coerce.number().int().positive().default(8080),
   DATABASE_URL: z.string().min(1),
   AMQP_URL: z.string().min(1),
-  JWT_SECRET: z.string().min(16).default('scarline-development-secret'),
+  JWT_SECRET: z.string().min(16),
   PM_SOCKET_PATH: z.string().default('/tmp/scarline.sock'),
   SCARLINE_INTERNAL_API_TOKEN: z.string().min(16).default('scarline-development-internal-token'),
   SCARLINE_PORT: z.coerce.number().int().positive().default(8088),
