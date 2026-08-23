@@ -4,11 +4,14 @@
   import PageHeader from '$lib/components/PageHeader.svelte';
   import StudyTabs from '$lib/components/StudyTabs.svelte';
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
+  import { formatDate, shortId } from '$lib/format';
 
   let { data } = $props();
 
   function participantCode(participant: Record<string, unknown>) {
-    return String(participant.participantCode ?? participant.participant_code ?? participant.id);
+    const code = participant.participantCode ?? participant.participant_code;
+    if (code) return String(code);
+    return `No code (${shortId(participant.id as string)})`;
   }
 
   function participantNotes(participant: Record<string, unknown>) {
@@ -16,7 +19,9 @@
   }
 
   function participantCreated(participant: Record<string, unknown>) {
-    return String(participant.createdAt ?? participant.created_at ?? 'Not recorded');
+    return formatDate(
+      (participant.createdAt ?? participant.created_at) as string | undefined,
+    );
   }
 </script>
 

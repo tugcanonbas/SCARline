@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ConditionExpressionBuilder from "$lib/components/admin/ConditionExpressionBuilder.svelte";
   import EmptyState from "$lib/components/admin/EmptyState.svelte";
   import MetricCard from "$lib/components/admin/MetricCard.svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
@@ -6,7 +7,8 @@
   import SurfaceCard from "$lib/components/SurfaceCard.svelte";
   import { enhance } from "$app/forms";
   import { appPath } from "$lib/paths";
-  import { Database } from "lucide-svelte";
+  import { formatStatusLabel } from "$lib/format";
+  import { CirclePlay } from "lucide-svelte";
 
   let { data } = $props();
 
@@ -144,7 +146,7 @@
         class="button-primary"
         href={appPath(`/user-studies/${data.study.id}/sessions`)}
       >
-        <Database size={24} strokeWidth={1.5} />
+        <CirclePlay size={24} strokeWidth={1.5} />
         New Session
       </a>
     </div>
@@ -164,7 +166,7 @@
   <MetricCard
     label="Weather Overrides"
     value={weatherCount}
-    hint="Conditions changing CARLA weather"
+    hint="Conditions changing simulator weather"
   />
   <MetricCard
     label="Widget Overrides"
@@ -183,7 +185,7 @@
   {#if data.canManage}
     <SurfaceCard
       title="Add Condition"
-      subtitle="Define a new study condition variant with CARLA, widget, and trigger rule configuration."
+      subtitle="Define a new study condition variant with simulator, widget, and trigger rule configuration."
     >
       <form class="form-stack" method="POST" action="?/create" use:enhance>
         <label class="form-field">
@@ -199,9 +201,9 @@
           ></textarea>
         </label>
 
-        <!-- CARLA overrides -->
+        <!-- Simulator overrides -->
         <div class="condition-section">
-          <p class="condition-section__title">CARLA Overrides</p>
+          <p class="condition-section__title">Simulator Overrides</p>
           <label class="form-field">
             <span>Weather Preset</span>
             <select bind:value={newWeather} name="weather">
@@ -287,15 +289,10 @@
                 placeholder="Widget ID"
                 type="text"
               />
-              <input
-                bind:value={rule.condition}
-                class="trigger-input trigger-input--wide"
-                placeholder="e.g. vehicle.speed > vehicle.speedLimit"
-                type="text"
-              />
+              <ConditionExpressionBuilder bind:value={rule.condition} />
               <select bind:value={rule.action} class="trigger-select">
                 {#each triggerActions as action}
-                  <option value={action}>{action}</option>
+                  <option value={action}>{formatStatusLabel(action)}</option>
                 {/each}
               </select>
               <button
@@ -473,15 +470,10 @@
                         placeholder="Widget ID"
                         type="text"
                       />
-                      <input
-                        bind:value={rule.condition}
-                        class="trigger-input trigger-input--wide"
-                        placeholder="vehicle.speed > vehicle.speedLimit"
-                        type="text"
-                      />
+                      <ConditionExpressionBuilder bind:value={rule.condition} />
                       <select bind:value={rule.action} class="trigger-select">
                         {#each triggerActions as action}
-                          <option value={action}>{action}</option>
+                          <option value={action}>{formatStatusLabel(action)}</option>
                         {/each}
                       </select>
                       <button

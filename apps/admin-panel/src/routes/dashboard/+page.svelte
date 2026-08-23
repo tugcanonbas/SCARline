@@ -6,6 +6,7 @@
   import StatusBadge from "$lib/components/StatusBadge.svelte";
   import SurfaceCard from "$lib/components/SurfaceCard.svelte";
   import { createRealtimeStore } from "$lib/stores/realtime";
+  import { formatDate } from "$lib/format";
   import { untrack } from "svelte";
 
   type RecentSession = {
@@ -163,11 +164,6 @@
     mergeComponentHealthEntry(normalized);
   });
 
-  function formatDate(value: string | null) {
-    if (!value) return "Not recorded";
-    return new Date(value).toLocaleString();
-  }
-
   function sessionTimestamp(session: RecentSession) {
     return session.completedAt ?? session.pausedAt ?? session.startedAt;
   }
@@ -260,10 +256,10 @@
             <p class="entity-card__title truncate">{study.name}</p>
             <div class="pill-row mt-1">
               <span class="status-badge status-badge--soft"
-                >{study.participantCount} participants</span
+                >{study.participantCount} participant{study.participantCount === 1 ? "" : "s"}</span
               >
               <span class="status-badge status-badge--soft"
-                >{study.sessionCount} sessions</span
+                >{study.sessionCount} session{study.sessionCount === 1 ? "" : "s"}</span
               >
             </div>
           </div>
@@ -318,7 +314,7 @@
 <div class="mt-4 section-grid">
   <SurfaceCard
     title="Operational Summary"
-    subtitle="Use the current study runtime and component state to decide the next operator action."
+    subtitle="Monitor system state to determine your next steps."
   >
     <div class="content-stack">
       <div class="detail-panel">

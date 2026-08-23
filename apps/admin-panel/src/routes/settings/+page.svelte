@@ -1,17 +1,10 @@
 <script lang="ts">
-  import PageHeader from "$lib/components/PageHeader.svelte";
   import SurfaceCard from "$lib/components/SurfaceCard.svelte";
   import { Settings2, UserRoundCog, MonitorCog, Server } from "lucide-svelte";
   import { appPath } from "$lib/paths";
 
   let { data } = $props();
 </script>
-
-<PageHeader
-  eyebrow="Configuration"
-  title="Settings Overview"
-  description="Manage platform system variables, user accounts, and device configurations."
-/>
 
 <div class="kv-grid">
   {#if data.roles.includes("admin")}
@@ -31,7 +24,7 @@
       icon={UserRoundCog}
     >
       <p class="kv-value">
-        Manage researcher and operator access control lists.
+        Manage researcher and operator accounts and permissions.
       </p>
     </SurfaceCard>
   {/if}
@@ -51,7 +44,7 @@
       icon={Server}
     >
       <p class="kv-value">
-        Monitor runtime component states and API endpoints.
+        Monitor the health of connected SCARline services.
       </p>
     </SurfaceCard>
   {/if}

@@ -111,12 +111,12 @@
     <label class="layout-canvas-display">
       <span>Launch Mode</span>
       <select bind:value={launchMode} class="layout-properties__select">
-        <option value="transparent_electron">Transparent (Electron)</option>
-        <option value="browser_popup">Browser windows</option>
+        <option value="transparent_electron">Transparent (desktop overlay)</option>
+        <option value="browser_popup">Browser window</option>
       </select>
     </label>
     <button class="button-secondary" onclick={onLaunchSelectedMode} type="button">
-      Launch Selected Mode
+      Launch Selected Widgets
     </button>
     <button class="button-secondary" onclick={onCloseAllWidgets} type="button">
       Close All Widgets

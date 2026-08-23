@@ -11,10 +11,11 @@
   import StatusBadge from "$lib/components/StatusBadge.svelte";
   import StudyTabs from "$lib/components/StudyTabs.svelte";
   import { createRealtimeStore } from "$lib/stores/realtime";
+  import { formatDate, formatStatusLabel, shortId } from "$lib/format";
   import { untrack } from "svelte";
 
   // Route-level regression marker preserved for source-inspection tests:
-  // Launch Browser Popup Widgets
+  // Open All Widgets as Browser Windows
 
   let { data, form } = $props();
 
@@ -148,7 +149,9 @@
       .map((entry) => {
         const match = entry.match(/^\[([^\]]+)\]\s*(.*)$/);
         return {
-          timestamp: match?.[1] ?? "Recorded note",
+          timestamp: match?.[1]
+            ? formatDate(match[1], "Unspecified time")
+            : "Unspecified time",
           text: match?.[2] ?? entry,
         };
       })
@@ -199,44 +202,36 @@
   }
 
   function eventTitle(event: Record<string, unknown>) {
-    return String(
-      event.status ?? event.eventType ?? event.routingKey ?? "Session event",
-    );
+    if (typeof event.status === "string") return formatStatusLabel(event.status);
+    return String(event.eventType ?? "Session event");
   }
 
   function eventTime(event: Record<string, unknown>) {
-    return String(
-      event.timestamp ?? event.startedAt ?? event.checkedAt ?? "Live",
-    );
+    const value = (event.timestamp ?? event.startedAt ?? event.checkedAt) as
+      | string
+      | undefined;
+    return value ? formatDate(value, "Live") : "Live";
   }
 
   function widgetTitle(update: Record<string, unknown>) {
-    return String(
-      update.widgetId ??
-        update.instanceId ??
-        update.routingKey ??
-        "Widget update",
-    );
+    const id = update.widgetId ?? update.instanceId;
+    return id ? `Widget ${id}` : "Widget update";
   }
 
   function sensorTitle(status: Record<string, unknown>) {
-    return String(
-      status.driverId ?? status.sensorId ?? status.componentId ?? "Sensor",
-    );
+    const id = status.driverId ?? status.sensorId ?? status.componentId;
+    return id ? `Sensor ${id}` : "Sensor";
   }
-  function canTransition(actionName: string) {
-    const allowedTransitions: Record<string, string[]> = {
-      created: ["start"],
-      running: ["pause", "complete", "cancel"],
-      paused: ["resume", "cancel"],
-      completed: [],
-      cancelled: [],
-    };
-    return selectedSession
-      ? (allowedTransitions[selectedSessionStatus]?.includes(actionName) ??
-          false)
-      : false;
-  }
+  const sessionTransitions: Record<string, string[]> = {
+    created: ["start"],
+    running: ["pause", "complete", "cancel"],
+    paused: ["resume", "cancel"],
+    completed: [],
+    cancelled: [],
+  };
+  const validSessionActions = $derived(
+    selectedSession ? (sessionTransitions[selectedSessionStatus] ?? []) : [],
+  );
 
   type WindowDraft = {
     instanceId: string;
@@ -255,6 +250,9 @@
   );
   let initializedWindowLayoutId = $state("");
   let windowDrafts = $state<WindowDraft[]>([]);
+  let savedWindows = $state<
+    Record<string, { x: number; y: number; width: number; height: number }>
+  >({});
   let windowUpdateStatus = $state<{ ok: boolean; message: string } | null>(
     null,
   );
@@ -285,6 +283,12 @@
   $effect(() => {
     if (initializedWindowLayoutId !== layoutId) {
       windowDrafts = buildWindowDrafts();
+      savedWindows = Object.fromEntries(
+        windowDrafts.map((entry) => [
+          entry.instanceId,
+          { x: entry.x, y: entry.y, width: entry.width, height: entry.height },
+        ]),
+      );
       initializedWindowLayoutId = layoutId;
     }
   });
@@ -415,7 +419,7 @@
     if (!directResponse?.ok) {
       throw new Error(
         payload?.error?.message ||
-          "Failed to open overlay widget window. Ensure the overlay window control server is running.",
+          "Couldn't open the participant display window. Make sure the SCARline desktop app is running on the operator machine, then try again.",
       );
     }
   }
@@ -462,20 +466,6 @@
         : { ok: false, message: "Failed to open browser widget windows" };
   }
 
-  function nudgeWindow(entry: WindowDraft, dx = 0, dy = 0) {
-    updateDraft(entry.instanceId, {
-      x: Math.max(0, entry.x + dx),
-      y: Math.max(0, entry.y + dy),
-    });
-  }
-
-  function resizeWindow(entry: WindowDraft, dw = 0, dh = 0) {
-    updateDraft(entry.instanceId, {
-      width: Math.max(1, entry.width + dw),
-      height: Math.max(1, entry.height + dh),
-    });
-  }
-
   async function applyWindowUpdate(instanceId: string) {
     const target = windowDrafts.find(
       (entry) => entry.instanceId === instanceId,
@@ -505,6 +495,17 @@
     windowUpdateStatus = response.ok
       ? { ok: true, message: `Window updated: ${target.widgetId}` }
       : { ok: false, message: `Failed to update window: ${target.widgetId}` };
+    if (response.ok) {
+      savedWindows = {
+        ...savedWindows,
+        [target.instanceId]: {
+          x: target.x,
+          y: target.y,
+          width: target.width,
+          height: target.height,
+        },
+      };
+    }
   }
 </script>
 
@@ -518,8 +519,44 @@
   current={`/user-studies/${data.studyId}/active-study`}
 />
 
+<details class="surface-card mt-4 mb-4">
+  <summary class="surface-card__title" style="cursor: pointer;"
+    >What am I looking at?</summary
+  >
+  <div class="surface-card__body mt-3 kv-grid">
+    <div class="kv-item">
+      <p class="kv-label">Session Context</p>
+      <p class="kv-value">Pick the active session and start, pause, or end it.</p>
+    </div>
+    <div class="kv-item">
+      <p class="kv-label">Live Telemetry</p>
+      <p class="kv-value">The vehicle's live speed, pedals, and steering.</p>
+    </div>
+    <div class="kv-item">
+      <p class="kv-label">Session Events</p>
+      <p class="kv-value">A running log of what's happened in this session so far.</p>
+    </div>
+    <div class="kv-item">
+      <p class="kv-label">Widget Updates</p>
+      <p class="kv-value">Manually trigger a widget to show, hide, or change on the participant's display.</p>
+    </div>
+    <div class="kv-item">
+      <p class="kv-label">Window Manager</p>
+      <p class="kv-value">Reposition or resize the widget windows on the participant's display.</p>
+    </div>
+    <div class="kv-item">
+      <p class="kv-label">Sensor Status</p>
+      <p class="kv-value">Whether connected hardware (wheel, eye tracker, etc.) is reporting in.</p>
+    </div>
+    <div class="kv-item">
+      <p class="kv-label">Operator Notes</p>
+      <p class="kv-value">Your own timestamped observations during the session.</p>
+    </div>
+  </div>
+</details>
+
 <div class="metric-grid">
-  <MetricCard label="Socket" hint="Session, telemetry, widget, sensor channels">
+  <MetricCard label="Connection" hint="Live link for session, telemetry, widget, and sensor updates">
     {#snippet valueContent()}
       <div class="metric-card__content">
         <StatusBadge status={$socketState} />
@@ -541,9 +578,9 @@
     hint={`Limit: ${vehicleState.speedLimit ?? "—"} km/h`}
   />
   <MetricCard
-    label="Triggers"
+    label="Active Widgets"
     value={data.triggerableWidgets.length}
-    hint="Widgets in active layout"
+    hint="Available in active layout"
   />
 </div>
 
@@ -555,7 +592,7 @@
     socketState={$socketState}
     layoutsLength={data.layouts.length}
     canOperate={data.canOperate}
-    {canTransition}
+    {validSessionActions}
     onLaunchBrowserWidgets={launchBrowserWidgetWindows}
     hasLayout={Boolean(layoutId)}
     hasWindows={windowDrafts.length > 0}
@@ -590,10 +627,9 @@
   <ActiveStudyWindowManagerPanel
     {windowUpdateStatus}
     {windowDrafts}
+    {savedWindows}
     canOperate={data.canOperate}
     {updateDraft}
-    {nudgeWindow}
-    {resizeWindow}
     {applyWindowUpdate}
   />
 </div>

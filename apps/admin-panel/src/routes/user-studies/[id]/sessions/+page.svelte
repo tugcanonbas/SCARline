@@ -1,48 +1,75 @@
 <script lang="ts">
-  import EmptyState from '$lib/components/admin/EmptyState.svelte';
-  import InlineNotice from '$lib/components/admin/InlineNotice.svelte';
-  import MetricCard from '$lib/components/admin/MetricCard.svelte';
-  import PageHeader from '$lib/components/PageHeader.svelte';
-  import StatusBadge from '$lib/components/StatusBadge.svelte';
-  import StudyTabs from '$lib/components/StudyTabs.svelte';
-  import SurfaceCard from '$lib/components/SurfaceCard.svelte';
+  import EmptyState from "$lib/components/admin/EmptyState.svelte";
+  import InlineNotice from "$lib/components/admin/InlineNotice.svelte";
+  import MetricCard from "$lib/components/admin/MetricCard.svelte";
+  import PageHeader from "$lib/components/PageHeader.svelte";
+  import StatusBadge from "$lib/components/StatusBadge.svelte";
+  import StudyTabs from "$lib/components/StudyTabs.svelte";
+  import SurfaceCard from "$lib/components/SurfaceCard.svelte";
+  import { formatDate, formatStatusLabel, shortId } from "$lib/format";
 
   let { data, form } = $props();
 
   const allowedTransitions: Record<string, string[]> = {
-    created: ['start'],
-    running: ['pause', 'complete', 'cancel'],
-    paused: ['resume', 'cancel'],
+    created: ["start"],
+    running: ["pause", "complete", "cancel"],
+    paused: ["resume", "cancel"],
     completed: [],
-    cancelled: []
+    cancelled: [],
   };
 
-  function canTransition(status: string, actionName: string) {
-    return allowedTransitions[status]?.includes(actionName) ?? false;
-  }
-
-  function formatDate(value: string | null | undefined) {
-    if (!value) return 'Not recorded';
-    return new Date(value).toLocaleString();
-  }
-
-  const runningCount = $derived(data.sessions.filter((session: Record<string, unknown>) => session.status === 'running').length);
-  const completedCount = $derived(data.sessions.filter((session: Record<string, unknown>) => session.status === 'completed').length);
+  const runningCount = $derived(
+    data.sessions.filter(
+      (session: Record<string, unknown>) => session.status === "running",
+    ).length,
+  );
+  const completedCount = $derived(
+    data.sessions.filter(
+      (session: Record<string, unknown>) => session.status === "completed",
+    ).length,
+  );
 </script>
 
-<PageHeader eyebrow="Study" title="Sessions" description="Create sessions and drive lifecycle transitions through the CoreAPI command path." />
-<StudyTabs studyId={data.studyId} current={`/user-studies/${data.studyId}/sessions`} />
+<PageHeader
+  eyebrow="Study"
+  title="Sessions"
+  description="Create sessions and manage their lifecycle."
+/>
+<StudyTabs
+  studyId={data.studyId}
+  current={`/user-studies/${data.studyId}/sessions`}
+/>
 
 <div class="metric-grid">
-  <MetricCard label="Sessions" value={data.sessions.length} hint="Created session records" accent />
-  <MetricCard label="Running" value={runningCount} hint="Live operator workload" />
-  <MetricCard label="Completed" value={completedCount} hint="Ready for log review/export" />
-  <MetricCard label="Setup Inputs" value={`${data.participants.length}/${data.conditions.length}`} hint="Participants and conditions available" />
+  <MetricCard
+    label="Sessions"
+    value={data.sessions.length}
+    hint="Created session records"
+    accent
+  />
+  <MetricCard
+    label="Running"
+    value={runningCount}
+    hint="Live operator workload"
+  />
+  <MetricCard
+    label="Completed"
+    value={completedCount}
+    hint="Ready for log review/export"
+  />
+  <MetricCard
+    label="Setup Inputs"
+    value={`${data.participants.length}/${data.conditions.length}`}
+    hint="Participants and conditions available"
+  />
 </div>
 
-<div class="section-grid section-grid--sidebar">
+<div class="section-grid section-grid--sidebar mt-4">
   {#if data.canOperate}
-    <SurfaceCard title="Create Session" subtitle="Bind a participant and optional condition before starting the session.">
+    <SurfaceCard
+      title="Create Session"
+      subtitle="Bind a participant and optional condition before starting the session."
+    >
       {#if form?.message}
         <InlineNotice tone="danger" message={form.message} />
       {/if}
@@ -57,7 +84,9 @@
           <select name="participantId">
             <option value="">Unassigned</option>
             {#each data.participants as participant}
-              <option value={participant.id}>{participant.participantCode}</option>
+              <option value={participant.id}
+                >{participant.participantCode}</option
+              >
             {/each}
           </select>
         </label>
@@ -77,15 +106,24 @@
     </SurfaceCard>
   {/if}
 
-  <SurfaceCard title="Session Queue" subtitle="State transitions use existing SvelteKit form actions and CoreAPI commands.">
+  <SurfaceCard
+    title="Session Queue"
+    subtitle="Manage and transition the states of your study sessions."
+  >
     <div class="list-stack">
       {#each data.sessions as session}
         <div class="entity-card">
           <div class="entity-card__header">
             <div>
-              <p class="entity-card__title">{session.name ?? session.id}</p>
+              <p class="entity-card__title">
+                {session.name ?? `Session ${shortId(session.id as string)}`}
+              </p>
               <p class="entity-card__meta">
-                Participant {session.participantId ?? 'unassigned'} · Condition {session.conditionId ?? 'none'}
+                Participant {session.participantId
+                  ? shortId(session.participantId as string)
+                  : "unassigned"} · Condition {session.conditionId
+                  ? shortId(session.conditionId as string)
+                  : "none"}
               </p>
             </div>
             <StatusBadge status={session.status} />
@@ -107,29 +145,48 @@
           </div>
 
           {#if data.canOperate}
-          <div class="form-actions">
-            {#each ['start', 'pause', 'resume', 'complete'] as actionName}
-              <form method="POST" action={`?/${actionName}`}>
-                <input name="sessionId" type="hidden" value={session.id} />
-                <button
-                  class="button-chip"
-                  type="submit"
-                  disabled={!canTransition(session.status, actionName)}
-                >{actionName}</button>
-              </form>
-            {/each}
-            <form method="POST" action="?/cancel">
-              <input name="sessionId" type="hidden" value={session.id} />
-              <input name="reason" type="hidden" value="Operator cancelled session" />
-              <button
-                class="button-danger"
-                type="submit"
-                disabled={!canTransition(session.status, 'cancel')}
-              >cancel</button>
-            </form>
-          </div>
+            {@const validActions =
+              allowedTransitions[session.status as string] ?? []}
+            {#if validActions.length > 0}
+              <div class="form-actions">
+                {#each validActions as actionName}
+                  {#if actionName === "cancel"}
+                    <form method="POST" action="?/cancel">
+                      <input
+                        name="sessionId"
+                        type="hidden"
+                        value={session.id}
+                      />
+                      <input
+                        name="reason"
+                        type="hidden"
+                        value="Operator cancelled session"
+                      />
+                      <button class="button-danger" type="submit"
+                        >{formatStatusLabel(actionName)}</button
+                      >
+                    </form>
+                  {:else}
+                    <form method="POST" action={`?/${actionName}`}>
+                      <input
+                        name="sessionId"
+                        type="hidden"
+                        value={session.id}
+                      />
+                      <button class="button-chip" type="submit"
+                        >{formatStatusLabel(actionName)}</button
+                      >
+                    </form>
+                  {/if}
+                {/each}
+              </div>
+            {:else}
+              <p class="entity-card__meta mt-2">
+                No further actions — this session has reached its final state.
+              </p>
+            {/if}
           {/if}
-       </div>
+        </div>
       {:else}
         <EmptyState message="No sessions have been created yet." />
       {/each}

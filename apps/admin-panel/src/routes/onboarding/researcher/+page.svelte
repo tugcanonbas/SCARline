@@ -10,7 +10,7 @@
   <PageHeader
     eyebrow="Onboarding"
     title="Create the first researcher and admin"
-    description="This account is used for the first sign-in and has full access to milestone-1 controls."
+    description="This account is used for the first sign-in and has full administrative access to SCARline."
   />
 
   <SurfaceCard title="Admin Researcher">

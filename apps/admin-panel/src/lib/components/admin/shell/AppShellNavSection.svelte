@@ -1,5 +1,5 @@
 <script lang="ts">
-  import AppShellNavItem from '$lib/components/admin/shell/AppShellNavItem.svelte';
+  import AppShellNavItem from "$lib/components/admin/shell/AppShellNavItem.svelte";
 
   let { label, items, isActive, onSelect } = $props<{
     label: string;
@@ -17,6 +17,6 @@
 <nav class="scarline-nav" aria-label={`${label} navigation`}>
   <p class="scarline-nav-label">{label}</p>
   {#each items as item}
-    <AppShellNavItem item={item} active={isActive(item.href)} {onSelect} />
+    <AppShellNavItem {item} active={isActive(item.href)} {onSelect} />
   {/each}
 </nav>

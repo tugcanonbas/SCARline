@@ -2,6 +2,7 @@
   import EmptyState from "$lib/components/admin/EmptyState.svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
   import SurfaceCard from "$lib/components/SurfaceCard.svelte";
+  import { formatStatusLabel } from "$lib/format";
 
   let { data } = $props();
   const roles = ["admin", "researcher", "operator", "viewer"];
@@ -50,7 +51,7 @@
                 value={role}
                 checked={role === "viewer"}
               />
-              <span>{role}</span>
+              <span>{formatStatusLabel(role)}</span>
             </label>
           {/each}
         </div>
@@ -113,7 +114,7 @@
                     value={role}
                     checked={(user.roles ?? []).includes(role)}
                   />
-                  <span>{role}</span>
+                  <span>{formatStatusLabel(role)}</span>
                 </label>
               {/each}
             </div>

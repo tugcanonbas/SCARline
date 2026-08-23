@@ -6,7 +6,8 @@
   import StudyTabs from "$lib/components/StudyTabs.svelte";
   import SurfaceCard from "$lib/components/SurfaceCard.svelte";
   import { appPath } from "$lib/paths";
-  import { Database } from "lucide-svelte";
+  import { studySectionHref } from "$lib/studySections";
+  import { CirclePlay } from "lucide-svelte";
 
   let { data } = $props();
   const configuredSensors = $derived(data.config?.sensors ?? []);
@@ -41,7 +42,7 @@
         class="button-primary"
         href={appPath(`/user-studies/${data.study.id}/sessions`)}
       >
-        <Database size={24} strokeWidth={1.5} />
+        <CirclePlay size={24} strokeWidth={1.5} />
         New Session
       </a>
     </div>
@@ -69,17 +70,24 @@
     hint="20Hz or greater acquisition targets"
   />
   <MetricCard
-    label="Degradation"
-    value="Safe"
-    hint="Absent optional hardware should not block mock runs"
+    label="If Hardware Missing"
+    value="Study Continues"
+    hint="Optional sensors that aren't connected are skipped — only sensors marked Required must be present to start"
   />
 </div>
 
 <div class="section-grid section-grid--sidebar mt-4">
   <SurfaceCard
     title="Driver Configuration"
-    subtitle="Enable study sensors, sampling rates, metadata, and required/best-effort behavior."
+    subtitle="Configure physical lab hardware — steering wheels, eye trackers, heart-rate monitors — connected to this computer."
   >
+    <p class="form-field__hint mb-4">
+      Looking for in-simulator sensors instead (cameras, LiDAR, GPS)? Those
+      are on the
+      <a href={appPath(studySectionHref(data.studyId, "simulator"))}
+        >Simulator Setup tab</a
+      >.
+    </p>
     {#if data.canManage}
       <form class="list-stack" method="POST" action="?/save">
         {#each data.drivers as driver}
@@ -123,14 +131,20 @@
                 />
                 <span>Required for session start</span>
               </label>
-              <label class="form-field md:col-span-2">
-                <span>Metadata JSON</span>
-                <textarea
-                  class="min-h-24 font-mono text-xs"
-                  name={`${driver.driverId}:metadata`}
-                  >{metadataText(existing)}</textarea
-                >
-              </label>
+              <details class="md:col-span-2">
+                <summary>Advanced: raw metadata (JSON)</summary>
+                <label class="form-field mt-2">
+                  <span class="form-field__hint"
+                    >Extra settings specific to this sensor driver. Most
+                    setups don't need to touch this.</span
+                  >
+                  <textarea
+                    class="min-h-24 font-mono text-xs"
+                    name={`${driver.driverId}:metadata`}
+                    >{metadataText(existing)}</textarea
+                  >
+                </label>
+              </details>
             </div>
           </div>
         {/each}
@@ -185,7 +199,7 @@
             <div class="technical-panel">
               <p class="technical-label">Mode</p>
               <p class="technical-value">
-                {sensor.required ? "Required" : "Best effort"}
+                {sensor.required ? "Required" : "Optional (skipped if missing)"}
               </p>
             </div>
             <div class="technical-panel">

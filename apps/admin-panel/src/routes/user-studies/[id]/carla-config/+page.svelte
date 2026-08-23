@@ -6,7 +6,9 @@
   import StudyTabs from "$lib/components/StudyTabs.svelte";
   import SurfaceCard from "$lib/components/SurfaceCard.svelte";
   import { appPath } from "$lib/paths";
-  import { Database } from "lucide-svelte";
+  import { formatStatusLabel } from "$lib/format";
+  import { studySectionHref } from "$lib/studySections";
+  import { CirclePlay } from "lucide-svelte";
 
   let { data } = $props();
   const configItems = $derived([
@@ -115,7 +117,7 @@
         class="button-primary"
         href={appPath(`/user-studies/${data.study.id}/sessions`)}
       >
-        <Database size={24} strokeWidth={1.5} />
+        <CirclePlay size={24} strokeWidth={1.5} />
         New Session
       </a>
     </div>
@@ -140,9 +142,9 @@
     hint="Baseline before condition overrides"
   />
   <MetricCard
-    label="Sensors"
+    label="Simulated Sensors"
     value={configuredSensors.length}
-    hint="Simulator-attached devices"
+    hint="Virtual sensors attached to the vehicle in-simulator"
   />
   <MetricCard
     label="NPC Vehicles"
@@ -157,7 +159,7 @@
   {#if data.canManage}
     <SurfaceCard
       title="Simulator Defaults"
-      subtitle="These values are persisted as the study-level CARLA baseline."
+      subtitle="These values are the study-level baseline for the driving simulator (default: CARLA)."
     >
       <form class="form-stack" method="POST">
         <label class="form-field">
@@ -281,15 +283,22 @@
                 value="synchronous"
                 selected={(data.config?.simulationMode ??
                   data.config?.simulation_mode ??
-                  "synchronous") === "synchronous"}>synchronous</option
+                  "synchronous") === "synchronous"}
+                >{formatStatusLabel("synchronous")}</option
               >
               <option
                 value="asynchronous"
                 selected={(data.config?.simulationMode ??
                   data.config?.simulation_mode) === "asynchronous"}
-                >asynchronous</option
+                >{formatStatusLabel("asynchronous")}</option
               >
             </select>
+            <span class="form-field__hint"
+              >Synchronous: the simulator waits for SCARline to process each
+              step, so timing stays consistent but runs slower. Asynchronous:
+              the simulator runs at its own pace without waiting, which is
+              faster but less precise.</span
+            >
           </label>
           <label class="form-field">
             <span>Fixed Delta Seconds</span>
@@ -301,10 +310,24 @@
                 data.config?.fixed_delta_seconds ??
                 0.05}
             />
+            <span class="form-field__hint"
+              >How much simulated time passes on each step (in seconds).
+              Smaller values are more precise but require more processing
+              power; 0.05 is a good default.</span
+            >
           </label>
         </div>
         <div class="detail-panel">
-          <p class="entity-card__title">Simulator Sensors</p>
+          <p class="entity-card__title">Simulated Vehicle Sensors</p>
+          <p class="form-field__hint">
+            Virtual sensors attached to the vehicle inside the simulator
+            (cameras, LiDAR, GPS). For physical lab hardware — steering
+            wheels, eye trackers, heart-rate monitors — use the
+            <a href={appPath(studySectionHref(data.studyId, "sensors"))}
+              >Sensors tab</a
+            >
+            instead.
+          </p>
           <div class="choice-grid mt-3">
             <label class="flex items-center gap-2 text-sm"
               ><input
@@ -408,7 +431,7 @@
               checked={Boolean(recordingConfig.enabled ?? false)}
               name="recordingEnabled"
               type="checkbox"
-            /> Enable CARLA recording</label
+            /> Enable simulator recording</label
           >
           <input
             name="spectatorX"

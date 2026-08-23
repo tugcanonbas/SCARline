@@ -45,6 +45,10 @@ html {
   background: #080e10;
 }
 
+html.scarline-no-scroll {
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   background: #080e10;
@@ -284,6 +288,21 @@ body {
     }
   }
 
+  .scarline-sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 29;
+    border: none;
+    background: rgba(8, 14, 16, 0.6);
+    cursor: default;
+  }
+
+  @media (min-width: 768px) {
+    .scarline-sidebar-backdrop {
+      display: none;
+    }
+  }
+
   .scarline-sidebar {
     position: fixed;
     inset: 0 auto 0 0;
@@ -394,15 +413,22 @@ body {
     min-height: 0;
     flex-direction: column;
     gap: 18px;
-    overflow: hidden;
+    /* This is the single scroll region for the whole nav column: Workspace,
+       System, and the user card all scroll together as one unit once the
+       window gets too short for everything to fit. */
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 4px;
+    scrollbar-width: thin;
   }
 
   .scarline-nav-primary {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
-    padding-right: 4px;
-    scrollbar-width: thin;
+    /* flex-shrink: 0 keeps Workspace at its natural content height instead
+       of being squeezed toward 0 while the footer (also flex-shrink: 0)
+       stays full size. Once both no longer fit, .scarline-sidebar-body
+       above scrolls them together rather than either one being clipped or
+       scrolling on its own. */
+    flex: 1 0 auto;
   }
 
   .scarline-sidebar-footer {
@@ -458,9 +484,9 @@ body {
   }
 
   .scarline-nav-item--active {
-    border-color: var(--scarline-border);
-    background: var(--scarline-white);
-    color: var(--scarline-black);
+    border: 2px solid var(--scarline-border);
+    background: var(--scarline-grey);
+    color: var(--scarline-white);
   }
 
   .scarline-nav-item svg,
@@ -485,6 +511,7 @@ body {
       padding: 20px 14px;
     }
 
+    .scarline-sidebar--collapsed .scarline-brand-kicker,
     .scarline-sidebar--collapsed .scarline-brand-title,
     .scarline-sidebar--collapsed .scarline-brand-subtitle,
     .scarline-sidebar--collapsed .scarline-nav-label,
@@ -493,6 +520,7 @@ body {
     .scarline-sidebar--collapsed .scarline-user-card .kv-label,
     .scarline-sidebar--collapsed .scarline-user-card p,
     .scarline-sidebar--collapsed .scarline-user-card a span,
+    html[data-scarline-sidebar="collapsed"] .scarline-sidebar .scarline-brand-kicker,
     html[data-scarline-sidebar="collapsed"] .scarline-sidebar .scarline-brand-title,
     html[data-scarline-sidebar="collapsed"] .scarline-sidebar .scarline-brand-subtitle,
     html[data-scarline-sidebar="collapsed"] .scarline-sidebar .scarline-nav-label,
@@ -504,18 +532,14 @@ body {
       display: none;
     }
 
+    /* With all brand text hidden above, only the toggle button remains in
+       the header, so the whole brand block collapses down to that button
+       instead of leaving the full-height title area behind. */
     .scarline-sidebar--collapsed .scarline-brand,
     html[data-scarline-sidebar="collapsed"] .scarline-sidebar .scarline-brand {
-      flex-direction: column;
-      align-items: center;
-      gap: 16px;
+      justify-content: center;
       margin-bottom: 18px;
       padding-bottom: 12px;
-    }
-
-    .scarline-sidebar--collapsed .scarline-brand-kicker,
-    html[data-scarline-sidebar="collapsed"] .scarline-sidebar .scarline-brand-kicker {
-      text-align: center;
     }
 
     .scarline-sidebar--collapsed .scarline-nav-item,
@@ -1570,6 +1594,17 @@ body {
     min-width: 0;
   }
 
+  a.entity-card {
+    display: grid;
+    text-decoration: none;
+    transition: transform var(--scarline-transition), border-color var(--scarline-transition);
+  }
+
+  a.entity-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--scarline-white-60);
+  }
+
   .entity-card--tight {
     gap: 12px;
   }
@@ -2377,6 +2412,49 @@ body {
   }
 
   .trigger-remove-btn:hover {
+    color: var(--scarline-white);
+  }
+
+  .condition-builder {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .condition-builder select,
+  .condition-builder input[type="number"] {
+    flex: 1 1 160px;
+    border: 1px solid var(--scarline-border);
+    border-radius: var(--scarline-radius-md);
+    background: var(--scarline-black);
+    color: var(--scarline-white);
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+
+  .condition-builder__toggle-value {
+    display: flex;
+    flex: 1 1 100%;
+    align-items: center;
+    gap: 8px;
+    color: var(--scarline-white-60);
+    font-size: 12px;
+  }
+
+  .condition-builder-toggle {
+    flex: 0 0 auto;
+    border: none;
+    background: transparent;
+    color: var(--scarline-white-60);
+    font-size: 12px;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .condition-builder-toggle:hover {
     color: var(--scarline-white);
   }
 

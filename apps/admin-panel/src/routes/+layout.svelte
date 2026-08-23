@@ -106,6 +106,17 @@
       : "expanded";
   });
 
+  $effect(() => {
+    if (typeof document === "undefined") return;
+    document.documentElement.classList.toggle(
+      "scarline-no-scroll",
+      mobileNavOpen,
+    );
+    return () => {
+      document.documentElement.classList.remove("scarline-no-scroll");
+    };
+  });
+
   function isActive(href: string) {
     if (href.startsWith("http://") || href.startsWith("https://")) {
       return false;
@@ -138,6 +149,15 @@
         <span>Open navigation</span>
       {/if}
     </button>
+
+    {#if mobileNavOpen}
+      <button
+        class="scarline-sidebar-backdrop"
+        aria-label="Close navigation"
+        onclick={() => (mobileNavOpen = false)}
+        type="button"
+      ></button>
+    {/if}
 
     <aside
       class={`scarline-sidebar ${mobileNavOpen ? "scarline-sidebar--open" : ""} ${sidebarCollapsed ? "scarline-sidebar--collapsed" : ""}`}

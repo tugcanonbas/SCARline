@@ -20,7 +20,7 @@ export async function apiRequest(
 
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
-    throw error(response.status, payload?.error?.message ?? 'Request failed');
+    throw error(response.status, typeof payload?.error?.message === 'string' && response.status < 500 ? payload.error.message : 'Request failed');
   }
 
   return payload?.data ?? payload;
@@ -50,7 +50,9 @@ export async function apiAction(
     return {
       ok: false as const,
       failure: fail(response.status, {
-        message: payload?.error?.message ?? fallbackMessage
+        message: typeof payload?.error?.message === 'string' && response.status < 500
+          ? payload.error.message
+          : fallbackMessage
       })
     };
   }
