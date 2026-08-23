@@ -3,6 +3,7 @@
   import { appPath } from '$lib/paths';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
+  import { formatStatusLabel } from '$lib/format';
 
   let { data } = $props();
 </script>
@@ -52,7 +53,7 @@
         {#each data.studies as study}
           <a class="entity-card entity-card--tight" href={appPath(`/user-studies/${study.id}/overview`)}>
             <p class="entity-card__title">{study.name}</p>
-            <p class="entity-card__meta">{study.status} · {study.assignment_role ?? 'member'}</p>
+            <p class="entity-card__meta">{formatStatusLabel(study.status)} · {formatStatusLabel(study.assignment_role ?? 'member')}</p>
           </a>
         {:else}
           <EmptyState message="No assigned studies yet." />

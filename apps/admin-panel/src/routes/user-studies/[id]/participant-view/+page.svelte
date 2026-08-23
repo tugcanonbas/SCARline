@@ -7,10 +7,10 @@
   import PageHeader from "$lib/components/PageHeader.svelte";
   import StudyTabs from "$lib/components/StudyTabs.svelte";
   import { appPath } from "$lib/paths";
-  import { Database } from "lucide-svelte";
+  import { CirclePlay } from "lucide-svelte";
 
   // Route-level regression markers preserved for source-inspection tests:
-  // Bindings Config, Trigger Rules, Style Overrides, Launch Selected Mode,
+  // Bindings Config, Trigger Rules, Style Overrides, Launch Selected Widgets,
   // Close All Widgets, Assigned Display, Target display, layout-widget-preview__frame, sandbox="allow-scripts"
 
   let { data } = $props();
@@ -449,7 +449,7 @@
     if (!directResponse?.ok) {
       throw new Error(
         payload?.error?.message ||
-          "Failed to open Electron widget window. Ensure the desktop overlay control server is running.",
+          "Couldn't open the widget window. Make sure the SCARline desktop app is running on the operator machine, then try again.",
       );
     }
   }
@@ -812,10 +812,10 @@
     saving = true;
     saveResult = null;
     try {
-      const layoutId = await persistLayout();
+      await persistLayout();
       saveResult = {
         ok: true,
-        message: `Layout saved (${layoutId.slice(0, 8)})`,
+        message: "Layout saved",
       };
     } catch (error) {
       saveResult = {
@@ -951,11 +951,11 @@
         opened > 0
           ? {
               ok: true,
-              message: `Opened ${opened} transparent Electron widget window(s)`,
+              message: `Opened ${opened} transparent overlay window(s)`,
             }
           : {
               ok: false,
-              message: "Failed to open transparent Electron widget windows",
+              message: "Failed to open transparent overlay windows",
             };
     } catch (error) {
       saveResult = {
@@ -979,7 +979,7 @@
         message:
           widget.windowMode === "browser_popup"
             ? "Browser widget window opened"
-            : "Electron widget window opened",
+            : "Transparent overlay window opened",
       };
     } catch (error) {
       saveResult = {
@@ -1030,7 +1030,7 @@
     if (!directResponse?.ok) {
       throw new Error(
         payload?.error?.message ||
-          "Failed to close widget window. Ensure the desktop overlay control server is running.",
+          "Couldn't close the widget window. Make sure the SCARline desktop app is running on the operator machine, then try again.",
       );
     }
   }
@@ -1162,7 +1162,7 @@
         class="button-primary"
         href={appPath(`/user-studies/${data.study.id}/sessions`)}
       >
-        <Database size={24} strokeWidth={1.5} />
+        <CirclePlay size={24} strokeWidth={1.5} />
         New Session
       </a>
     </div>

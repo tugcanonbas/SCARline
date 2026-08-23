@@ -97,7 +97,7 @@ test("active study server route wires lifecycle and trigger actions", async () =
 
 test("active study browser launch uses direct overlay window opens", async () => {
   const source = await readRoute("user-studies/[id]/active-study/+page.svelte");
-  assert.match(source, /Launch Browser Popup Widgets/);
+  assert.match(source, /Open All Widgets as Browser Windows/);
   assert.match(source, /launchBrowserWidgetWindows/);
   assert.match(source, /\/api\/system\/overlay\/windows\/open/);
   assert.doesNotMatch(source, /overlay\/launcher/);
@@ -149,7 +149,7 @@ test("participant view editor exposes widget bindings, triggers, and style overr
   assert.match(source, /Style Overrides/);
   assert.match(source, /targetDisplay/);
   assert.match(source, /launchMode/);
-  assert.match(source, /Launch Selected Mode/);
+  assert.match(source, /Launch Selected Widgets/);
   assert.match(source, /Close All Widgets/);
   assert.match(source, /Assigned Display/);
   assert.match(source, /placedOnSelectedDisplay/);

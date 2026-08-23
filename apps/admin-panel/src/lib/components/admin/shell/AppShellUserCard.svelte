@@ -20,9 +20,9 @@
     class="scarline-user-card__logout"
     href={appPath('/login?logout=1')}
     onclick={onSelect}
-    title="Switch account"
+    title="Log out"
   >
     <LogOut size={20} strokeWidth={1.7} />
-    <span class="scarline-nav-item__label">Switch account</span>
+    <span class="scarline-nav-item__label">Log Out</span>
   </a>
 </div>

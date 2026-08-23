@@ -1,8 +1,12 @@
 <script lang="ts">
-  let { status = 'unknown', label = status } = $props<{
+  import { formatStatusLabel } from '$lib/format';
+
+  let { status = 'unknown', label = null } = $props<{
     status?: string | null;
     label?: string | null;
   }>();
+
+  const displayLabel = $derived(label ?? formatStatusLabel(status));
 
   function tone(value: string | null | undefined) {
     const normalized = String(value ?? 'unknown').toLowerCase();
@@ -37,5 +41,5 @@
 </script>
 
 <span class={`status-badge ${tone(status)}`}>
-  {label ?? status ?? 'unknown'}
+  {displayLabel}
 </span>

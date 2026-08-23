@@ -23,6 +23,10 @@ export const load = async ({ fetch, locals, url }) => {
       sessionId: url.searchParams.get('sessionId') ?? '',
       status: url.searchParams.get('status') ?? ''
     },
+    // Separate from `filters` (which drives the existing-exports list) so a
+    // deep link from a session log can pre-fill the Create Export form
+    // without also filtering the list below it.
+    prefillSessionId: url.searchParams.get('prefillSessionId') ?? '',
     canManage: user.roles?.some((role: string) => role === 'admin' || role === 'researcher') ?? false
   };
 };

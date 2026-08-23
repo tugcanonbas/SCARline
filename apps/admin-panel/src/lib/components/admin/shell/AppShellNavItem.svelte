@@ -1,7 +1,11 @@
 <script lang="ts">
-  import { appPath } from '$lib/paths';
+  import { appPath } from "$lib/paths";
 
-  let { item, active = false, onSelect } = $props<{
+  let {
+    item,
+    active = false,
+    onSelect,
+  } = $props<{
     item: {
       href: string;
       label: string;
@@ -16,12 +20,12 @@
 </script>
 
 <a
-  class={`scarline-nav-item ${active ? 'scarline-nav-item--active' : ''}`}
-  aria-current={active ? 'page' : undefined}
+  class={`scarline-nav-item ${active ? "scarline-nav-item--active" : ""}`}
+  aria-current={active ? "page" : undefined}
   aria-label={item.label}
-  href={href}
-  target={item.external ? '_blank' : undefined}
-  rel={item.external ? 'noopener noreferrer' : undefined}
+  {href}
+  target={item.external ? "_blank" : undefined}
+  rel={item.external ? "noopener noreferrer" : undefined}
   onclick={onSelect}
   title={item.label}
 >

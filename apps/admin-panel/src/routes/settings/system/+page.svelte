@@ -4,6 +4,7 @@
   import PageHeader from "$lib/components/PageHeader.svelte";
   import StatusBadge from "$lib/components/StatusBadge.svelte";
   import SurfaceCard from "$lib/components/SurfaceCard.svelte";
+  import { formatStatusLabel } from "$lib/format";
 
   let { data } = $props();
   const processItems = $derived(
@@ -27,9 +28,9 @@
     hint="Single-domain Nginx entrypoint"
   />
   <MetricCard
-    label="CARLA Port"
+    label="Simulator Port"
     value={data.configuration.carlaServerPort ?? 2000}
-    hint="Simulator server endpoint"
+    hint="Default simulator: CARLA"
   />
   <MetricCard
     label="Overlay"
@@ -41,16 +42,24 @@
 <div class="section-grid section-grid--sidebar mt-4">
   <SurfaceCard
     title="Platform Configuration"
-    subtitle="Persisted system configuration used by the launcher and CoreAPI."
+    subtitle="Global system and application settings."
   >
+    <p class="form-field__hint mb-4">
+      The default simulator is <strong>CARLA</strong>, a free, open-source
+      driving simulator. These fields tell SCARline where to find it — leave
+      them as-is unless you're running a custom simulator setup.
+    </p>
     <form class="form-stack" method="POST" action="?/update">
       <label class="form-field">
-        <span>CARLA Server Path</span>
+        <span>Simulator Path (Default: CARLA)</span>
         <input
           name="carlaServerPath"
           placeholder="/opt/carla/CarlaUE4.sh"
           value={data.configuration.carlaServerPath ?? ""}
         />
+        <span class="form-field__hint"
+          >Path to the simulator executable on this machine.</span
+        >
       </label>
       <label class="form-field">
         <span>Data Directory</span>
@@ -72,7 +81,7 @@
           />
         </label>
         <label class="form-field">
-          <span>CARLA Server Port</span>
+          <span>Simulator Port (Default: CARLA)</span>
           <input
             min="1"
             name="carlaServerPort"
@@ -91,6 +100,11 @@
         />
         <span>Enable transparent overlay shell on startup</span>
       </label>
+      <p class="form-field__hint">
+        Shows the participant-facing display with a see-through background,
+        so it can sit on top of the simulator view during a study instead of
+        covering it.
+      </p>
       <div class="form-actions">
         <button class="button-primary" type="submit">Save Configuration</button>
       </div>
@@ -100,7 +114,7 @@
   <div class="content-stack">
     <SurfaceCard
       title="Process Manager"
-      subtitle="Current IPC response from the OS-level launcher."
+      subtitle="Real-time status of the background process manager."
     >
       <div class="mb-4">
         <StatusBadge
@@ -119,12 +133,12 @@
         <form class="detail-grid-3" method="POST" action="?/carla">
           {#each ["start", "stop", "restart"] as action}
             <button
-              class="button-secondary capitalize"
+              class="button-secondary"
               name="action"
               type="submit"
               value={action}
             >
-              CARLA {action}
+              {formatStatusLabel(action)} Simulator
             </button>
           {/each}
         </form>
@@ -136,8 +150,8 @@
         <div class="technical-panel">
           <p class="technical-label">System restart</p>
           <p class="technical-value">
-            No restart-system action is currently exposed by this route; use the
-            Process Manager command line for full restart.
+            A full system restart isn't available from this page. Contact your
+            system administrator to restart the SCARline services.
           </p>
         </div>
       </div>

@@ -22,18 +22,15 @@
   <div class="metric-grid">
     <MetricCard label="Bootstrap" value={data.bootstrap.onboardingCompleted ? 'Ready' : 'Setup'} hint={data.bootstrap.onboardingCompleted ? 'Onboarding has completed' : 'Onboarding is still required'} accent />
     <MetricCard label="Health Keys" value={serviceCount} hint="Values returned by the health endpoint" />
-    <MetricCard label="Polling" value="Manual" hint="Refresh this page to update the static loader snapshot" />
+    <MetricCard label="Polling" value="Manual" hint="Refresh this page to check the latest status" />
     <MetricCard label="Operator Path" value="Admin" hint="Continue to dashboard after services report ready" />
   </div>
 
   <div class="mt-4">
-  <SurfaceCard title="Health Snapshot" subtitle="Visual startup status based on the current loader response.">
+  <SurfaceCard title="Health Snapshot" subtitle="Real-time system startup and health status.">
     <div class="mb-4 flex flex-wrap items-center gap-3">
       <StatusBadge status={data.health?.status ?? 'unknown'} />
       <StatusBadge status={data.bootstrap.onboardingCompleted ? 'healthy' : 'pending'} label={data.bootstrap.onboardingCompleted ? 'Onboarding complete' : 'Onboarding pending'} />
-    </div>
-    <div class="mb-4 h-3 rounded-2xl border border-[--color-line] bg-[--color-panel-soft]">
-      <div class="h-full rounded-2xl bg-black" style={`width: ${data.bootstrap.onboardingCompleted ? 100 : 45}%`}></div>
     </div>
     <KeyValueGrid items={healthItems} />
   </SurfaceCard>

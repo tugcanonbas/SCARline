@@ -1,13 +1,13 @@
 <script lang="ts">
-  import EmptyState from '$lib/components/admin/EmptyState.svelte';
-  import SurfaceCard from '$lib/components/SurfaceCard.svelte';
+  import EmptyState from "$lib/components/admin/EmptyState.svelte";
+  import SurfaceCard from "$lib/components/SurfaceCard.svelte";
 
   let {
     canOperate = false,
     triggerableWidgets = [],
-    selectedSession = '',
+    selectedSession = "",
     widgetUpdates = [],
-    widgetTitle
+    widgetTitle,
   } = $props<{
     canOperate?: boolean;
     triggerableWidgets?: Array<Record<string, unknown>>;
@@ -17,7 +17,10 @@
   }>();
 </script>
 
-<SurfaceCard title="Widget Updates" subtitle="Live widget actions and manual trigger targets.">
+<SurfaceCard
+  title="Widget Updates"
+  subtitle="Trigger widget actions manually during the session."
+>
   <div class="pill-row">
     {#if canOperate}
       {#each triggerableWidgets as widget}
@@ -37,7 +40,9 @@
     {#each widgetUpdates as update}
       <div class="entity-card entity-card--tight">
         <p class="entity-card__title">{widgetTitle(update)}</p>
-        <p class="entity-card__meta">{update.action ?? update.triggerType ?? 'binding update'}</p>
+        <p class="entity-card__meta">
+          {update.action ?? update.triggerType ?? "binding update"}
+        </p>
       </div>
     {:else}
       <EmptyState message="No widget updates have been received." />
