@@ -242,3 +242,78 @@ test('overlay services expose widget validation and desktop recovery controls', 
   assert.match(desktopOverlay, /removeRuntimeWindow/);
   assert.match(desktopOverlay, /overlayStatus/);
 });
+
+// ---------------------------------------------------------------------------
+// IO Sensor Event Type Schema Tests — ISSUE-006
+// ---------------------------------------------------------------------------
+
+test('io.blink event type has correct schema', async () => {
+  const source = await readFile(path.join(root, 'packages/contracts/src/rabbitmq.ts'), 'utf8');
+  // Event type registered
+  assert.match(source, /blink:\s*'io\.blink'/, 'io.blink must be in IO_EVENT_TYPES');
+  assert.match(source, /IO_EVENT_TYPES\.blink/, 'io.blink must be in ioEventTypeSchema');
+  // Payload schema exists with correct fields
+  assert.match(source, /export const ioBlinkEventPayloadSchema/, 'ioBlinkEventPayloadSchema must be exported');
+  assert.match(source, /earLeft:\s*z\.number\(\)\.nullable\(\)/, 'earLeft field required');
+  assert.match(source, /earRight:\s*z\.number\(\)\.nullable\(\)/, 'earRight field required');
+  assert.match(source, /earAvg:\s*z\.number\(\)\.nullable\(\)/, 'earAvg field required');
+  assert.match(source, /blinkDetected:\s*z\.boolean\(\)/, 'blinkDetected field required');
+  assert.match(source, /blinkCount:\s*z\.number\(\)\.int\(\)\.nonnegative\(\)/, 'blinkCount field required');
+  assert.match(source, /eyesClosed:\s*z\.boolean\(\)/, 'eyesClosed field required');
+});
+
+test('io.gesture event type has correct schema', async () => {
+  const source = await readFile(path.join(root, 'packages/contracts/src/rabbitmq.ts'), 'utf8');
+  // Event type registered
+  assert.match(source, /gesture:\s*'io\.gesture'/, 'io.gesture must be in IO_EVENT_TYPES');
+  assert.match(source, /IO_EVENT_TYPES\.gesture/, 'io.gesture must be in ioEventTypeSchema');
+  // Payload schema exists with correct fields
+  assert.match(source, /export const ioGestureEventPayloadSchema/, 'ioGestureEventPayloadSchema must be exported');
+  assert.match(source, /gestureId:\s*z\.string\(\)/, 'gestureId field required');
+  assert.match(source, /confidence:\s*z\.number\(\)\.min\(0\)\.max\(1\)/, 'confidence field required');
+  assert.match(source, /handedness:\s*z\.enum\(\['left', 'right', 'unknown'\]\)/, 'handedness field required');
+});
+
+test('io.eye_tracker event type has correct schema', async () => {
+  const source = await readFile(path.join(root, 'packages/contracts/src/rabbitmq.ts'), 'utf8');
+  // Event type registered
+  assert.match(source, /eyeTracker:\s*'io\.eye_tracker'/, 'io.eye_tracker must be in IO_EVENT_TYPES');
+  assert.match(source, /IO_EVENT_TYPES\.eyeTracker/, 'io.eye_tracker must be in ioEventTypeSchema');
+  // Payload schema exists with correct fields
+  assert.match(source, /export const ioEyeTrackerEventPayloadSchema/, 'ioEyeTrackerEventPayloadSchema must be exported');
+  assert.match(source, /gaze:\s*z\.object\(\{/, 'gaze nested object required');
+  assert.match(source, /x:\s*z\.number\(\)\.nullable\(\)/, 'gaze.x field required');
+  assert.match(source, /y:\s*z\.number\(\)\.nullable\(\)/, 'gaze.y field required');
+  assert.match(source, /pupilDiameter:\s*z\.number\(\)\.nullable\(\)/, 'pupilDiameter field required');
+});
+
+test('io.heart_rate event type has correct schema', async () => {
+  const source = await readFile(path.join(root, 'packages/contracts/src/rabbitmq.ts'), 'utf8');
+  // Event type registered
+  assert.match(source, /heartRate:\s*'io\.heart_rate'/, 'io.heart_rate must be in IO_EVENT_TYPES');
+  assert.match(source, /IO_EVENT_TYPES\.heartRate/, 'io.heart_rate must be in ioEventTypeSchema');
+  // Payload schema exists with correct fields
+  assert.match(source, /export const ioHeartRateEventPayloadSchema/, 'ioHeartRateEventPayloadSchema must be exported');
+  assert.match(source, /heartRateBpm:\s*z\.number\(\)\.nullable\(\)/, 'heartRateBpm field required');
+  assert.match(source, /rrIntervalMs:\s*z\.number\(\)\.nullable\(\)/, 'rrIntervalMs field required');
+  // All IO payload schemas must include connected field
+  for (const schema of ['ioBlinkEventPayloadSchema', 'ioGestureEventPayloadSchema', 'ioEyeTrackerEventPayloadSchema', 'ioHeartRateEventPayloadSchema', 'ioEcgEventPayloadSchema']) {
+    const schemaBlock = source.slice(source.indexOf(`export const ${schema}`));
+    const endOfBlock = schemaBlock.indexOf('});');
+    const block = schemaBlock.slice(0, endOfBlock);
+    assert.match(block, /connected:\s*z\.boolean\(\)/, `${schema} must include connected field`);
+  }
+});
+
+test('io.ecg event type has correct schema', async () => {
+  const source = await readFile(path.join(root, 'packages/contracts/src/rabbitmq.ts'), 'utf8');
+  // Event type registered
+  assert.match(source, /ecg:\s*'io\.ecg'/, 'io.ecg must be in IO_EVENT_TYPES');
+  assert.match(source, /IO_EVENT_TYPES\.ecg/, 'io.ecg must be in ioEventTypeSchema');
+  // Payload schema exists with correct fields
+  assert.match(source, /export const ioEcgEventPayloadSchema/, 'ioEcgEventPayloadSchema must be exported');
+  assert.match(source, /ecgSamples:\s*z\.array\(z\.number\(\)\)\.nullable\(\)/, 'ecgSamples field required');
+  assert.match(source, /sampleRate:\s*z\.number\(\)\.nullable\(\)/, 'sampleRate field required');
+  assert.match(source, /dataLostCount:\s*z\.number\(\)\.nullable\(\)/, 'dataLostCount field required');
+});
+

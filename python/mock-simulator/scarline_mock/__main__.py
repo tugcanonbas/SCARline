@@ -744,27 +744,33 @@ async def run_connection(state: MockSessionState) -> None:
                     continue
 
                 if action == "apply-control" and state.session_id and state.study_id:
-                    state.controls = {
-                        "throttle": float(payload.get("throttle", state.controls["throttle"])),
-                        "brake": float(payload.get("brake", state.controls["brake"])),
-                        "steer": float(payload.get("steer", state.controls["steer"])),
-                    }
-                    await send_event(
-                        socket,
-                        f"events.{state.study_id}.{state.session_id}.driving.vehicle.telemetry",
-                        {
-                            "vehicle": {
-                                "speed": current_speed(state),
-                                "speedLimit": float(state.scenario_config.get("speedLimit", 50)),
-                                "throttle": state.controls["throttle"],
-                                "brake": state.controls["brake"],
-                                "steer": state.controls["steer"],
-                            }
-                        },
-                        state.study_id,
-                        state.session_id,
-                    )
-                    await send_response(socket, correlation_id, {"success": True, "sessionId": state.session_id, "activeSessionId": state.session_id, "activeSession": state.session_id})
+                    try:
+                        t_val = payload.get("throttle")
+                        b_val = payload.get("brake")
+                        s_val = payload.get("steer") if payload.get("steer") is not None else payload.get("steeringAngle")
+
+                        state.controls["throttle"] = float(t_val) if t_val is not None else state.controls["throttle"]
+                        state.controls["brake"] = float(b_val) if b_val is not None else state.controls["brake"]
+                        state.controls["steer"] = float(s_val) if s_val is not None else state.controls["steer"]
+
+                        await send_event(
+                            socket,
+                            f"events.{state.study_id}.{state.session_id}.driving.vehicle.telemetry",
+                            {
+                                "vehicle": {
+                                    "speed": current_speed(state),
+                                    "speedLimit": float(state.scenario_config.get("speedLimit", 50)),
+                                    "throttle": state.controls["throttle"],
+                                    "brake": state.controls["brake"],
+                                    "steer": state.controls["steer"],
+                                }
+                            },
+                            state.study_id,
+                            state.session_id,
+                        )
+                        await send_response(socket, correlation_id, {"success": True, "sessionId": state.session_id, "activeSessionId": state.session_id, "activeSession": state.session_id})
+                    except Exception as error:
+                        print(f"mock-simulator apply-control error: {error}", flush=True)
                     continue
 
                 await send_response(

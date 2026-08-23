@@ -14,7 +14,8 @@ export const load = async ({ fetch, locals, params }) => {
 
 async function postSessionAction(fetch: typeof globalThis.fetch, locals: App.Locals, studyId: string, sessionId: string, action: string) {
   const result = await apiAction(fetch, locals.apiBase, `/studies/${studyId}/sessions/${sessionId}/${action}`, locals.accessToken, {
-    method: 'POST'
+    method: 'POST',
+    body: '{}'
   }, `Failed to ${action} session`);
   return result.ok ? undefined : result.failure;
 }

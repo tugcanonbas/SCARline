@@ -12,10 +12,29 @@ sensors:
       device_path: /dev/input/event0
       force_feedback: true
   - driver: usb_camera
-    enabled: true
+    enabled: false
     config:
       sample_rate: 30
       device_index: 0
+  - driver: eye_tracker
+    enabled: true
+    config:
+      sample_rate: 10
+      camera_index: 0
+      ear_threshold: 0.21
+      consec_frames: 2
+  - driver: gaze
+    enabled: true
+    config:
+      sample_rate: 10
+      camera_index: 0
+      shared_with: blink_detection
+  - driver: ecg
+    enabled: true
+    config:
+      sample_rate: 500
+      device_name: BioPoint
+      mac: "D6:B8:55:3F:67:3E"
 
 health_check:
   port: 8081

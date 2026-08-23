@@ -44,3 +44,11 @@ test('mock simulator supports deterministic YAML scenario catalogue and runtime 
     assert.match(scenarios, new RegExp(`${scenario}:`));
   }
 });
+
+test('mock simulator apply-control handles null values without crashing', async () => {
+  const source = await readFile(path.join(root, 'python/mock-simulator/scarline_mock/__main__.py'), 'utf8');
+  assert.match(source, /t_val = payload\.get\("throttle"\)/);
+  assert.match(source, /s_val = payload\.get\("steer"\) if payload\.get\("steer"\) is not None else payload\.get\("steeringAngle"\)/);
+  assert.match(source, /state\.controls\["steer"\] = float\(s_val\) if s_val is not None else state\.controls\["steer"\]/);
+  assert.match(source, /except Exception as error:/);
+});
