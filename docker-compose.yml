@@ -123,6 +123,8 @@ services:
       NODE_ENV: production
       PORT: 9000
       AMQP_URL: amqp://${RABBITMQ_USER:-scarline}:${RABBITMQ_PASSWORD:-scarline}@rabbitmq:5672
+      # carla connection - 2026-08-24: generous timeout so NPC spawning never races with ack deadline
+      SIM_BRIDGE_ADAPTER_COMMAND_TIMEOUT_MS: ${SIM_BRIDGE_ADAPTER_COMMAND_TIMEOUT_MS:-90000}
     healthcheck:
       test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:9000/health || exit 1"]
       interval: 10s
@@ -178,7 +180,7 @@ services:
       context: .
       dockerfile: docs/Dockerfile
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:4040/docs/ || exit 1"]
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:4040/ || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5

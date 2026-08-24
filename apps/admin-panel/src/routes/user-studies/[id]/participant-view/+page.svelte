@@ -1178,7 +1178,6 @@
     label="Placed Widgets"
     value={placed.length}
     hint={`${placedOnSelectedDisplay.length} on selected display`}
-    accent
   />
   <MetricCard
     label="Catalogue"

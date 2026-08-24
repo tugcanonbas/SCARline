@@ -971,9 +971,7 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
     if (!current) {
       return fail(reply, 404, 'NOT_FOUND', 'Session not found');
     }
-    if (['running', 'paused'].includes(current.status)) {
-      return fail(reply, 409, 'STATE_CONFLICT', 'Running or paused sessions cannot be deleted');
-    }
+    // carla connection - 2026-08-24: allow force-delete of stuck running/paused sessions
     await pool.query(`DELETE FROM sessions WHERE study_id = $1 AND id = $2`, [params.studyId, params.id]);
     await logActivity(pool, {
       actorUserId: actorUserId(request, config),
@@ -1608,7 +1606,8 @@ export async function registerPrdRoutes(app: FastifyInstance, deps: Dependencies
   app.post('/api/system/carla/:action', async (request, reply) => {
     const params = z.object({ action: z.enum(['start', 'stop', 'restart']) }).parse(request.params);
     try {
-      return ok(await callProcessManager(config.PM_SOCKET_PATH, 'POST', `/carla/${params.action}`));
+      const body = (request.body as Record<string, unknown>) ?? {};
+      return ok(await callProcessManager(config.PM_SOCKET_PATH, 'POST', `/carla/${params.action}`, body));
     } catch (error) {
       return fail(reply, 503, 'PROCESS_MANAGER_UNAVAILABLE', error instanceof Error ? error.message : 'Process Manager unavailable');
     }

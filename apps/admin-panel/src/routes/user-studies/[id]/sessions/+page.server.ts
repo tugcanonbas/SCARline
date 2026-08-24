@@ -59,5 +59,14 @@ export const actions = {
       })
     }, 'Failed to cancel session');
     return result.ok ? undefined : result.failure;
+  },
+  // carla connection - 2026-08-24: delete action for force-removing sessions from the queue
+  delete: async ({ fetch, locals, params, request }) => {
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator']);
+    const formData = await request.formData();
+    const result = await apiAction(fetch, locals.apiBase, `/studies/${params.id}/sessions/${String(formData.get('sessionId'))}`, locals.accessToken, {
+      method: 'DELETE'
+    }, 'Failed to delete session');
+    return result.ok ? undefined : result.failure;
   }
 };

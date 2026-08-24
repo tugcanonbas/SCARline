@@ -31,8 +31,12 @@ export const actions = {
     await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin']);
     const formData = await request.formData();
     const action = String(formData.get('action'));
+    const configuration = await apiRequest(fetch, locals.apiBase, '/system/configuration', locals.accessToken);
     await apiRequest(fetch, locals.apiBase, `/system/carla/${action}`, locals.accessToken, {
-      method: 'POST'
+      method: 'POST',
+      body: JSON.stringify({
+        carlaServerPath: configuration.carlaServerPath ?? null
+      })
     });
   },
   overlayReload: async ({ fetch, locals }) => {

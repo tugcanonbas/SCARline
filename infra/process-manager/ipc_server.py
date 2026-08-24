@@ -66,7 +66,10 @@ class Handler(BaseHTTPRequestHandler):
         (pid_dir / f"{name}.pid").write_text(str(pid), "utf8")
 
     def _clear_pid(self, name: str) -> None:
-        (Path(self.server.runtime_dir) / "pids" / f"{name}.pid").unlink(missing_ok=True)  # type: ignore[attr-defined]
+        try:
+            (Path(self.server.runtime_dir) / "pids" / f"{name}.pid").unlink()  # type: ignore[attr-defined]
+        except OSError:
+            pass
 
     def _overlay_health(self) -> str:
         port = int(os.environ.get("OVERLAY_CONTROL_PORT", "4097"))
@@ -202,11 +205,13 @@ class Handler(BaseHTTPRequestHandler):
             "checkedAt": datetime.now(timezone.utc).isoformat(),
         }
 
-    def _start_carla(self) -> tuple[bool, str]:
+    def _start_carla(self, payload: dict | None = None) -> tuple[bool, str]:
+        if payload is None:
+            payload = {}
         if self._pid_status("carla") == "running":
             return True, "CARLA server is already running"
 
-        executable = os.environ.get("CARLA_SERVER_PATH", "")
+        executable = payload.get("carlaServerPath") or os.environ.get("CARLA_SERVER_PATH", "")
         if not executable:
             return False, "CARLA_SERVER_PATH is not configured"
         if not Path(executable).exists():
@@ -233,13 +238,20 @@ class Handler(BaseHTTPRequestHandler):
         if pid is None:
             return True, "CARLA server is already stopped"
         try:
-            os.kill(pid, signal.SIGTERM)
-            time.sleep(2)
-            try:
-                os.kill(pid, 0)
-                os.kill(pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+            if sys.platform == "win32":
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], check=False, capture_output=True)
+            else:
+                try:
+                    os.kill(pid, getattr(signal, "SIGTERM", 15))
+                except PermissionError:
+                    pass
+                time.sleep(2)
+                try:
+                    os.kill(pid, 0)
+                    os.kill(pid, getattr(signal, "SIGKILL", getattr(signal, "SIGTERM", 15)))
+                except (ProcessLookupError, PermissionError):
+                    pass
+            
             self._clear_pid("carla")
             return True, "CARLA server stopped"
         except ProcessLookupError:
@@ -359,7 +371,13 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if self.path == "/carla/start":
-            accepted, message = self._start_carla()
+            content_length = int(self.headers.get("Content-Length", "0"))
+            raw_payload = self.rfile.read(content_length) if content_length > 0 else b"{}"
+            try:
+                payload = json.loads(raw_payload.decode("utf8")) if raw_payload else {}
+            except Exception:
+                payload = {}
+            accepted, message = self._start_carla(payload if isinstance(payload, dict) else {})
             self._json(202 if accepted else 409, {"accepted": accepted, "message": message})
             return
 
@@ -369,11 +387,17 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if self.path == "/carla/restart":
+            content_length = int(self.headers.get("Content-Length", "0"))
+            raw_payload = self.rfile.read(content_length) if content_length > 0 else b"{}"
+            try:
+                payload = json.loads(raw_payload.decode("utf8")) if raw_payload else {}
+            except Exception:
+                payload = {}
             stopped, stop_message = self._stop_carla()
             if not stopped:
                 self._json(409, {"accepted": False, "message": stop_message})
                 return
-            accepted, message = self._start_carla()
+            accepted, message = self._start_carla(payload if isinstance(payload, dict) else {})
             self._json(202 if accepted else 409, {"accepted": accepted, "message": message})
             return
 
@@ -398,7 +422,10 @@ def main() -> None:
         if UnixHTTPServer is None:
             raise SystemExit("Unix sockets are unavailable on this platform; use tcp://host:port")
         socket_path = Path(socket_arg)
-        socket_path.unlink(missing_ok=True)
+        try:
+            socket_path.unlink()
+        except OSError:
+            pass
         server = UnixHTTPServer(str(socket_path), Handler)
 
     server.runtime_dir = str(runtime_dir)  # type: ignore[attr-defined]
@@ -406,7 +433,10 @@ def main() -> None:
     def shutdown(_signum: int, _frame) -> None:
         server.shutdown()
         if socket_path is not None:
-            socket_path.unlink(missing_ok=True)
+            try:
+                socket_path.unlink()
+            except OSError:
+                pass
 
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)

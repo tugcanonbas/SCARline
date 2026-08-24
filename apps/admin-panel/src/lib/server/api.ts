@@ -35,7 +35,11 @@ export async function apiAction(
   fallbackMessage = 'Request failed'
 ) {
   const headers = new Headers(init.headers);
-  headers.set('content-type', 'application/json');
+  // Only set Content-Type when a body is present — sending this header with an empty
+  // body causes Fastify's JSON body parser to reject the request with a 400 error.
+  if (init.body !== undefined) {
+    headers.set('content-type', 'application/json');
+  }
   if (token) {
     headers.set('authorization', `Bearer ${token}`);
   }

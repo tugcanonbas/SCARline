@@ -6,6 +6,7 @@
   import StatusBadge from '$lib/components/StatusBadge.svelte';
   import StudyTabs from '$lib/components/StudyTabs.svelte';
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
+  import { Trash2 } from 'lucide-svelte';
 
   let { data, form } = $props();
 
@@ -80,7 +81,7 @@
   <SurfaceCard title="Session Queue" subtitle="State transitions use existing SvelteKit form actions and CoreAPI commands.">
     <div class="list-stack">
       {#each data.sessions as session}
-        <div class="entity-card">
+        <div class="entity-card" style="position: relative;">
           <div class="entity-card__header">
             <div>
               <p class="entity-card__title">{session.name ?? session.id}</p>
@@ -107,25 +108,28 @@
           </div>
 
           {#if data.canOperate}
-          <div class="form-actions">
-            {#each ['start', 'pause', 'resume', 'complete'] as actionName}
-              <form method="POST" action={`?/${actionName}`}>
-                <input name="sessionId" type="hidden" value={session.id} />
-                <button
-                  class="button-chip"
-                  type="submit"
-                  disabled={!canTransition(session.status, actionName)}
-                >{actionName}</button>
-              </form>
-            {/each}
-            <form method="POST" action="?/cancel">
+          <div class="session-card-footer">
+            <div class="form-actions">
+              {#each ['start', 'pause', 'resume', 'complete'] as actionName}
+                <form method="POST" action={`?/${actionName}`}>
+                  <input name="sessionId" type="hidden" value={session.id} />
+                  <button
+                    class="button-chip"
+                    type="submit"
+                    disabled={!canTransition(session.status, actionName)}
+                  >{actionName}</button>
+                </form>
+              {/each}
+            </div>
+            <form method="POST" action="?/delete"
+              onsubmit={(e) => { if (!confirm(`Delete session "${session.name ?? session.id}"? This cannot be undone.`)) e.preventDefault(); }}>
               <input name="sessionId" type="hidden" value={session.id} />
-              <input name="reason" type="hidden" value="Operator cancelled session" />
               <button
-                class="button-danger"
+                class="button-icon-danger"
                 type="submit"
-                disabled={!canTransition(session.status, 'cancel')}
-              >cancel</button>
+                title="Delete session"
+                aria-label="Delete session"
+              ><Trash2 size={16} /></button>
             </form>
           </div>
           {/if}
@@ -136,3 +140,33 @@
     </div>
   </SurfaceCard>
 </div>
+
+<style>
+  .session-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 0.75rem;
+    gap: 0.5rem;
+  }
+
+  .button-icon-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.375rem;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--color-danger, #ef4444);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    flex-shrink: 0;
+  }
+
+  .button-icon-danger:hover {
+    background: color-mix(in srgb, var(--color-danger, #ef4444) 12%, transparent);
+    border-color: color-mix(in srgb, var(--color-danger, #ef4444) 40%, transparent);
+  }
+</style>

@@ -47,7 +47,9 @@ function Ensure-OverlayDependencies {
   }
 
   function Test-OverlayElectronBinary {
-    & pnpm --dir (Join-Path $RootDir "apps/desktop-overlay") exec electron --version *> $null
+    $electronPath = Join-Path $RootDir "apps\desktop-overlay\node_modules\.bin\electron.cmd"
+    if (-not (Test-Path $electronPath)) { return $false }
+    & $electronPath --version *> $null
     return ($LASTEXITCODE -eq 0)
   }
 
@@ -56,10 +58,10 @@ function Ensure-OverlayDependencies {
   }
 
   Write-Host "Preparing desktop overlay dependencies"
-  & pnpm install --frozen-lockfile --filter "@scarline/desktop-overlay..."
+  & pnpm.cmd install --frozen-lockfile --filter "@scarline/desktop-overlay..."
   if ($LASTEXITCODE -ne 0) {
     Write-Warning "Frozen lockfile install failed for desktop overlay; retrying without --frozen-lockfile"
-    & pnpm install --filter "@scarline/desktop-overlay..."
+    & pnpm.cmd install --filter "@scarline/desktop-overlay..."
     if ($LASTEXITCODE -ne 0) {
       throw "Failed to install desktop overlay dependencies"
     }
@@ -67,16 +69,16 @@ function Ensure-OverlayDependencies {
 
   if (-not (Test-OverlayElectronBinary)) {
     Write-Host "Repairing Electron runtime for desktop overlay"
-    & pnpm --dir (Join-Path $RootDir "apps/desktop-overlay") rebuild electron
+    & pnpm.cmd --dir (Join-Path $RootDir "apps/desktop-overlay") rebuild electron
   }
 
   if (-not (Test-OverlayElectronBinary)) {
     Write-Warning "Electron runtime still invalid after rebuild; forcing overlay reinstall"
-    & pnpm install --force --filter "@scarline/desktop-overlay..."
+    & pnpm.cmd install --force --filter "@scarline/desktop-overlay..."
     if ($LASTEXITCODE -ne 0) {
       throw "Failed to force reinstall desktop overlay dependencies"
     }
-    & pnpm --dir (Join-Path $RootDir "apps/desktop-overlay") rebuild electron
+    & pnpm.cmd --dir (Join-Path $RootDir "apps/desktop-overlay") rebuild electron
   }
 
   if (-not (Test-OverlayElectronBinary)) {
@@ -360,7 +362,7 @@ while (`$true) {
       } catch {}
       if (-not `$overlayProc -or -not `$overlayHealthy) {
         if (Can-Restart 'overlay-desktop') {
-          & pnpm --dir '$RootDir/apps/desktop-overlay' start >> '$LogDir/overlay-desktop.log' 2>> '$LogDir/overlay-desktop.err.log' &
+          & pnpm.cmd --dir '$RootDir/apps/desktop-overlay' start >> '$LogDir/overlay-desktop.log' 2>> '$LogDir/overlay-desktop.err.log' &
           Mark-Failed 'overlay-desktop'
         }
       } else {

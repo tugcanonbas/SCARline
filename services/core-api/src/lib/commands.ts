@@ -36,6 +36,12 @@ interface SensorConfigurationRow {
   sensors: unknown[];
 }
 
+// carla connection - 2026-08-23
+interface ConditionRow {
+  carla_overrides: Record<string, unknown>;
+}
+// end carla connection
+
 async function publishEvent(
   pool: Pool,
   rabbit: RabbitManager,
@@ -173,12 +179,17 @@ async function loadSession(pool: Pool, sessionId: string): Promise<SessionRow> {
   return session.rows[0];
 }
 
-async function loadStudyRuntimeConfig(pool: Pool, studyId: string): Promise<{
+// carla connection - 2026-08-23
+async function loadStudyRuntimeConfig(
+  pool: Pool,
+  studyId: string,
+  conditionId?: string | null
+): Promise<{
   carla: CarlaConfigurationRow | null;
   sensors: SensorConfigurationRow | null;
   layoutId: string | null;
 }> {
-  const [carlaConfig, sensorConfig, layout] = await Promise.all([
+  const queries: [Promise<{ rows: CarlaConfigurationRow[] }>, Promise<{ rows: SensorConfigurationRow[] }>, Promise<{ rows: { id: string }[] }>, Promise<{ rows: ConditionRow[] }> | null] = [
     pool.query<CarlaConfigurationRow>(
       `SELECT map, weather_preset, weather_custom, ego_vehicle_blueprint, simulation_mode, fixed_delta_seconds, sensors, traffic_config
        FROM carla_configurations
@@ -198,15 +209,36 @@ async function loadStudyRuntimeConfig(pool: Pool, studyId: string): Promise<{
        ORDER BY created_at DESC
        LIMIT 1`,
       [studyId]
-    )
-  ]);
+    ),
+    conditionId
+      ? pool.query<ConditionRow>(
+          `SELECT carla_overrides FROM conditions WHERE id = $1 AND study_id = $2`,
+          [conditionId, studyId]
+        )
+      : null
+  ];
+
+  const [carlaConfig, sensorConfig, layout, conditionResult] = await Promise.all(queries);
+
+  let carlaBaseline = carlaConfig.rows[0] ?? null;
+
+  // When a condition is set, shallow-merge its carla_overrides over the baseline.
+  // Only fields explicitly specified in the condition override the baseline;
+  // everything else falls through from CARLA Setup unchanged.
+  if (carlaBaseline && conditionResult && conditionResult.rows[0]) {
+    const overrides = conditionResult.rows[0].carla_overrides;
+    if (overrides && typeof overrides === 'object' && Object.keys(overrides).length > 0) {
+      carlaBaseline = { ...carlaBaseline, ...overrides } as CarlaConfigurationRow;
+    }
+  }
 
   return {
-    carla: carlaConfig.rows[0] ?? null,
+    carla: carlaBaseline,
     sensors: sensorConfig.rows[0] ?? null,
     layoutId: layout.rows[0]?.id ?? null
   };
 }
+// end carla connection
 
 async function updateRuntimeMetadata(
   pool: Pool,
@@ -232,7 +264,9 @@ export async function handleCoreCommand(message: RabbitMessage, context: Command
         const session = await loadSession(pool, String(message.payload.sessionId));
         assertTransition('start', session.status);
 
-        const runtimeConfig = await loadStudyRuntimeConfig(pool, session.study_id);
+        // carla connection - 2026-08-23
+        const runtimeConfig = await loadStudyRuntimeConfig(pool, session.study_id, session.condition_id);
+        // end carla connection
         const startedAt = new Date().toISOString();
         const cleanupBinding = async () => {
           try {
@@ -271,7 +305,11 @@ export async function handleCoreCommand(message: RabbitMessage, context: Command
                 sensors: runtimeConfig.carla?.sensors ?? [],
                 traffic: runtimeConfig.carla?.traffic_config ?? {},
                 simulationMode: runtimeConfig.carla?.simulation_mode ?? 'synchronous',
-                fixedDeltaSeconds: Number(runtimeConfig.carla?.fixed_delta_seconds ?? 0.05)
+                fixedDeltaSeconds: Number(runtimeConfig.carla?.fixed_delta_seconds ?? 0.05),
+                // carla connection - 2026-08-24: forward all config sub-objects so carla-client can spawn NPCs, pedestrians and set spectator
+                pedestrianConfig: (runtimeConfig.carla as Record<string, unknown> | null)?.pedestrian_config ?? {},
+                spectatorConfig: (runtimeConfig.carla as Record<string, unknown> | null)?.spectator_config ?? {},
+                recordingConfig: (runtimeConfig.carla as Record<string, unknown> | null)?.recording_config ?? {}
               }
             },
             { studyId: session.study_id, runId: session.id }

@@ -281,6 +281,11 @@ function handleAdapterSocket(connection: unknown) {
 
       if (message.type === 'heartbeat') {
         adapters.updateHeartbeat(assignedId);
+        // carla connection - 2026-08-23
+        if (typeof message.payload.status === 'string') {
+          adapters.updateStatus(assignedId, message.payload.status);
+        }
+        // end carla connection
         return;
       }
 

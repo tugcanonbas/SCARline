@@ -34,6 +34,17 @@ export class AdapterRegistry {
     adapter.lastHeartbeatAt = new Date().toISOString();
   }
 
+  // carla connection - 2026-08-23
+  updateStatus(assignedId: string, status: string): void {
+    const adapter = this.adapters.get(assignedId);
+    if (!adapter) {
+      return;
+    }
+
+    adapter.status = status;
+  }
+  // end carla connection
+
   bindSession(assignedId: string, sessionId: string): void {
     this.clearSession(sessionId);
 

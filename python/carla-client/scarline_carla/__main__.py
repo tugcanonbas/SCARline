@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import threading
 import time
 import uuid
 from contextlib import suppress
@@ -35,6 +36,14 @@ class CarlaAdapter:
         self.session_id = None
         self.paused = False
         self.pending_control = {"throttle": 0.0, "brake": 0.0, "steer": 0.0}
+        # carla connection - 2026-08-23
+        self.simulation_mode: str = "synchronous"
+        self.fixed_delta_seconds: float = 0.05
+        # end carla connection
+        # carla connection - 2026-08-24
+        self.npc_vehicles: list = []
+        self._stop_spawning = threading.Event()  # signals NPC loops to abort on unbind
+        # end carla connection
         self.connect_carla()
 
     def connect_carla(self) -> bool:
@@ -42,21 +51,37 @@ class CarlaAdapter:
             self.client = None
             self.world = None
             return False
+        # carla connection - 2026-08-23
+        print(f"carla-client: connecting to CARLA server at {CARLA_SERVER_HOST}:{CARLA_SERVER_PORT}", flush=True)
         try:
             self.client = carla.Client(CARLA_SERVER_HOST, CARLA_SERVER_PORT)
-            self.client.set_timeout(8.0)
+            self.client.set_timeout(15.0)
             self.world = self.client.get_world()
+            print("carla-client: CARLA server connected successfully", flush=True)
             return True
-        except Exception:
+        except BaseException as error:
+            print(f"carla-client: CARLA connection attempt failed: {error}", flush=True)
             self.client = None
             self.world = None
             return False
+        # end carla connection
 
     def has_world(self) -> bool:
         return self.client is not None and self.world is not None
 
     def ensure_connected(self) -> bool:
-        return self.has_world() or self.connect_carla()
+        # carla connection - 2026-08-24: live probe so a CARLA server restart is detected
+        # without needing a container restart.
+        if self.client is not None and self.world is not None:
+            try:
+                self.world.get_settings()
+                return True
+            except Exception:
+                print("carla-client: CARLA connection lost (server restarted?), reconnecting...", flush=True)
+                self.client = None
+                self.world = None
+        return self.connect_carla()
+        # end carla connection
 
     def _float(self, value: object, default: float = 0.0) -> float:
         try:
@@ -65,16 +90,52 @@ class CarlaAdapter:
             return default
 
     def _destroy_actors(self) -> None:
-        for sensor in self.sensors:
-            with suppress(Exception):
-                sensor.stop()
-            with suppress(Exception):
-                sensor.destroy()
+        # carla connection - 2026-08-24: signal NPC spawn loops to stop before destroying
+        self._stop_spawning.set()
+        # end carla connection
+
+        # 1. Stop all sensors first
+        sensors = self.sensors
         self.sensors = []
-        if self.vehicle is not None:
-            with suppress(Exception):
-                self.vehicle.destroy()
+        for sensor in sensors:
+            with suppress(BaseException):
+                sensor.stop()
+
+        # 2. Disable autopilot on all NPC vehicles and ego vehicle before destroying
+        npcs = self.npc_vehicles
+        self.npc_vehicles = []
+        for npc in npcs:
+            with suppress(BaseException):
+                npc.set_autopilot(False)
+
+        vehicle = self.vehicle
         self.vehicle = None
+        if vehicle is not None:
+            with suppress(BaseException):
+                vehicle.set_autopilot(False)
+
+        # 3. Destroy all actors safely via CARLA client commands
+        all_actors = [a for a in (sensors + ([vehicle] if vehicle else []) + npcs) if a is not None]
+        if self.client is not None and carla is not None and all_actors:
+            with suppress(BaseException):
+                commands = [carla.command.DestroyActor(x) for x in all_actors]
+                self.client.apply_batch_sync(commands, False)
+
+        for actor in all_actors:
+            with suppress(BaseException):
+                actor.destroy()
+
+        # 4. Reset CARLA and TM to asynchronous mode so server never freezes between sessions
+        if self.world is not None:
+            with suppress(BaseException):
+                settings = self.world.get_settings()
+                if settings.synchronous_mode:
+                    settings.synchronous_mode = False
+                    self.world.apply_settings(settings)
+        if self.tm is not None:
+            with suppress(BaseException):
+                self.tm.set_synchronous_mode(False)
+        # end carla connection
 
     async def send_event(self, socket, routing_key: str, data: dict, study_id: str | None, run_id: str | None) -> None:
         await socket.send(
@@ -96,57 +157,66 @@ class CarlaAdapter:
         )
 
     async def telemetry_loop(self, socket, study_id: str, run_id: str) -> None:
-        tick = 0
-        while self.session_id == run_id:
-            if self.paused:
-                await asyncio.sleep(0.05)
-                continue
-
-            if not self.ensure_connected():
-                await asyncio.sleep(0.5)
-                continue
-
-            if self.world is not None:
-                with suppress(Exception):
-                    settings = self.world.get_settings()
-                    settings.synchronous_mode = True
-                    settings.fixed_delta_seconds = 0.05
-                    self.world.apply_settings(settings)
-                    self.world.tick()
-
-            speed = round(self.pending_control["throttle"] * 120, 2)
-            throttle = self.pending_control["throttle"]
-            brake = self.pending_control["brake"]
-            steer = self.pending_control["steer"]
-            if self.vehicle is not None:
-                with suppress(Exception):
-                    transform = self.vehicle.get_transform()
-                    velocity = self.vehicle.get_velocity()
-                    speed = round((velocity.x ** 2 + velocity.y ** 2 + velocity.z ** 2) ** 0.5 * 3.6, 2)
-                    await self.send_event(
-                        socket,
-                        f"events.{study_id}.{run_id}.driving.vehicle.telemetry",
-                        {
-                            "timestamp": iso_timestamp(),
-                            "vehicle": {
-                                "speed": speed,
-                                "speedLimit": 50,
-                                "acceleration": 0.0,
-                                "position": {"x": transform.location.x, "y": transform.location.y, "z": transform.location.z},
-                                "rotation": {"pitch": transform.rotation.pitch, "yaw": transform.rotation.yaw, "roll": transform.rotation.roll},
-                                "velocity": {"x": velocity.x, "y": velocity.y, "z": velocity.z},
-                                "gear": getattr(self.vehicle.get_control(), "gear", 0),
-                                "throttle": throttle,
-                                "brake": brake,
-                                "steer": steer,
-                            },
-                        },
-                        study_id,
-                        run_id,
-                    )
-                    tick += 1
+        try:
+            tick = 0
+            while self.session_id == run_id:
+                loop_start = time.monotonic()
+                if self.paused:
                     await asyncio.sleep(0.05)
                     continue
+
+                # carla connection - 2026-08-24: use has_world() (simple object check) not
+                # ensure_connected() (which does a world.get_settings() RPC on every tick)
+                if not self.has_world():
+                    await asyncio.sleep(0.5)
+                    continue
+                # end carla connection
+
+                if self.world is not None:
+                    # carla connection - 2026-08-24: use has_world() guard above, detect tick failure
+                    # to clear stale connection (avoids world.get_settings() RPC on every tick)
+                    try:
+                        self.world.tick()
+                    except Exception:
+                        self.client = None
+                        self.world = None
+                    # end carla connection
+
+                speed = round(self.pending_control["throttle"] * 120, 2)
+                throttle = self.pending_control["throttle"]
+                brake = self.pending_control["brake"]
+                steer = self.pending_control["steer"]
+                if self.vehicle is not None and getattr(self.vehicle, 'is_alive', True):
+                    with suppress(Exception):
+                        transform = self.vehicle.get_transform()
+                        velocity = self.vehicle.get_velocity()
+                        speed = round((velocity.x ** 2 + velocity.y ** 2 + velocity.z ** 2) ** 0.5 * 3.6, 2)
+                        await self.send_event(
+                            socket,
+                            f"events.{study_id}.{run_id}.driving.vehicle.telemetry",
+                            {
+                                "timestamp": iso_timestamp(),
+                                "vehicle": {
+                                    "speed": speed,
+                                    "speedLimit": 50,
+                                    "acceleration": 0.0,
+                                    "position": {"x": transform.location.x, "y": transform.location.y, "z": transform.location.z},
+                                    "rotation": {"pitch": transform.rotation.pitch, "yaw": transform.rotation.yaw, "roll": transform.rotation.roll},
+                                    "velocity": {"x": velocity.x, "y": velocity.y, "z": velocity.z},
+                                    "gear": getattr(self.vehicle.get_control(), "gear", 0),
+                                    "throttle": throttle,
+                                    "brake": brake,
+                                    "steer": steer,
+                                },
+                            },
+                            study_id,
+                            run_id,
+                        )
+                        tick += 1
+                        elapsed = time.monotonic() - loop_start
+                        sleep_time = max(0.001, self.fixed_delta_seconds - elapsed)
+                        await asyncio.sleep(sleep_time)
+                        continue
 
             await self.send_event(
                 socket,
@@ -169,7 +239,10 @@ class CarlaAdapter:
                 study_id,
                 run_id,
             )
-
+            tick += 1
+            elapsed = time.monotonic() - loop_start
+            sleep_time = max(0.001, self.fixed_delta_seconds - elapsed)
+            await asyncio.sleep(sleep_time)
             if tick % 20 == 0:
                 await self.send_event(
                     socket,
@@ -262,13 +335,19 @@ class CarlaAdapter:
                     },
                     study_id,
                     run_id,
-            )
-            tick += 1
-            await asyncio.sleep(0.05)
+                )
+                tick += 1
+                await asyncio.sleep(0.05)
+        except (asyncio.CancelledError, BaseException):
+            pass
 
     def apply_bind_config(self, config: dict) -> tuple[bool, str]:
         if not self.ensure_connected():
             return False, "CARLA server is unavailable"
+        # carla connection - 2026-08-24: clean up any existing actors and reset stop signal before new session
+        self._destroy_actors()
+        self._stop_spawning.clear()
+        # end carla connection
         map_name = str(config.get("map") or "Town03")
         weather = config.get("weather") if isinstance(config.get("weather"), dict) else {}
         weather_preset = str(weather.get("preset") or "ClearNoon")
@@ -276,30 +355,67 @@ class CarlaAdapter:
         blueprint = str(vehicle_cfg.get("blueprint") or "vehicle.lincoln.mkz_2020")
         traffic = config.get("traffic") if isinstance(config.get("traffic"), dict) else {}
         sensors = config.get("sensors") if isinstance(config.get("sensors"), list) else []
+        # carla connection - 2026-08-23
+        self.simulation_mode = str(config.get("simulationMode") or "synchronous")
+        self.fixed_delta_seconds = float(config.get("fixedDeltaSeconds") or 0.05)
+        # end carla connection
+        # carla connection - 2026-08-24
+        pedestrian_cfg = config.get("pedestrianConfig") if isinstance(config.get("pedestrianConfig"), dict) else {}
+        spectator_cfg = config.get("spectatorConfig") if isinstance(config.get("spectatorConfig"), dict) else {}
+        # end carla connection
 
         ok, message = self.load_map(map_name)
         if not ok:
             return False, message
+        # carla connection - 2026-08-24: apply simulation settings once after map load instead of per-tick
+        if self.world is not None:
+            with suppress(Exception):
+                settings = self.world.get_settings()
+                settings.synchronous_mode = (self.simulation_mode == "synchronous")
+                settings.fixed_delta_seconds = self.fixed_delta_seconds
+                self.world.apply_settings(settings)
+                print(f"carla-client: simulation mode={self.simulation_mode}, fixed_delta={self.fixed_delta_seconds}", flush=True)
+        if self.client is not None:
+            with suppress(Exception):
+                self.tm = self.client.get_trafficmanager()
+                self.tm.set_synchronous_mode(self.simulation_mode == "synchronous")
+        # end carla connection
         ok, message = self.set_weather(weather_preset)
         if not ok:
             return False, message
         ok, message = self.spawn_vehicle(blueprint)
         if not ok:
             return False, message
+        # carla connection - 2026-08-24: move spectator camera behind ego vehicle after spawn
+        self.set_spectator(spectator_cfg)
+        # end carla connection
         ok, message = self.configure_sensors(sensors)
         if not ok:
             return False, message
         ok, message = self.set_traffic(traffic)
         if not ok:
             return False, message
+        # carla connection - 2026-08-24: spawn pedestrians
+        self.spawn_pedestrians(pedestrian_cfg)
+        # end carla connection
         return True, "Session configuration applied"
 
     def load_map(self, map_name: str) -> tuple[bool, str]:
         if not self.ensure_connected() or self.client is None:
             return False, "CARLA server is unavailable"
         try:
-            self.world = self.client.load_world(map_name)
-            return True, f"Loaded map {map_name}"
+            # carla connection - 2026-08-24: match against available maps for robust resolution (e.g. Town10 -> Town10HD)
+            target_map = map_name
+            with suppress(Exception):
+                available_maps = self.client.get_available_maps()
+                matched = [m for m in available_maps if m.endswith(map_name) or m.split('/')[-1] == map_name]
+                if not matched and "Town10" in map_name:
+                    matched = [m for m in available_maps if "Town10" in m]
+                if matched:
+                    target_map = matched[0]
+            self.world = self.client.load_world(target_map)
+            # end carla connection
+            return True, f"Loaded map {target_map}"
         except Exception as error:
             return False, f"Failed to load map: {error}"
 
@@ -317,7 +433,10 @@ class CarlaAdapter:
         if not self.ensure_connected() or self.world is None:
             return False, "CARLA world is unavailable"
         try:
-            self._destroy_actors()
+            if self.vehicle is not None:
+                with suppress(Exception):
+                    self.vehicle.destroy()
+                self.vehicle = None
             blueprint_lib = self.world.get_blueprint_library()
             blueprint = blueprint_lib.find(blueprint_name)
             blueprint.set_attribute("role_name", "hero")
@@ -362,17 +481,79 @@ class CarlaAdapter:
         return True, f"Configured {len(self.sensors)} sensors"
 
     def set_traffic(self, traffic_config: dict) -> tuple[bool, str]:
-        if not self.ensure_connected() or self.client is None:
+        if not self.ensure_connected() or self.client is None or self.world is None:
             return False, "CARLA server is unavailable"
         try:
+            # carla connection - 2026-08-24: fix field names to match admin panel (npcVehicleCount, speedDifference)
+            self._stop_spawning.clear()
             self.tm = self.client.get_trafficmanager()
-            if "distanceToLeadingVehicle" in traffic_config:
-                self.tm.set_global_distance_to_leading_vehicle(self._float(traffic_config.get("distanceToLeadingVehicle"), 2.0))
-            if "globalSpeedDifference" in traffic_config:
-                self.tm.global_percentage_speed_difference(self._float(traffic_config.get("globalSpeedDifference"), 0.0))
-            return True, "Traffic manager configured"
+            self.tm.set_synchronous_mode(self.simulation_mode == "synchronous")
+            npc_count = int(traffic_config.get("npcVehicleCount") or traffic_config.get("npc_vehicle_count") or 0)
+            speed_diff = self._float(traffic_config.get("speedDifference") or traffic_config.get("speed_difference"), 0.0)
+            self.tm.global_percentage_speed_difference(speed_diff)
+
+            if npc_count > 0:
+                blueprint_lib = self.world.get_blueprint_library()
+                vehicle_blueprints = [
+                    bp for bp in blueprint_lib.filter("vehicle.*")
+                    if bp.id != "vehicle.carlamotors.carlacola"
+                    and bp.has_attribute("number_of_wheels")
+                    and int(bp.get_attribute("number_of_wheels")) == 4
+                ]
+                spawn_points = self.world.get_map().get_spawn_points()
+                available_points = spawn_points[1:] if len(spawn_points) > 1 else spawn_points
+                import random
+                random.shuffle(available_points)
+                spawned = 0
+                for i, sp in enumerate(available_points[:npc_count]):
+                    if self._stop_spawning.is_set():
+                        print("carla-client: NPC spawn aborted (session unbound)", flush=True)
+                        break
+                    bp = random.choice(vehicle_blueprints)
+                    with suppress(Exception):
+                        npc = self.world.try_spawn_actor(bp, sp)
+                        if npc is not None:
+                            npc.set_autopilot(True, self.tm.get_port())
+                            self.npc_vehicles.append(npc)
+                            spawned += 1
+                print(f"carla-client: spawned {spawned}/{npc_count} NPC vehicles", flush=True)
+            return True, f"Traffic configured — {len(self.npc_vehicles)} NPC vehicles active"
         except Exception as error:
             return False, f"Failed to configure traffic: {error}"
+
+    # carla connection - 2026-08-24: pedestrian spawning
+    def spawn_pedestrians(self, pedestrian_config: dict) -> None:
+        if not self.ensure_connected() or self.world is None or carla is None:
+            return
+        count = int(pedestrian_config.get("pedestrianCount") or pedestrian_config.get("pedestrian_count") or 0)
+        if count <= 0:
+            return
+        try:
+            blueprint_lib = self.world.get_blueprint_library()
+            walker_blueprints = blueprint_lib.filter("walker.pedestrian.*")
+            spawned = 0
+            for _ in range(count):
+                # carla connection - 2026-08-24: abort if unbind arrived
+                if self._stop_spawning.is_set():
+                    print("carla-client: pedestrian spawn aborted (session unbound)", flush=True)
+                    break
+                # end carla connection
+                bp = walker_blueprints[spawned % len(walker_blueprints)]
+                if bp.has_attribute("is_invincible"):
+                    bp.set_attribute("is_invincible", "false")
+                loc = self.world.get_random_location_from_navigation()
+                if loc is None:
+                    continue
+                transform = carla.Transform(loc)
+                with suppress(Exception):
+                    walker = self.world.try_spawn_actor(bp, transform)
+                    if walker is not None:
+                        self.npc_vehicles.append(walker)  # reuse npc_vehicles list for cleanup
+                        spawned += 1
+            print(f"carla-client: spawned {spawned}/{count} pedestrians", flush=True)
+        except Exception as error:
+            print(f"carla-client: pedestrian spawn error: {error}", flush=True)
+    # end carla connection
 
     def set_spectator(self, spectator: dict) -> tuple[bool, str]:
         if self.world is None or self.vehicle is None:
@@ -422,6 +603,9 @@ class CarlaAdapter:
 
     async def heartbeat_loop(self, socket) -> None:
         while True:
+            # carla connection - 2026-08-24: live probe so server restarts are detected immediately
+            connected = self.ensure_connected()
+            # end carla connection
             await socket.send(
                 json.dumps(
                     {
@@ -432,13 +616,13 @@ class CarlaAdapter:
                         "source": "carla-client",
                         "payload": {
                             "activeSession": self.session_id,
-                            "carlaConnected": self.world is not None,
-                            "status": "ready" if self.world is not None else "degraded",
+                            "carlaConnected": connected,
+                            "status": "ready" if connected else "degraded",
                         },
                     }
                 )
             )
-            await asyncio.sleep(10)
+            await asyncio.sleep(5)
 
     async def send_response(self, socket, correlation_id: str | None, payload: dict) -> None:
         await socket.send(
@@ -463,6 +647,10 @@ async def main() -> None:
         heartbeat_task = None
         try:
             async with websockets.connect(SIM_BRIDGE_URL) as socket:
+                # carla connection - 2026-08-23
+                reg_status = "ready" if adapter.world is not None else "degraded"
+                print(f"carla-client: connected to sim-bridge, registering with status={reg_status}", flush=True)
+                # end carla connection
                 await socket.send(
                     json.dumps(
                         {
@@ -490,7 +678,7 @@ async def main() -> None:
                                     "gnss",
                                     "imu",
                                 ],
-                                "status": "ready" if adapter.world is not None else "degraded",
+                                "status": reg_status,
                             },
                         }
                     )
@@ -511,6 +699,8 @@ async def main() -> None:
                         adapter.study_id = study_id
                         adapter.session_id = session_id
                         adapter.paused = False
+                        # carla connection - 2026-08-24: revert to synchronous - 90s timeout in
+                        # sim-bridge handles any NPC count; no thread needed (no race on unbind)
                         ok, detail = adapter.apply_bind_config(payload["payload"].get("config") if isinstance(payload["payload"].get("config"), dict) else {})
                         if ok and (telemetry_task is None or telemetry_task.done()):
                             telemetry_task = asyncio.create_task(adapter.telemetry_loop(socket, study_id, session_id))
@@ -527,8 +717,10 @@ async def main() -> None:
                             },
                         )
                         if not ok:
+                            print(f"carla-client: bind-session config failed: {detail}", flush=True)
                             adapter.session_id = None
                             adapter.study_id = None
+                        # end carla connection
                         continue
 
                     if action == "unbind-session":
@@ -536,12 +728,15 @@ async def main() -> None:
                         adapter.session_id = None
                         adapter.study_id = None
                         adapter.paused = False
-                        adapter._destroy_actors()
+                        # carla connection - 2026-08-24: cancel & await telemetry task BEFORE destroying actors
+                        # to prevent C++ terminate calls from accessing destroyed actors.
                         if telemetry_task is not None:
                             telemetry_task.cancel()
-                            with suppress(asyncio.CancelledError):
+                            with suppress(asyncio.CancelledError, BaseException):
                                 await telemetry_task
                             telemetry_task = None
+                        adapter._destroy_actors()
+                        # end carla connection
                         await adapter.send_response(
                             socket,
                             correlation_id,
@@ -624,16 +819,19 @@ async def main() -> None:
                             } else {}),
                         },
                     )
-        except Exception:
+        except Exception as error:
+            # carla connection - 2026-08-23
+            print(f"carla-client: connection error: {error}", flush=True)
+            # end carla connection
             await asyncio.sleep(2)
         finally:
             if telemetry_task is not None:
                 telemetry_task.cancel()
-                with suppress(asyncio.CancelledError):
+                with suppress(asyncio.CancelledError, BaseException):
                     await telemetry_task
             if heartbeat_task is not None:
                 heartbeat_task.cancel()
-                with suppress(asyncio.CancelledError):
+                with suppress(asyncio.CancelledError, BaseException):
                     await heartbeat_task
 
 

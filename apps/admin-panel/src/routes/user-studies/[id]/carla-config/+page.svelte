@@ -131,7 +131,6 @@
     label="Map"
     value={data.config?.map ?? "Unset"}
     hint="World loaded before session start"
-    accent
   />
   <MetricCard
     label="Weather"
