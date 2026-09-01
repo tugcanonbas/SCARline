@@ -1,16 +1,28 @@
-FROM node:22-alpine
+FROM node:22-alpine AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY packages/contracts/package.json packages/contracts/package.json
+COPY packages/cli/package.json packages/cli/package.json
+COPY services/core-api/package.json services/core-api/package.json
+COPY services/sim-bridge/package.json services/sim-bridge/package.json
+COPY services/mock-simulator/package.json services/mock-simulator/package.json
+COPY apps/admin-panel/package.json apps/admin-panel/package.json
+COPY apps/overlay-web/package.json apps/overlay-web/package.json
+COPY apps/desktop-overlay/package.json apps/desktop-overlay/package.json
+RUN npm ci --ignore-scripts --workspace @scarline/contracts --workspace @scarline/overlay-web --include-workspace-root
+COPY packages/contracts packages/contracts
+COPY apps/overlay-web apps/overlay-web
+RUN npm run build -w @scarline/contracts && npm run build -w @scarline/overlay-web
+RUN npm prune --omit=dev --ignore-scripts
 
-WORKDIR /workspace
-
-ENV PATH /usr/local/bin:$PATH
-RUN /usr/local/bin/npm install -g pnpm@latest
-
-COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
-COPY apps/overlay-web ./apps/overlay-web
-COPY widgets ./widgets
-
-RUN pnpm install --filter @scarline/overlay-web... --frozen-lockfile=false
-RUN pnpm --dir /workspace/apps/overlay-web build
-
-WORKDIR /workspace/apps/overlay-web
+FROM node:22-alpine AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/apps/overlay-web/dist ./apps/overlay-web/dist
+COPY --from=build --chown=node:node /app/apps/overlay-web/package.json ./apps/overlay-web/package.json
+COPY --chown=node:node widgets ./widgets
+USER node
+EXPOSE 4000
+WORKDIR /app/apps/overlay-web
 CMD ["node", "dist/server.js"]

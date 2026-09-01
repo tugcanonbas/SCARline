@@ -1,8 +1,9 @@
 import { sveltekit } from '@sveltejs/kit/vite';
+import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  plugins: [sveltekit()],
+  plugins: [tailwindcss(), sveltekit()],
   optimizeDeps: {
     exclude: ['lucide-svelte']
   },
@@ -12,9 +13,6 @@ export default defineConfig({
       interval: 1000
     },
     host: '0.0.0.0',
-    port: 3000,
-    hmr: {
-      clientPort: 8088
-    }
+    port: 5173
   }
 });

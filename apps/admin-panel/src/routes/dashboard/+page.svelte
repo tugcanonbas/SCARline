@@ -56,7 +56,7 @@
         activeStudyItems: ActiveStudy[];
         componentHealth: ComponentHealth[];
       };
-      token: string | null;
+      webSocketOrigin: string;
     };
   } = $props();
 
@@ -88,7 +88,7 @@
   });
 
   $effect(() => {
-    connect(data.token, ["session.events", "system.health"]);
+    connect(["system.health"], {}, data.webSocketOrigin);
     return () => disconnect();
   });
 

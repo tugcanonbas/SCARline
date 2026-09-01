@@ -1,7 +1,0 @@
-aio-pika==9.5.4
-bleak>=0.21.1
-evdev==1.9.1
-mediapipe==0.10.14
-opencv-python-headless==4.11.0.86
-pyserial>=3.5
-PyYAML==6.0.2

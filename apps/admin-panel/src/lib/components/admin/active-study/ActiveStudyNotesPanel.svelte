@@ -1,16 +1,19 @@
 <script lang="ts">
   import SurfaceCard from "$lib/components/SurfaceCard.svelte";
+  import { SESSION_OPERATION_ACCESS_REQUIRED } from "$lib/permissions";
 
   let {
     selectedSession = "",
     noteText = $bindable(""),
     onHandleNoteKeydown,
     noteEntries = [],
+    canOperate = false,
   } = $props<{
     selectedSession?: string;
     noteText?: string;
     onHandleNoteKeydown: (event: KeyboardEvent) => void;
     noteEntries?: Array<{ timestamp: string; text: string }>;
+    canOperate?: boolean;
   }>();
 </script>
 
@@ -19,6 +22,7 @@
   subtitle="Enter and save a timestamped session note."
 >
   <form class="form-stack" method="POST" action="?/note">
+    <fieldset class="contents" disabled={!canOperate} title={!canOperate ? SESSION_OPERATION_ACCESS_REQUIRED : undefined}>
     <input type="hidden" name="sessionId" value={selectedSession} />
     <textarea
       name="note"
@@ -30,11 +34,13 @@
     <button
       class="button-secondary"
       disabled={!noteText.trim() || !selectedSession}
+      title={!canOperate ? SESSION_OPERATION_ACCESS_REQUIRED : undefined}
       type="submit"
     >
       Add Note
       <span style="font-weight: 400">(Ctrl+Enter)</span>
     </button>
+    </fieldset>
     {#if noteEntries.length > 0}
       <div class="list-stack">
         {#each noteEntries as note}

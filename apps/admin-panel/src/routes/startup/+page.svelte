@@ -9,7 +9,7 @@
   const healthItems = $derived(
     Object.entries(data.health ?? {}).map(([label, value]) => ({ label, value }))
   );
-  const serviceCount = $derived(Object.keys(data.health ?? {}).length);
+  const serviceCount = $derived(Array.isArray(data.health?.components) ? data.health.components.length : 0);
 </script>
 
 <div class="page-shell--wide py-10">
@@ -20,8 +20,8 @@
   />
 
   <div class="metric-grid">
-    <MetricCard label="Bootstrap" value={data.bootstrap.onboardingCompleted ? 'Ready' : 'Setup'} hint={data.bootstrap.onboardingCompleted ? 'Onboarding has completed' : 'Onboarding is still required'} accent />
-    <MetricCard label="Health Keys" value={serviceCount} hint="Values returned by the health endpoint" />
+    <MetricCard label="Bootstrap" value={data.bootstrap.onboardingCompleted ? 'Ready' : 'Waiting'} hint={data.bootstrap.onboardingCompleted ? 'Platform readiness checks passed' : 'Platform readiness checks are still pending'} accent />
+    <MetricCard label="Components" value={serviceCount} hint="Readiness components checked" />
     <MetricCard label="Polling" value="Manual" hint="Refresh this page to check the latest status" />
     <MetricCard label="Operator Path" value="Admin" hint="Continue to dashboard after services report ready" />
   </div>
@@ -29,8 +29,8 @@
   <div class="mt-4">
   <SurfaceCard title="Health Snapshot" subtitle="Real-time system startup and health status.">
     <div class="mb-4 flex flex-wrap items-center gap-3">
-      <StatusBadge status={data.health?.status ?? 'unknown'} />
-      <StatusBadge status={data.bootstrap.onboardingCompleted ? 'healthy' : 'pending'} label={data.bootstrap.onboardingCompleted ? 'Onboarding complete' : 'Onboarding pending'} />
+      <StatusBadge status={String(data.health?.status ?? 'unknown')} />
+      <StatusBadge status={data.bootstrap.onboardingCompleted ? 'healthy' : 'pending'} label={data.bootstrap.onboardingCompleted ? 'Platform ready' : 'Readiness pending'} />
     </div>
     <KeyValueGrid items={healthItems} />
   </SurfaceCard>

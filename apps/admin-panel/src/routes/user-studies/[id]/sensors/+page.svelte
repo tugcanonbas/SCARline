@@ -4,19 +4,19 @@
   import PageHeader from "$lib/components/PageHeader.svelte";
   import StatusBadge from "$lib/components/StatusBadge.svelte";
   import StudyTabs from "$lib/components/StudyTabs.svelte";
+  import StudyLifecycleControls from "$lib/components/admin/studies/StudyLifecycleControls.svelte";
   import SurfaceCard from "$lib/components/SurfaceCard.svelte";
   import { appPath } from "$lib/paths";
   import { studySectionHref } from "$lib/studySections";
-  import { CirclePlay } from "lucide-svelte";
+  import { RefreshCw } from "lucide-svelte";
+  import { STUDY_DESIGN_ACCESS_REQUIRED } from "$lib/permissions";
 
   let { data } = $props();
   const configuredSensors = $derived(data.config?.sensors ?? []);
   const driverCount = $derived(data.drivers.length);
   const highRateSensors = $derived(
-    configuredSensors.filter(
-      (sensor: Record<string, unknown>) =>
-        Number(sensor.sample_rate ?? sensor.sampleRate ?? 0) >= 20,
-    ).length,
+    configuredSensors.reduce((count: number, sensor: Record<string, unknown>) =>
+      count + Object.values(sensor.channelRates ?? { default: sensor.sample_rate ?? sensor.sampleRate ?? 0 }).filter((rate) => Number(rate) >= 20).length, 0),
   );
 
   function sensorForDriver(driverId: string) {
@@ -37,15 +37,7 @@
   description={data.study?.description ?? "No description"}
 >
   {#snippet actions()}
-    <div class="action-strip">
-      <a
-        class="button-primary"
-        href={appPath(`/user-studies/${data.study.id}/sessions`)}
-      >
-        <CirclePlay size={24} strokeWidth={1.5} />
-        New Session
-      </a>
-    </div>
+    <StudyLifecycleControls study={data.study} readiness={data.readiness} canManage={data.canManage} />
   {/snippet}
 </PageHeader>
 <StudyTabs
@@ -79,8 +71,15 @@
 <div class="section-grid section-grid--sidebar mt-4">
   <SurfaceCard
     title="Driver Configuration"
-    subtitle="Configure physical lab hardware — steering wheels, eye trackers, heart-rate monitors — connected to this computer."
+    subtitle="Configure physical lab hardware discovered from the sensor driver directory."
   >
+    <form class="form-actions mb-4" method="POST" action="?/refresh">
+        <button class="button-secondary" type="submit" disabled={!data.canManage} title={!data.canManage ? STUDY_DESIGN_ACCESS_REQUIRED : undefined}>
+          <RefreshCw size={18} strokeWidth={1.5} />
+          Refresh Sensor Drivers
+        </button>
+        <span class="form-field__hint">Reads new and updated manifests without rebuilding the platform.</span>
+    </form>
     <p class="form-field__hint mb-4">
       Looking for in-simulator sensors instead (cameras, LiDAR, GPS)? Those
       are on the
@@ -88,8 +87,8 @@
         >Simulator Setup tab</a
       >.
     </p>
-    {#if data.canManage}
-      <form class="list-stack" method="POST" action="?/save">
+    <form class="list-stack" method="POST" action="?/save">
+      <fieldset class="contents" disabled={!data.canManage} title={!data.canManage ? STUDY_DESIGN_ACCESS_REQUIRED : undefined}>
         {#each data.drivers as driver}
           {@const existing = sensorForDriver(driver.driverId)}
           <div class="entity-card entity-card--tight">
@@ -111,18 +110,33 @@
               type="hidden"
               value={driver.sensorType}
             />
+            <input
+              name={`${driver.driverId}:driverKey`}
+              type="hidden"
+              value={driver.driverKey}
+            />
+            <p class="form-field__hint">
+              {driver.channels.map((channel: Record<string, unknown>) => channel.name ?? channel.key).join(" · ")}
+            </p>
             <div class="form-grid-2">
-              <label class="form-field">
-                <span>Sample Rate (Hz)</span>
-                <input
-                  min="1"
-                  name={`${driver.driverId}:sampleRate`}
-                  type="number"
-                  value={existing?.sample_rate ??
-                    existing?.sampleRate ??
-                    (driver.driverId === "logitech_g29" ? 100 : 30)}
-                />
-              </label>
+              <div class="form-field">
+                <span>Channel Sample Rates</span>
+                <div class="list-stack">
+                  {#each driver.channels as channel}
+                    <input name={`${driver.driverId}:channelId`} type="hidden" value={channel.id} />
+                    <label class="form-field">
+                      <span class="form-field__hint">{channel.name ?? channel.key} (Hz)</span>
+                      <input
+                        min="0.1"
+                        step="any"
+                        name={`${driver.driverId}:${channel.id}:sampleRate`}
+                        type="number"
+                        value={(existing?.channelRates as Record<string, unknown> | undefined)?.[channel.id] ?? channel.metadata?.sampleRate ?? driver.defaultSampleRate}
+                      />
+                    </label>
+                  {/each}
+                </div>
+              </div>
               <label class="flex items-center gap-2">
                 <input
                   checked={Boolean(existing?.required)}
@@ -131,6 +145,16 @@
                 />
                 <span>Required for session start</span>
               </label>
+              {#if driver.supportsRecording}
+                <label class="flex items-center gap-2">
+                  <input
+                    checked={Boolean(existing?.recording)}
+                    name={`${driver.driverId}:recording`}
+                    type="checkbox"
+                  />
+                  <span>Record camera locally during the session</span>
+                </label>
+              {/if}
               <details class="md:col-span-2">
                 <summary>Advanced: raw metadata (JSON)</summary>
                 <label class="form-field mt-2">
@@ -149,24 +173,15 @@
           </div>
         {/each}
         <div class="form-actions">
-          <button class="button-primary" formaction="?/save" type="submit"
+          <button class="button-primary" formaction="?/save" type="submit" title={!data.canManage ? STUDY_DESIGN_ACCESS_REQUIRED : undefined}
             >Save Sensor Configuration</button
           >
-          <button class="button-secondary" formaction="?/preset" type="submit"
+          <button class="button-secondary" formaction="?/preset" type="submit" title={!data.canManage ? STUDY_DESIGN_ACCESS_REQUIRED : undefined}
             >Apply Default Sensor Set</button
           >
         </div>
-      </form>
-    {:else}
-      <div class="list-stack">
-        {#each data.drivers as driver}
-          <div class="entity-card entity-card--tight">
-            <p class="entity-card__title">{driver.displayName}</p>
-            <p>{driver.sensorType}</p>
-          </div>
-        {/each}
-      </div>
-    {/if}
+      </fieldset>
+    </form>
   </SurfaceCard>
 
   <SurfaceCard
@@ -182,9 +197,7 @@
                 {sensor.driver ?? sensor.driverId}
               </p>
               <p class="entity-card__meta">
-                {sensor.type ?? sensor.sensorType} · {sensor.sample_rate ??
-                  sensor.sampleRate ??
-                  0}Hz
+                {sensor.type ?? sensor.sensorType} · {Object.keys(sensor.channelRates ?? {}).length || 1} channel(s)
               </p>
             </div>
             <StatusBadge status="ready" label="Configured" />
@@ -193,7 +206,7 @@
             <div class="technical-panel">
               <p class="technical-label">Rate</p>
               <p class="technical-value">
-                {sensor.sample_rate ?? sensor.sampleRate ?? 0}Hz
+                {Object.values(sensor.channelRates ?? { default: sensor.sample_rate ?? sensor.sampleRate ?? 0 }).map((rate) => `${rate}Hz`).join(" · ")}
               </p>
             </div>
             <div class="technical-panel">

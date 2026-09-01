@@ -1,1 +1,0 @@
-"""SCARline CARLA adapter."""

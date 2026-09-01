@@ -1,14 +1,38 @@
-import { apiAction, apiRequest } from '$lib/server/api';
+import { apiRequest } from '$lib/server/api';
+import { saveAndApplySimulatorTemplate } from '$lib/server/condition-configuration';
 import { requireRole } from '$lib/server/rbac';
+import { requirePrimaryCondition } from '$lib/server/study-context';
+import { handleStudyTransition } from '$lib/server/study-lifecycle';
+import { fail, isHttpError } from '@sveltejs/kit';
 
 export const load = async ({ fetch, locals, params }) => {
-  const user = await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
+  const user = await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator', 'observer']);
+  const condition = await requirePrimaryCondition(fetch, locals, params.id);
+  const simulator = await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/conditions/${condition.id}/simulator`, locals.accessToken) as Record<string, unknown> | null;
+  const [study, readiness] = await Promise.all([
+    apiRequest(fetch, locals.apiBase, `/studies/${params.id}`, locals.accessToken),
+    apiRequest(fetch, locals.apiBase, `/studies/${params.id}/readiness`, locals.accessToken)
+  ]);
+  const studyRecord = study as Record<string, unknown>;
+  const metadata = studyRecord.metadata && typeof studyRecord.metadata === 'object'
+    ? studyRecord.metadata as Record<string, unknown>
+    : {};
+  const templates = metadata.configurationTemplates && typeof metadata.configurationTemplates === 'object'
+    ? metadata.configurationTemplates as Record<string, unknown>
+    : {};
+  const savedTemplate = templates.simulator && typeof templates.simulator === 'object'
+    ? templates.simulator as Record<string, unknown>
+    : {};
+  const simulatorConfiguration = simulator?.configuration && typeof simulator.configuration === 'object'
+    ? simulator.configuration as Record<string, unknown>
+    : {};
   return {
-    study: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}`, locals.accessToken),
-    config: await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/carla-config`, locals.accessToken),
-    maps: await apiRequest(fetch, locals.apiBase, '/carla/presets/maps', locals.accessToken),
-    weather: await apiRequest(fetch, locals.apiBase, '/carla/presets/weather', locals.accessToken),
-    vehicles: await apiRequest(fetch, locals.apiBase, '/carla/presets/vehicles', locals.accessToken),
+    study,
+    readiness,
+    config: (simulator?.simulatorType === 'mock' ? savedTemplate : simulatorConfiguration) as Record<string, any>,
+    maps: ['Town01', 'Town02', 'Town03', 'Town04', 'Town05', 'Town10HD'],
+    weather: ['ClearNoon', 'CloudyNoon', 'WetNoon', 'HardRainNoon', 'ClearSunset'],
+    vehicles: ['vehicle.tesla.model3', 'vehicle.audi.tt', 'vehicle.lincoln.mkz_2020'],
     studyId: params.id,
     canManage: user.roles?.some((role: string) => role === 'admin' || role === 'researcher') ?? false
   };
@@ -26,7 +50,8 @@ function sensorEnabled(formData: FormData, key: string) {
 }
 
 export const actions = {
-  default: async ({ fetch, locals, params, request }) => {
+  studyTransition: handleStudyTransition,
+  saveSimulator: async ({ fetch, locals, params, request }) => {
     await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
     const formData = await request.formData();
     const sensors = [
@@ -75,9 +100,8 @@ export const actions = {
       } : null
     ].filter(Boolean);
 
-    const result = await apiAction(fetch, locals.apiBase, `/studies/${params.id}/carla-config`, locals.accessToken, {
-      method: 'PUT',
-      body: JSON.stringify({
+    try {
+      await saveAndApplySimulatorTemplate(fetch, locals, params.id, {
         map: formData.get('map'),
         weatherPreset: formData.get('weatherPreset') || null,
         weatherCustom: {
@@ -86,11 +110,14 @@ export const actions = {
           windIntensity: numberFromForm(formData, 'windIntensity', 0)
         },
         egoVehicleBlueprint: formData.get('vehicle'),
-        simulationMode: formData.get('simulationMode') || 'synchronous',
-        fixedDeltaSeconds: numberFromForm(formData, 'fixedDeltaSeconds', 0.05),
+        simulationMode: 'synchronous',
+        fixedDeltaSeconds: 0.05,
+        controlMode: formData.get('controlMode') || 'io',
+        randomSeed: numberFromForm(formData, 'randomSeed', 0),
         trafficConfig: {
           npcVehicleCount: numberFromForm(formData, 'npcVehicleCount', 15),
-          speedDifference: numberFromForm(formData, 'trafficSpeedDifference', 0)
+          speedDifference: numberFromForm(formData, 'trafficSpeedDifference', 0),
+          speedLimitOverride: null
         },
         pedestrianConfig: {
           pedestrianCount: numberFromForm(formData, 'pedestrianCount', 0)
@@ -109,11 +136,22 @@ export const actions = {
         },
         recordingConfig: {
           enabled: sensorEnabled(formData, 'recordingEnabled'),
-          directory: String(formData.get('recordingDirectory') || '')
+          directory: String(formData.get('recordingDirectory') || '').trim() || null
         },
         sensors
-      })
-    }, 'Failed to save CARLA configuration');
-    return result.ok ? undefined : result.failure;
+      });
+      return { saved: true, message: 'Simulator configuration saved.' };
+    } catch (cause) {
+      if (isHttpError(cause)) {
+        return fail(cause.status, {
+          saved: false,
+          message: cause.body.message || 'Simulator configuration could not be saved. Retry saving.'
+        });
+      }
+      return fail(500, {
+        saved: false,
+        message: 'Simulator configuration could not be saved. Retry saving.'
+      });
+    }
   }
 };

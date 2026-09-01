@@ -1,6 +1,4 @@
 <script lang="ts">
-  import type { Component } from "svelte";
-
   let {
     label,
     value,
@@ -20,8 +18,11 @@
     valueContent?: () => unknown;
     href?: string;
     hrefText?: string;
-    icon?: Component<any> | null;
+    // lucide-svelte currently exposes a legacy-compatible constructor type.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    icon?: any;
   }>();
+  const Icon = $derived(icon);
 </script>
 
 <div class={`metric-card ${accent ? "metric-card--accent" : ""}`}>
@@ -38,8 +39,8 @@
   {/if}
   {#if href}
     <a class="metric-card__link button-secondary" {href}>
-      {#if icon}
-        <svelte:component this={icon} size={16} />
+      {#if Icon}
+        <Icon size={16} />
       {/if}
       {hrefText}
     </a>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import EmptyState from "$lib/components/admin/EmptyState.svelte";
   import SurfaceCard from "$lib/components/SurfaceCard.svelte";
+  import { SESSION_OPERATION_ACCESS_REQUIRED } from "$lib/permissions";
 
   let {
     canOperate = false,
@@ -22,19 +23,17 @@
   subtitle="Trigger widget actions manually during the session."
 >
   <div class="pill-row">
-    {#if canOperate}
-      {#each triggerableWidgets as widget}
+    {#each triggerableWidgets as widget}
         <form method="POST" action="?/trigger">
           <input type="hidden" name="sessionId" value={selectedSession} />
           <input type="hidden" name="instanceId" value={widget.instanceId} />
           <input type="hidden" name="widgetId" value={widget.widgetId} />
           <input type="hidden" name="action" value="manual-trigger" />
-          <button class="button-chip" type="submit" disabled={!selectedSession}>
+          <button class="button-chip" type="submit" disabled={!canOperate || !selectedSession} title={!canOperate ? SESSION_OPERATION_ACCESS_REQUIRED : undefined}>
             {widget.name}
           </button>
         </form>
-      {/each}
-    {/if}
+    {/each}
   </div>
   <div class="list-stack">
     {#each widgetUpdates as update}

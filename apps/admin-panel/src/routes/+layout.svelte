@@ -22,7 +22,7 @@
 
   let { data, children } = $props();
 
-  type Role = "admin" | "researcher" | "operator" | "viewer";
+  type Role = "admin" | "researcher" | "operator" | "observer";
   type NavigationItem = {
     href: string;
     label: string;
@@ -31,7 +31,7 @@
     external?: boolean;
   };
 
-  const allRoles: Role[] = ["admin", "researcher", "operator", "viewer"];
+  const allRoles: Role[] = ["admin", "researcher", "operator", "observer"];
   const designRoles: Role[] = ["admin", "researcher"];
   const adminRoles: Role[] = ["admin"];
   const currentRoles = $derived((data.user?.roles ?? []) as Role[]);
@@ -65,7 +65,7 @@
       href: "/researchers",
       label: "Researchers",
       icon: UsersRound,
-      roles: designRoles,
+      roles: adminRoles,
     },
   ] satisfies NavigationItem[];
 
@@ -74,7 +74,7 @@
       href: "/settings",
       label: "Settings",
       icon: Settings2,
-      roles: designRoles,
+      roles: adminRoles,
     },
     {
       href: data.docsUrl ?? "/docs/",
@@ -174,6 +174,7 @@
           <button
             class="scarline-sidebar-toggle"
             aria-controls="scarline-sidebar"
+            aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}
             aria-pressed={sidebarCollapsed}
             onclick={handleSidebarToggle}
             type="button"

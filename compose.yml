@@ -1,0 +1,261 @@
+services:
+  database:
+    build:
+      context: ./infra/database
+      dockerfile: Dockerfile
+    environment:
+      POSTGRES_DB: scarline
+      POSTGRES_USER: scarline
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready --quiet --host 127.0.0.1 --username "$${POSTGRES_USER}" --dbname "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - ./.runtime/postgres:/var/lib/postgresql/data
+    networks:
+      - scarline
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: scarline
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS must be set in .env}
+    healthcheck:
+      test:
+        - CMD
+        - rabbitmq-diagnostics
+        - -q
+        - ping
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - ./.runtime/rabbitmq:/var/lib/rabbitmq
+    networks:
+      - scarline
+
+  core-api:
+    build:
+      context: .
+      dockerfile: services/core-api/Dockerfile
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS must be set in .env}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET must be set in .env}
+      REFRESH_TOKEN_PEPPER: ${REFRESH_TOKEN_PEPPER:?REFRESH_TOKEN_PEPPER must be set in .env}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?BOOTSTRAP_ADMIN_PASSWORD must be set in .env}
+      OVERLAY_CONTROL_SECRET: ${OVERLAY_CONTROL_SECRET:?OVERLAY_CONTROL_SECRET must be set in .env}
+    depends_on:
+      database:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:8088/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    ports:
+      - "127.0.0.1:8088:8088"
+    volumes:
+      - ./.runtime/exports:/app/.runtime/exports
+      - ./widgets:/app/widgets:ro
+      - ./services/io-client/drivers:/app/services/io-client/drivers:ro
+    networks:
+      - scarline
+
+  admin-panel:
+    build:
+      context: .
+      dockerfile: apps/admin-panel/Dockerfile
+    environment:
+      CORE_API_ORIGIN: http://core-api:8088/api/v1
+      PUBLIC_CORE_API_ORIGIN: http://localhost:8088/api/v1
+      PUBLIC_CORE_API_WEBSOCKET_ORIGIN: ws://localhost:8088
+      ORIGIN: http://localhost:5173
+      SCARLINE_RUNTIME_DIRECTORY: .runtime
+      SCARLINE_PLATFORM_PORT: "8088"
+      SCARLINE_SIMULATOR_DEFAULT: mock
+      CARLA_SERVER_PORT: "2000"
+      SCARLINE_WIDGETS_DIRECTORY: /app/widgets
+    depends_on:
+      core-api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:5173/admin/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    ports:
+      - "127.0.0.1:5173:5173"
+    volumes:
+      - ./widgets:/app/widgets:ro
+    networks:
+      - scarline
+
+  overlay-web:
+    build:
+      context: .
+      dockerfile: apps/overlay-web/Dockerfile
+    environment:
+      PORT: "4000"
+      CORE_API_PUBLIC_ORIGIN: http://localhost:8088
+      CORE_API_PUBLIC_WS_ORIGIN: ws://localhost:8088
+      WIDGETS_DIRECTORY: /app/widgets
+    depends_on:
+      core-api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:4000/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    ports:
+      - "127.0.0.1:4000:4000"
+    volumes:
+      - ./widgets:/app/widgets:ro
+    networks:
+      - scarline
+
+  sim-bridge:
+    build:
+      context: .
+      dockerfile: services/sim-bridge/Dockerfile
+    environment:
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS must be set in .env}
+      SIM_BRIDGE_ADAPTER_SECRET: ${SIM_BRIDGE_ADAPTER_SECRET:?SIM_BRIDGE_ADAPTER_SECRET must be set in .env}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:9000/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    ports:
+      - "127.0.0.1:9000:9000"
+    volumes:
+      - ./.runtime/sim-bridge:/app/.runtime/sim-bridge
+    networks:
+      - scarline
+
+  io-client:
+    profiles:
+      - io-docker
+    build:
+      context: .
+      dockerfile: services/io-client/Dockerfile
+    environment:
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS must be set in .env}
+    command:
+      - --config
+      - /app/config.yml
+      - --repository-root
+      - /app
+      - --rabbit-host
+      - rabbitmq
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/health', timeout=2)
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    volumes:
+      - ./config.yml:/app/config.yml:ro
+      - ./services/io-client/drivers:/app/services/io-client/drivers:ro
+      - ./.runtime/io-client:/app/.runtime/io-client
+    networks:
+      - scarline
+
+  mock-simulator:
+    profiles:
+      - mock
+    build:
+      context: .
+      dockerfile: services/mock-simulator/Dockerfile
+    environment:
+      SIM_BRIDGE_ADAPTER_SECRET: ${SIM_BRIDGE_ADAPTER_SECRET:?SIM_BRIDGE_ADAPTER_SECRET must be set in .env}
+    depends_on:
+      sim-bridge:
+        condition: service_healthy
+    volumes:
+      - ./.runtime/mock-simulator:/app/.runtime/mock-simulator
+    networks:
+      - scarline
+
+  carla-client:
+    profiles:
+      - carla
+    build:
+      context: .
+      dockerfile: services/carla-client/Dockerfile
+    platform: linux/amd64
+    environment:
+      SIM_BRIDGE_ADAPTER_SECRET: ${SIM_BRIDGE_ADAPTER_SECRET:?SIM_BRIDGE_ADAPTER_SECRET must be set in .env}
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    command:
+      - --config
+      - /app/config.yml
+      - --repository-root
+      - /app
+    depends_on:
+      sim-bridge:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request,yaml; c=yaml.safe_load(open('/app/config.yml')); urllib.request.urlopen('http://127.0.0.1:'+str(c['simulator']['carla']['health_port'])+'/health', timeout=2)
+      interval: 5s
+      timeout: 3s
+      retries: 24
+      start_period: 10s
+    volumes:
+      - ./config.yml:/app/config.yml:ro
+      - ./.runtime/carla-client:/app/.runtime/carla-client
+    networks:
+      - scarline
+
+networks:
+  scarline:
+    driver: bridge

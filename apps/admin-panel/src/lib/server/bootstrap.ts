@@ -1,80 +1,41 @@
-const PUBLIC_PATHS = new Set([
-  '/startup',
-  '/onboarding/system',
-  '/onboarding/researcher',
-  '/login'
-]);
+const PUBLIC_PATHS = new Set(['/startup', '/login', '/change-password']);
 
 interface BootstrapPayload {
   onboardingCompleted: boolean;
   available: boolean;
+  health: Record<string, unknown>;
 }
 
-interface RouteGuardInput {
+function readinessUrl(apiBase: string): string {
+  return `${apiBase.replace(/\/api\/v1\/?$/, '')}/ready`;
+}
+
+export async function getBootstrapState(fetch: typeof globalThis.fetch, apiBase: string): Promise<BootstrapPayload> {
+  try {
+    const response = await fetch(readinessUrl(apiBase));
+    const health = await response.json().catch(() => ({ status: 'unhealthy', components: [] }));
+    return { onboardingCompleted: response.ok, available: true, health };
+  } catch {
+    return {
+      onboardingCompleted: false,
+      available: false,
+      health: { status: 'unavailable', components: [] }
+    };
+  }
+}
+
+export function resolveRouteGuardRedirect(input: {
   pathname: string;
   onboardingCompleted: boolean;
   isAuthenticated: boolean;
-}
-
-export async function getBootstrapState(
-  fetch: typeof globalThis.fetch,
-  apiBase: string
-): Promise<BootstrapPayload> {
-  try {
-    const response = await fetch(`${apiBase}/system/bootstrap`);
-    if (!response.ok) {
-      return { onboardingCompleted: false, available: false };
-    }
-
-    const payload = await response.json().catch(() => null);
-    return {
-      onboardingCompleted: Boolean(payload?.data?.onboardingCompleted),
-      available: true
-    };
-  } catch {
-    return { onboardingCompleted: false, available: false };
-  }
-}
-
-export function resolveRouteGuardRedirect({
-  pathname,
-  onboardingCompleted,
-  isAuthenticated
-}: RouteGuardInput): string | null {
-  if (!onboardingCompleted && isAuthenticated) {
-    return null;
-  }
-
-  if (!onboardingCompleted) {
-    if (pathname === '/login') {
-      return '/onboarding/system';
-    }
-
-    if (!PUBLIC_PATHS.has(pathname)) {
-      return '/onboarding/system';
-    }
-
-    return null;
-  }
-
-  if (pathname.startsWith('/onboarding/')) {
-    return isAuthenticated ? '/dashboard' : '/login';
-  }
-
-  if (!PUBLIC_PATHS.has(pathname) && !isAuthenticated) {
-    return '/login';
-  }
-
+}): string | null {
+  if (!input.onboardingCompleted) return input.pathname === '/startup' ? null : '/startup';
+  if (input.pathname.startsWith('/onboarding/')) return input.isAuthenticated ? '/dashboard' : '/login';
+  if (!PUBLIC_PATHS.has(input.pathname) && !input.isAuthenticated) return '/login';
   return null;
 }
 
-export function resolveIndexRedirect({
-  onboardingCompleted,
-  isAuthenticated
-}: Omit<RouteGuardInput, 'pathname'>): string {
-  if (!onboardingCompleted) {
-    return '/onboarding/system';
-  }
-
-  return isAuthenticated ? '/dashboard' : '/login';
+export function resolveIndexRedirect(input: { onboardingCompleted: boolean; isAuthenticated: boolean }): string {
+  if (!input.onboardingCompleted) return '/startup';
+  return input.isAuthenticated ? '/dashboard' : '/login';
 }

@@ -1,21 +1,26 @@
 {
   "name": "@scarline/overlay-web",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22",
+    "npm": ">=10"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "check": "tsc -p tsconfig.json --noEmit",
-    "dev": "tsx watch src/server.ts",
-    "lint": "tsc -p tsconfig.json --noEmit",
-    "start": "node dist/server.js"
+    "dev": "npm run build && node --watch dist/server.js",
+    "start": "node dist/server.js",
+    "test": "npm run build && node --import tsx --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "fastify": "^5.2.1"
+    "@scarline/contracts": "0.0.0",
+    "fastify": "^5.6.2"
   },
   "devDependencies": {
-    "@types/node": "^22.13.10",
-    "tsx": "^4.19.3",
-    "typescript": "^5.8.2"
+    "@types/node": "^26.2.0",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
   }
 }

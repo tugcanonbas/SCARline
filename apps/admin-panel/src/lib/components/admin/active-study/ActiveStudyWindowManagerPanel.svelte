@@ -2,6 +2,7 @@
   import InlineNotice from "$lib/components/admin/InlineNotice.svelte";
   import EmptyState from "$lib/components/admin/EmptyState.svelte";
   import SurfaceCard from "$lib/components/SurfaceCard.svelte";
+  import { SESSION_OPERATION_ACCESS_REQUIRED } from "$lib/permissions";
 
   let {
     windowUpdateStatus,
@@ -16,11 +17,15 @@
       instanceId: string;
       widgetId: string;
       mode: "transparent_electron" | "browser_popup";
+      targetDisplay: string;
       order: number;
       x: number;
       y: number;
       width: number;
       height: number;
+      liveDisplay: string;
+      degraded: boolean;
+      degradedReason: string | null;
     }>;
     savedWindows?: Record<
       string,
@@ -64,6 +69,9 @@
                 >Unsaved changes</span
               >
             {/if}
+            {#if entry.degraded}
+              <span class="status-badge status-badge--danger">Degraded</span>
+            {/if}
             <span class="status-badge status-badge--muted"
               >{entry.mode === "browser_popup"
                 ? "Browser window"
@@ -71,11 +79,21 @@
             >
           </div>
         </div>
+        {#if entry.degraded}
+          <p class="entity-card__meta">
+            Saved display: {entry.targetDisplay} · Temporary live display: {entry.liveDisplay}
+          </p>
+          <p class="entity-card__meta">
+            {entry.degradedReason ?? "The saved display is not available."} Reassign this widget in Participant View to make the change permanent.
+          </p>
+        {/if}
         <div class="detail-grid-3">
           <label class="form-field form-field--compact"
             >X
             <input
               type="number"
+              disabled={!canOperate}
+              title={!canOperate ? SESSION_OPERATION_ACCESS_REQUIRED : undefined}
               value={entry.x}
               oninput={(event) =>
                 updateDraft(String(entry.instanceId), {
@@ -89,6 +107,8 @@
             >Y
             <input
               type="number"
+              disabled={!canOperate}
+              title={!canOperate ? SESSION_OPERATION_ACCESS_REQUIRED : undefined}
               value={entry.y}
               oninput={(event) =>
                 updateDraft(String(entry.instanceId), {
@@ -102,6 +122,8 @@
             >W
             <input
               type="number"
+              disabled={!canOperate}
+              title={!canOperate ? SESSION_OPERATION_ACCESS_REQUIRED : undefined}
               value={entry.width}
               oninput={(event) =>
                 updateDraft(String(entry.instanceId), {
@@ -118,6 +140,8 @@
             >H
             <input
               type="number"
+              disabled={!canOperate}
+              title={!canOperate ? SESSION_OPERATION_ACCESS_REQUIRED : undefined}
               value={entry.height}
               oninput={(event) =>
                 updateDraft(String(entry.instanceId), {
@@ -132,14 +156,14 @@
           </label>
         </div>
         <div class="form-actions">
-          {#if canOperate}
-            <button
+          <button
               type="button"
               class="button-secondary"
+              disabled={!canOperate}
+              title={!canOperate ? SESSION_OPERATION_ACCESS_REQUIRED : undefined}
               onclick={() => applyWindowUpdate(String(entry.instanceId))}
               >Apply</button
             >
-          {/if}
         </div>
       </div>
     {:else}

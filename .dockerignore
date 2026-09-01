@@ -1,6 +1,8 @@
-# Ignore all node_modules (recommended)
+.git
+.runtime
+.env
 node_modules
 **/node_modules
-
-# Specifically ignore the problematic Mermaid cache folder
-docs/node_modules/.ignored_mermaid
+**/dist
+references
+npm-debug.log*

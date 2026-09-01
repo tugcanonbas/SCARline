@@ -1,5 +1,0 @@
-# Default: normalize line endings to LF on commit
-* text=auto eol=lf
-
-# Shell scripts must always be LF - never CRLF
-*.sh text eol=lf
