@@ -4,11 +4,11 @@
   import MetricCard from "$lib/components/admin/MetricCard.svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
   import StudyTabs from "$lib/components/StudyTabs.svelte";
+  import StudyLifecycleControls from "$lib/components/admin/studies/StudyLifecycleControls.svelte";
   import SurfaceCard from "$lib/components/SurfaceCard.svelte";
   import { enhance } from "$app/forms";
-  import { appPath } from "$lib/paths";
   import { formatStatusLabel } from "$lib/format";
-  import { CirclePlay } from "lucide-svelte";
+  import { STUDY_DESIGN_ACCESS_REQUIRED } from "$lib/permissions";
 
   let { data } = $props();
 
@@ -141,15 +141,7 @@
   description={data.study?.description ?? "No description"}
 >
   {#snippet actions()}
-    <div class="action-strip">
-      <a
-        class="button-primary"
-        href={appPath(`/user-studies/${data.study.id}/sessions`)}
-      >
-        <CirclePlay size={24} strokeWidth={1.5} />
-        New Session
-      </a>
-    </div>
+    <StudyLifecycleControls study={data.study} readiness={data.readiness} canManage={data.canManage} />
   {/snippet}
 </PageHeader>
 <StudyTabs
@@ -182,12 +174,12 @@
 
 <div class="section-grid section-grid--balanced mt-4">
   <!-- ── Add Condition ──────────────────────────────────────────────────── -->
-  {#if data.canManage}
-    <SurfaceCard
+  <SurfaceCard
       title="Add Condition"
       subtitle="Define a new study condition variant with simulator, widget, and trigger rule configuration."
     >
-      <form class="form-stack" method="POST" action="?/create" use:enhance>
+      <form method="POST" action="?/create" use:enhance>
+        <fieldset class="form-stack" disabled={!data.canManage} title={!data.canManage ? STUDY_DESIGN_ACCESS_REQUIRED : undefined}>
         <label class="form-field">
           <span>Name <span class="text-red-400">*</span></span>
           <input bind:value={newName} name="name" required />
@@ -304,12 +296,12 @@
           {/each}
         </div>
 
-        <button class="button-primary" disabled={!newName.trim()} type="submit"
+        <button class="button-primary" disabled={!data.canManage || !newName.trim()} title={!data.canManage ? STUDY_DESIGN_ACCESS_REQUIRED : undefined} type="submit"
           >Save Condition</button
         >
+        </fieldset>
       </form>
-    </SurfaceCard>
-  {/if}
+  </SurfaceCard>
 
   <!-- ── Condition Set ──────────────────────────────────────────────────── -->
   <SurfaceCard
@@ -353,6 +345,9 @@
                     >Delete</button
                   >
                 </form>
+              {:else}
+                <button class="condition-action-btn" type="button" disabled title={STUDY_DESIGN_ACCESS_REQUIRED}>Edit</button>
+                <button class="condition-action-btn condition-action-btn--danger" type="button" disabled title={STUDY_DESIGN_ACCESS_REQUIRED}>Delete</button>
               {/if}
             </div>
           </div>

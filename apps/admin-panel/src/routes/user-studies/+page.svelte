@@ -4,6 +4,7 @@
   import PageHeader from "$lib/components/PageHeader.svelte";
   import { Plus, ArrowRight } from "lucide-svelte";
   import StatusBadge from "$lib/components/StatusBadge.svelte";
+  import { STUDY_DESIGN_ACCESS_REQUIRED } from "$lib/permissions";
 
   let { data } = $props();
   type StudyListItem = {
@@ -15,7 +16,7 @@
   };
 
   const activeStudies = $derived(
-    data.studies.filter((study: StudyListItem) => study.status === "active")
+    data.studies.filter((study: StudyListItem) => ["configured", "ready", "running"].includes(study.status))
       .length,
   );
   const draftStudies = $derived(
@@ -42,6 +43,11 @@
         <Plus size={24} strokeWidth={1.5} />
         New Study
       </a>
+    {:else}
+      <button class="button-primary" type="button" disabled title={STUDY_DESIGN_ACCESS_REQUIRED}>
+        <Plus size={24} strokeWidth={1.5} />
+        New Study
+      </button>
     {/if}
   {/snippet}
 </PageHeader>

@@ -21,16 +21,16 @@
     </style>
 </head>
 
-<body class="bg-transparent min-h-screen flex items-center justify-center p-4">
+<body class="m-0 h-screen w-full overflow-hidden bg-transparent">
 
     <!-- Card Container: 150x197 -->
-    <div
-        class="bg-transparent w-[150px] h-[197px] rounded-lg overflow-hidden shadow-md relative text-white flex flex-col isolate">
+    <div data-scarline-widget-root
+        class="bg-transparent w-full h-full rounded-lg overflow-hidden shadow-md relative text-white flex flex-col isolate">
 
 
 
         <!-- Back Button -->
-        <button type="button" class="absolute top-2 left-2 z-20 text-white/70 hover:text-white transition-colors">
+        <button type="button" data-action="contact.back" class="absolute top-2 left-2 z-20 text-white/70 hover:text-white transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="15 18 9 12 15 6" />
@@ -95,7 +95,7 @@
 
         <!-- Navigate Button -->
         <div class="relative z-10 w-full flex justify-center mt-auto mb-1.5">
-            <button
+            <button type="button" data-action="contact.navigate"
                 class="px-4 py-1 rounded border border-white/40 text-[8px] font-medium text-white/80 hover:bg-white/10 hover:text-white transition-colors tracking-wide">
                 Navigate
             </button>

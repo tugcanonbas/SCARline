@@ -1,43 +1,151 @@
-import { z } from 'zod';
+import { z } from "zod";
 
-export const SIM_BRIDGE_WEBSOCKET_PATHS = {
-  adapter: '/adapter',
-  bridgeCompatibility: '/bridge'
-} as const;
+import {
+  IsoDateTimeSchema,
+  JsonObjectSchema,
+  UuidSchema,
+} from "./common.js";
+import { PlatformHealthSchema } from "./health.js";
+import { MessageEnvelopeSchema } from "./messaging.js";
+import { ExportProgressPayloadSchema } from "./export.js";
+import { SensorStatusPayloadSchema } from "./sensor.js";
+import { SessionStatusSchema } from "./session.js";
 
-export const websocketChannelSchema = z.enum([
-  'session.events',
-  'session.telemetry',
-  'widget.updates',
-  'system.health',
-  'sensor.status',
-  'export.progress'
+export const LifecycleCommandStatusSchema = z.enum([
+  "queued",
+  "processing",
+  "completed",
+  "failed",
+  "timed_out",
 ]);
 
-export type WebSocketChannel = z.infer<typeof websocketChannelSchema>;
+export const SessionLifecycleActionSchema = z.enum([
+  "ready",
+  "start",
+  "pause",
+  "resume",
+  "advance",
+  "complete",
+  "abort",
+  "fail",
+]);
 
-export const websocketSubscriptionMessageSchema = z.object({
-  action: z.enum(['subscribe', 'unsubscribe']),
-  channels: z.array(websocketChannelSchema).min(1),
-  filters: z.object({
-    studyId: z.string().uuid().optional(),
-    sessionId: z.string().uuid().optional()
-  }).optional()
+export const CORE_API_WEBSOCKET_PATH = "/ws";
+export const SIM_BRIDGE_ADAPTER_WEBSOCKET_PATH = "/adapter";
+
+export const WebSocketChannelSchema = z.enum([
+  "session.lifecycle",
+  "session.events",
+  "session.telemetry",
+  "widget.updates",
+  "overlay.windows",
+  "system.health",
+  "sensor.status",
+  "export.progress",
+]);
+
+export const WebSocketSubscriptionFiltersSchema = z
+  .object({
+    studyId: UuidSchema.optional(),
+    sessionId: UuidSchema.optional(),
+  })
+  .strict();
+
+const SubscriptionRequestBaseSchema = z.object({
+  requestId: UuidSchema,
+  channels: z.array(WebSocketChannelSchema).min(1),
+  filters: WebSocketSubscriptionFiltersSchema.optional(),
 });
 
-export const websocketDataMessageSchema = z.object({
-  type: z.enum(['event', 'command-response', 'error']),
-  channel: websocketChannelSchema,
-  data: z.record(z.string(), z.unknown())
-});
+export const WebSocketSubscribeMessageSchema = SubscriptionRequestBaseSchema.extend({
+  type: z.literal("subscription.subscribe"),
+}).strict();
 
-export const exportProgressWebSocketPayloadSchema = z.object({
-  exportJobId: z.string().uuid(),
-  status: z.enum(['queued', 'running', 'completed', 'failed', 'cancelled']),
-  progress: z.number().int().min(0).max(100),
-  artifactPath: z.string().optional(),
-  errorMessage: z.string().optional()
-});
+export const WebSocketUnsubscribeMessageSchema = SubscriptionRequestBaseSchema.extend({
+  type: z.literal("subscription.unsubscribe"),
+}).strict();
 
-export type WebSocketSubscriptionMessage = z.infer<typeof websocketSubscriptionMessageSchema>;
-export type WebSocketDataMessage = z.infer<typeof websocketDataMessageSchema>;
+export const WebSocketClientMessageSchema = z.discriminatedUnion("type", [
+  WebSocketSubscribeMessageSchema,
+  WebSocketUnsubscribeMessageSchema,
+]);
+
+export const WebSocketSubscriptionAckSchema = z
+  .object({
+    type: z.literal("subscription.ack"),
+    requestId: UuidSchema,
+    action: z.enum(["subscribe", "unsubscribe"]),
+    channels: z.array(WebSocketChannelSchema),
+  })
+  .strict();
+
+export const SessionLifecycleWebSocketPayloadSchema = z
+  .object({
+    studyId: UuidSchema,
+    sessionId: UuidSchema,
+    previousStatus: SessionStatusSchema.nullable(),
+    status: SessionStatusSchema,
+    commandId: UuidSchema.nullable(),
+    commandAction: SessionLifecycleActionSchema.nullable(),
+    commandStatus: LifecycleCommandStatusSchema.nullable(),
+    commandError: z.string().nullable(),
+    activeConditionId: UuidSchema.nullable(),
+    activeConditionName: z.string().nullable(),
+    activeConditionSequence: z.number().int().nonnegative().nullable(),
+    conditionCount: z.number().int().nonnegative(),
+    remainingConditionCount: z.number().int().nonnegative(),
+  })
+  .strict();
+
+const createDataMessageSchema = <
+  TChannel extends z.ZodLiteral<string>,
+  TData extends z.ZodType,
+>(channel: TChannel, data: TData) =>
+  z
+    .object({
+      type: z.literal("data"),
+      channel,
+      timestamp: IsoDateTimeSchema,
+      data,
+    })
+    .strict();
+
+export const WebSocketDataMessageSchema = z.discriminatedUnion("channel", [
+  createDataMessageSchema(
+    z.literal("session.lifecycle"),
+    SessionLifecycleWebSocketPayloadSchema,
+  ),
+  createDataMessageSchema(z.literal("session.events"), MessageEnvelopeSchema),
+  createDataMessageSchema(z.literal("session.telemetry"), JsonObjectSchema),
+  createDataMessageSchema(z.literal("widget.updates"), JsonObjectSchema),
+  createDataMessageSchema(z.literal("overlay.windows"), JsonObjectSchema),
+  createDataMessageSchema(z.literal("system.health"), PlatformHealthSchema),
+  createDataMessageSchema(z.literal("sensor.status"), SensorStatusPayloadSchema),
+  createDataMessageSchema(
+    z.literal("export.progress"),
+    ExportProgressPayloadSchema,
+  ),
+]);
+
+export const WebSocketErrorMessageSchema = z
+  .object({
+    type: z.literal("error"),
+    requestId: UuidSchema.nullable(),
+    code: z.string().regex(/^[A-Z][A-Z0-9_]*$/),
+    message: z.string().min(1),
+  })
+  .strict();
+
+export const WebSocketServerMessageSchema = z.discriminatedUnion("type", [
+  WebSocketSubscriptionAckSchema,
+  WebSocketDataMessageSchema,
+  WebSocketErrorMessageSchema,
+]);
+
+export type WebSocketChannel = z.infer<typeof WebSocketChannelSchema>;
+export type WebSocketClientMessage = z.infer<
+  typeof WebSocketClientMessageSchema
+>;
+export type WebSocketServerMessage = z.infer<
+  typeof WebSocketServerMessageSchema
+>;

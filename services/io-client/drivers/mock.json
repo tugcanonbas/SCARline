@@ -1,0 +1,50 @@
+{
+  "key": "mock",
+  "name": "Synthetic Sensor Suite",
+  "version": "1.0.0",
+  "deviceType": "synthetic",
+  "platforms": ["linux", "darwin", "win32"],
+  "capabilities": ["development.synthetic"],
+  "configurationSchema": {
+    "type": "object",
+    "properties": {
+      "sampleRate": { "type": "number", "minimum": 1, "maximum": 1000 }
+    }
+  },
+  "channels": [
+    {
+      "key": "steering",
+      "name": "Synthetic steering",
+      "modality": "driving",
+      "unit": null,
+      "sampleRate": 100,
+      "configurationSchema": {}
+    },
+    {
+      "key": "heart_rate",
+      "name": "Synthetic heart rate",
+      "modality": "health",
+      "unit": "bpm",
+      "sampleRate": 1,
+      "configurationSchema": {}
+    },
+    {
+      "key": "ecg",
+      "name": "Synthetic ECG",
+      "modality": "health",
+      "unit": "mV",
+      "sampleRate": 500,
+      "configurationSchema": {}
+    },
+    {
+      "key": "eye_tracking",
+      "name": "Synthetic eye tracking",
+      "modality": "attention",
+      "unit": null,
+      "sampleRate": 10,
+      "configurationSchema": {}
+    }
+  ],
+  "optionalDependency": null,
+  "mock": true
+}

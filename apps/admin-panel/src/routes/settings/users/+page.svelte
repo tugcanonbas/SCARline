@@ -5,7 +5,7 @@
   import { formatStatusLabel } from "$lib/format";
 
   let { data } = $props();
-  const roles = ["admin", "researcher", "operator", "viewer"];
+  const roles = ["admin", "researcher", "operator", "observer"];
 </script>
 
 <div class="section-grid section-grid--sidebar">
@@ -28,7 +28,7 @@
         </label>
         <label class="form-field">
           <span>Initial Password</span>
-          <input minlength="8" name="password" type="password" required />
+          <input minlength="12" name="password" type="password" required />
         </label>
       </div>
       <label class="form-field">
@@ -49,7 +49,7 @@
                 name="roles"
                 type="checkbox"
                 value={role}
-                checked={role === "viewer"}
+                checked={role === "observer"}
               />
               <span>{formatStatusLabel(role)}</span>
             </label>
@@ -98,7 +98,7 @@
               <label class="form-field form-field--compact">
                 <span>New Password</span>
                 <input
-                  minlength="8"
+                  minlength="12"
                   name="password"
                   placeholder="Leave unchanged"
                   type="password"

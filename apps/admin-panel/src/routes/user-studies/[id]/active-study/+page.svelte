@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { deserialize } from "$app/forms";
   import ActiveStudyEventsPanel from "$lib/components/admin/active-study/ActiveStudyEventsPanel.svelte";
   import ActiveStudyNotesPanel from "$lib/components/admin/active-study/ActiveStudyNotesPanel.svelte";
   import ActiveStudySensorStatusPanel from "$lib/components/admin/active-study/ActiveStudySensorStatusPanel.svelte";
@@ -12,6 +13,8 @@
   import StudyTabs from "$lib/components/StudyTabs.svelte";
   import { createRealtimeStore } from "$lib/stores/realtime";
   import { formatDate, formatStatusLabel, shortId } from "$lib/format";
+  import { appPath } from "$lib/paths";
+  import { appendTelemetrySample, telemetryNumber } from "$lib/telemetry";
   import { untrack } from "svelte";
 
   // Route-level regression marker preserved for source-inspection tests:
@@ -26,13 +29,21 @@
     startedAt?: string | null;
     conditionId?: string | null;
     notes?: string | null;
+    conditions?: Array<Record<string, unknown>>;
+    activeCondition?: Record<string, unknown> | null;
+    nextCondition?: Record<string, unknown> | null;
+    conditionCount?: number;
+    remainingConditionCount?: number;
+    latestCommand?: Record<string, unknown> | null;
   };
 
   const live = createRealtimeStore();
   const {
     telemetry,
     events: sessionEvents,
+    lifecycle,
     widgets: widgetUpdates,
+    overlayWindows,
     sensorStatus,
     socketState,
     connect,
@@ -43,7 +54,7 @@
       (session) => session.status === "running",
     )?.id ?? "",
   );
-  let selectedSession = $state("");
+  let selectedSession = $state(untrack(() => String(data.initialSelectedSessionId ?? "")));
   const latestTelemetry = $derived(
     ($telemetry.__latest ?? {}) as Record<string, unknown>,
   );
@@ -53,8 +64,27 @@
       (session) => session.id === selectedSession,
     ) ?? null,
   );
+  const latestLifecycle = $derived(
+    ($lifecycle as Array<Record<string, unknown>>).find(
+      (event) => event.sessionId === selectedSession,
+    ) ?? null,
+  );
   const selectedSessionStatus = $derived(
-    selectedSessionObj?.status ?? "created",
+    String(latestLifecycle?.status ?? selectedSessionObj?.status ?? "created"),
+  );
+  const selectedCommand = $derived(
+    latestLifecycle?.commandId
+      ? {
+          ...(selectedSessionObj?.latestCommand ?? {}),
+          id: latestLifecycle.commandId,
+          action: latestLifecycle.commandAction,
+          status: latestLifecycle.commandStatus,
+          errorMessage: latestLifecycle.commandError,
+        }
+      : selectedSessionObj?.latestCommand ?? null,
+  );
+  const commandPending = $derived(
+    ["queued", "processing"].includes(String(selectedCommand?.status ?? "")),
   );
 
   // ─── Session elapsed timer ──────────────────────────────────────────────────
@@ -93,29 +123,14 @@
   let throttleHistory = $state<number[]>([]);
   let brakeHistory = $state<number[]>([]);
 
-  function pushTelemetrySample(history: number[], nextValue: number) {
-    return [...history.slice(-MAX_HISTORY + 1), nextValue];
-  }
-
   $effect(() => {
     const v = vehicle(latestTelemetry);
-    const speed = Number(v.speed ?? 0);
-    const throttle = Number(v.throttle ?? 0);
-    const brake = Number(v.brake ?? 0);
-    if (speed > 0 || throttle > 0 || brake > 0) {
-      speedHistory = pushTelemetrySample(
-        untrack(() => speedHistory),
-        speed,
-      );
-      throttleHistory = pushTelemetrySample(
-        untrack(() => throttleHistory),
-        throttle,
-      );
-      brakeHistory = pushTelemetrySample(
-        untrack(() => brakeHistory),
-        brake,
-      );
-    }
+    const speed = telemetryNumber(v.speed);
+    const throttle = telemetryNumber(v.throttle);
+    const brake = telemetryNumber(v.brake);
+    speedHistory = appendTelemetrySample(untrack(() => speedHistory), speed, MAX_HISTORY);
+    throttleHistory = appendTelemetrySample(untrack(() => throttleHistory), throttle, MAX_HISTORY);
+    brakeHistory = appendTelemetrySample(untrack(() => brakeHistory), brake, MAX_HISTORY);
   });
 
   function miniChart(data: number[], color: string, maxVal?: number): string {
@@ -178,17 +193,19 @@
 
   $effect(() => {
     connect(
-      data.token,
       [
         "session.events",
+        "session.lifecycle",
         "session.telemetry",
         "widget.updates",
         "sensor.status",
+        "overlay.windows",
       ],
       {
         studyId: data.studyId,
         sessionId: selectedSession || undefined,
       },
+      data.webSocketOrigin,
     );
     return () => disconnect();
   });
@@ -224,13 +241,16 @@
   }
   const sessionTransitions: Record<string, string[]> = {
     created: ["start"],
-    running: ["pause", "complete", "cancel"],
-    paused: ["resume", "cancel"],
+    ready: ["start"],
+    running: ["pause", "complete", "abort"],
+    paused: ["resume", "complete", "abort"],
     completed: [],
+    aborted: [],
     cancelled: [],
+    failed: [],
   };
   const validSessionActions = $derived(
-    selectedSession ? (sessionTransitions[selectedSessionStatus] ?? []) : [],
+    selectedSession && !commandPending ? (sessionTransitions[selectedSessionStatus] ?? []) : [],
   );
 
   type WindowDraft = {
@@ -239,16 +259,46 @@
     mode: "transparent_electron" | "browser_popup";
     targetDisplay: string;
     order: number;
+    inputMode: "click_through" | "interactive";
+    enabled: boolean;
+    configuration: Record<string, unknown>;
+    bindingsConfig: Record<string, unknown>;
+    styleOverrides: Record<string, unknown>;
     x: number;
     y: number;
     width: number;
     height: number;
+    liveDisplay: string;
+    degraded: boolean;
+    degradedReason: string | null;
   };
 
+  const selectedConditionId = $derived(String(
+    selectedSessionObj?.activeCondition?.conditionId
+      ?? selectedSessionObj?.nextCondition?.conditionId
+      ?? selectedSessionObj?.conditionId
+      ?? "",
+  ));
+  const activeParticipantLayout = $derived(
+    (data.participantLayoutsByCondition as Record<string, Record<string, unknown> | null>)?.[selectedConditionId]
+      ?? (data.layoutDetail as Record<string, unknown> | null),
+  );
   const layoutId = $derived(
-    String((data.layoutDetail as Record<string, unknown> | null)?.id ?? ""),
+    String(activeParticipantLayout?.id ?? ""),
+  );
+  function conditionLayoutId(condition: Record<string, unknown> | null | undefined) {
+    const snapshot = condition?.configurationSnapshot as Record<string, unknown> | undefined;
+    const layouts = Array.isArray(snapshot?.layouts) ? snapshot.layouts as Array<Record<string, unknown>> : [];
+    const participant = layouts.find((entry) => (entry.layout as Record<string, unknown> | undefined)?.type === "participant") ?? layouts[0];
+    return String((participant?.layout as Record<string, unknown> | undefined)?.id ?? "");
+  }
+  const browserLayoutId = $derived(
+    conditionLayoutId(selectedSessionObj?.activeCondition)
+      || conditionLayoutId(selectedSessionObj?.nextCondition)
+      || layoutId,
   );
   let initializedWindowLayoutId = $state("");
+  let activeLayoutRevision = $state(0);
   let windowDrafts = $state<WindowDraft[]>([]);
   let savedWindows = $state<
     Record<string, { x: number; y: number; width: number; height: number }>
@@ -257,31 +307,44 @@
     null,
   );
 
+  function initialLiveWindow(instanceId: string) {
+    return ((data.overlayStatus?.windows ?? []) as Array<Record<string, unknown>>)
+      .find((window) => String(window.instanceId ?? "") === instanceId) ?? null;
+  }
+
   function buildWindowDrafts(): WindowDraft[] {
     return (
-      (data.layoutDetail?.widgets ?? []) as Array<Record<string, unknown>>
-    ).map((widget) => ({
-      instanceId: String(widget.id),
-      widgetId: String(widget.widgetId),
-      mode: (widget.windowMode === "browser_popup"
-        ? "browser_popup"
-        : "transparent_electron") as WindowDraft["mode"],
-      targetDisplay: String(
-        widget.targetDisplay ??
-          (data.layoutDetail as Record<string, unknown> | null)
-            ?.targetDisplay ??
-          "0",
-      ),
-      order: Number(widget.order ?? 0),
-      x: Number(widget.x ?? 0),
-      y: Number(widget.y ?? 0),
-      width: Number(widget.width ?? 180),
-      height: Number(widget.height ?? 180),
-    }));
+      (activeParticipantLayout?.widgets ?? []) as Array<Record<string, unknown>>
+    ).map((widget) => {
+      const instanceId = String(widget.id);
+      const live = initialLiveWindow(instanceId);
+      return {
+        instanceId,
+        widgetId: String(widget.widgetId),
+        mode: (widget.windowMode === "browser_popup"
+          ? "browser_popup"
+          : "transparent_electron") as WindowDraft["mode"],
+        targetDisplay: String(widget.targetDisplay ?? activeParticipantLayout?.targetDisplay ?? "primary"),
+        order: Number(widget.order ?? 0),
+        inputMode: widget.inputMode === "interactive" ? "interactive" : "click_through",
+        enabled: widget.enabled !== false,
+        configuration: asRecord(widget.configuration),
+        bindingsConfig: asRecord(widget.bindingsConfig),
+        styleOverrides: asRecord(widget.styleOverrides),
+        x: Number(widget.x ?? 0),
+        y: Number(widget.y ?? 0),
+        width: Number(widget.width ?? 180),
+        height: Number(widget.height ?? 180),
+        liveDisplay: String(live?.liveDisplay ?? widget.targetDisplay ?? "primary"),
+        degraded: live?.degraded === true,
+        degradedReason: typeof live?.degradedReason === "string" ? live.degradedReason : null,
+      };
+    });
   }
 
   $effect(() => {
-    if (initializedWindowLayoutId !== layoutId) {
+    const windowLayoutKey = `${selectedSession}:${layoutId}`;
+    if (initializedWindowLayoutId !== windowLayoutKey) {
       windowDrafts = buildWindowDrafts();
       savedWindows = Object.fromEntries(
         windowDrafts.map((entry) => [
@@ -289,7 +352,37 @@
           { x: entry.x, y: entry.y, width: entry.width, height: entry.height },
         ]),
       );
-      initializedWindowLayoutId = layoutId;
+      activeLayoutRevision = Number(activeParticipantLayout?.revision ?? 0);
+      initializedWindowLayoutId = windowLayoutKey;
+    }
+  });
+
+  $effect(() => {
+    const event = $overlayWindows[0];
+    if (!event) return;
+    const instanceId = String(event.instanceId ?? "");
+    const drafts = untrack(() => windowDrafts);
+    if (!drafts.some((entry) => entry.instanceId === instanceId)) return;
+    if (event.type === "overlay.window.changed") {
+      const bounds = asRecord(event.bounds);
+      windowDrafts = drafts.map((entry) => entry.instanceId === instanceId ? {
+        ...entry,
+        x: Math.round(Number(bounds.x ?? entry.x)),
+        y: Math.round(Number(bounds.y ?? entry.y)),
+        width: Math.max(1, Math.round(Number(bounds.width ?? entry.width))),
+        height: Math.max(1, Math.round(Number(bounds.height ?? entry.height))),
+        liveDisplay: String(event.targetDisplay ?? entry.liveDisplay),
+        degraded: false,
+        degradedReason: null,
+      } : entry);
+    } else if (event.type === "overlay.window.status") {
+      if (event.hostId && event.hostId !== data.overlayStatus?.selectedHostId) return;
+      windowDrafts = drafts.map((entry) => entry.instanceId === instanceId ? {
+        ...entry,
+        liveDisplay: String(event.liveDisplay ?? entry.liveDisplay),
+        degraded: event.degraded === true,
+        degradedReason: typeof event.degradedReason === "string" ? event.degradedReason : null,
+      } : entry);
     }
   });
 
@@ -335,7 +428,6 @@
       mode === "transparent_electron" ? "transparent" : "web",
     );
     url.searchParams.set("toolbar", mode === "browser_popup" ? "1" : "0");
-    if (data.token) url.searchParams.set("token", data.token);
     if (selectedSessionObj?.conditionId) {
       url.searchParams.set("conditionId", selectedSessionObj.conditionId);
     }
@@ -346,7 +438,7 @@
     widget: WindowDraft,
     mode: "transparent_electron" | "browser_popup",
   ) {
-    if (!layoutId) {
+    if (!browserLayoutId) {
       throw new Error("Participant layout is not available");
     }
     if (!selectedSession) {
@@ -356,29 +448,25 @@
     const meta = getWidgetMeta(widget.widgetId);
     const widgetUi = (meta?.ui as Record<string, unknown> | undefined) ?? {};
     const bounds = canonicalBounds(widget);
-    const targetDisplayValue = Math.max(
-      0,
-      Number(
-        widget.targetDisplay ??
-          (data.layoutDetail as Record<string, unknown> | null)
-            ?.targetDisplay ??
-          0,
-      ) || 0,
+    const targetDisplayValue = String(
+      widget.targetDisplay ??
+        (data.layoutDetail as Record<string, unknown> | null)?.targetDisplay ??
+        "primary",
     );
-    const response = await fetch("/api/system/overlay/windows/open", {
+    const response = await fetch(appPath("/api/system/overlay/windows/open"), {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${data.token}`,
       },
       body: JSON.stringify({
         studyId: data.studyId,
-        layoutId,
+        layoutId: browserLayoutId,
         instanceId: widget.instanceId,
         sessionId: selectedSession,
         conditionId: selectedSessionObj?.conditionId ?? null,
         mode,
         targetDisplay: targetDisplayValue,
+        bounds,
       }),
     });
     if (response.ok) {
@@ -386,42 +474,10 @@
     }
 
     const payload = await response.json().catch(() => null);
-    const directResponse = await fetch("http://127.0.0.1:4097/windows/open", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        mode: "windows",
-        targetDisplay: targetDisplayValue,
-        windows: [
-          {
-            instanceId: widget.instanceId,
-            widgetId: widget.widgetId,
-            mode,
-            clickThrough: false,
-            bounds,
-            minWidth: Number(widgetUi.minWidth ?? bounds.width),
-            minHeight: Number(widgetUi.minHeight ?? bounds.height),
-            preferredWidth: Number(widgetUi.preferredWidth ?? bounds.width),
-            preferredHeight: Number(widgetUi.preferredHeight ?? bounds.height),
-            url: getWidgetOverlayUrl(layoutId, widget.instanceId, mode),
-          },
-        ],
-        session: {
-          studyId: data.studyId,
-          sessionId: selectedSession,
-          layoutId,
-          conditionId: selectedSessionObj?.conditionId ?? null,
-        },
-      }),
-    }).catch(() => null);
-    if (!directResponse?.ok) {
-      throw new Error(
-        payload?.error?.message ||
-          "Couldn't open the participant display window. Make sure the SCARline desktop app is running on the operator machine, then try again.",
-      );
-    }
+    throw new Error(
+      payload?.error?.message ||
+        "Couldn't open the participant display window. Make sure the SCARline desktop app is running on the operator machine, then try again.",
+    );
   }
 
   async function launchBrowserWidgetWindows() {
@@ -429,7 +485,7 @@
       windowUpdateStatus = { ok: false, message: "Select a session first" };
       return;
     }
-    if (!layoutId) {
+    if (!browserLayoutId) {
       windowUpdateStatus = {
         ok: false,
         message: "Participant layout is not available",
@@ -446,24 +502,38 @@
       return;
     }
 
-    let opened = 0;
-    for (const widget of targets) {
-      try {
-        await openOverlayWindow(widget, "browser_popup");
-        opened += 1;
-      } catch (error) {
-        console.error(
-          "Failed to launch browser widget window",
-          widget.instanceId,
-          error,
-        );
-      }
-    }
+    const launcher = window.open(
+      "about:blank",
+      `scarline-session-${selectedSession}`,
+      "popup=yes,width=760,height=680,resizable=yes,scrollbars=yes",
+    );
 
-    windowUpdateStatus =
-      opened > 0
-        ? { ok: true, message: `Opened ${opened} browser widget window(s)` }
-        : { ok: false, message: "Failed to open browser widget windows" };
+    try {
+      const response = await fetch(appPath("/api/system/overlay/render-grants"), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          rendererMode: "browser",
+          layoutId: browserLayoutId,
+          instanceId: null,
+          sessionId: selectedSession,
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || typeof payload?.data?.launchUrl !== "string") {
+        throw new Error(payload?.error?.message ?? "Failed to authorize the browser overlay");
+      }
+      const target = launcher ?? window.open(payload.data.launchUrl, `scarline-session-${selectedSession}`, "popup=yes,width=760,height=680,resizable=yes,scrollbars=yes");
+      if (target === null) throw new Error("The browser blocked the overlay launcher. Allow popups for SCARline and try again.");
+      target.location.href = payload.data.launchUrl;
+      windowUpdateStatus = { ok: true, message: `Overlay launcher opened for ${targets.length} widget(s)` };
+    } catch (error) {
+      if (launcher !== null && !launcher.closed) launcher.close();
+      windowUpdateStatus = {
+        ok: false,
+        message: error instanceof Error ? error.message : "Failed to open browser widget windows",
+      };
+    }
   }
 
   async function applyWindowUpdate(instanceId: string) {
@@ -476,15 +546,25 @@
     windowUpdateStatus = null;
     const formData = new FormData();
     formData.set("layoutId", layoutId);
+    formData.set("sessionId", selectedSession);
     formData.set(
       "windows",
       JSON.stringify([
         {
           instanceId: target.instanceId,
+          expectedRevision: activeLayoutRevision,
+          mode: target.mode,
+          inputMode: target.inputMode,
+          targetDisplay: target.targetDisplay,
+          order: target.order,
           x: target.x,
           y: target.y,
           width: target.width,
           height: target.height,
+          enabled: target.enabled,
+          configuration: target.configuration,
+          bindingsConfig: target.bindingsConfig,
+          styleOverrides: target.styleOverrides,
         },
       ]),
     );
@@ -492,10 +572,20 @@
       method: "POST",
       body: formData,
     });
-    windowUpdateStatus = response.ok
+    const result = deserialize(await response.text());
+    const resultData = ("data" in result ? result.data ?? {} : {}) as Record<string, unknown>;
+    const saved = resultData.windowUpdated === true || resultData.saved === true;
+    const revision = Number(resultData.revision ?? 0);
+    if (revision > 0) activeLayoutRevision = revision;
+    windowUpdateStatus = result.type === "success"
       ? { ok: true, message: `Window updated: ${target.widgetId}` }
-      : { ok: false, message: `Failed to update window: ${target.widgetId}` };
-    if (response.ok) {
+      : {
+          ok: false,
+          message: typeof resultData.message === "string"
+            ? resultData.message
+            : `Failed to update window: ${target.widgetId}`,
+        };
+    if (saved) {
       savedWindows = {
         ...savedWindows,
         [target.instanceId]: {
@@ -506,6 +596,12 @@
         },
       };
     }
+  }
+
+  function asRecord(value: unknown): Record<string, unknown> {
+    return value !== null && typeof value === "object" && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : {};
   }
 </script>
 
@@ -593,8 +689,15 @@
     layoutsLength={data.layouts.length}
     canOperate={data.canOperate}
     {validSessionActions}
+    latestCommand={selectedCommand}
+    commandPending={commandPending}
+    desktopConnected={data.overlayStatus?.connected === true}
+    selectedHostId={String(data.overlayStatus?.selectedHostId ?? "")}
+    overlayFailure={(selectedSessionObj?.latestCommand?.resultPayload as Record<string, unknown> | undefined)?.overlayFailure as Record<string, unknown> | undefined}
+    browserMessage={windowUpdateStatus?.message ?? ""}
+    browserMessageIsError={windowUpdateStatus?.ok === false}
     onLaunchBrowserWidgets={launchBrowserWidgetWindows}
-    hasLayout={Boolean(layoutId)}
+    hasLayout={Boolean(browserLayoutId)}
     hasWindows={windowDrafts.length > 0}
   />
 
@@ -609,10 +712,14 @@
 
 <div class="mt-4 section-grid section-grid--balanced">
   <ActiveStudyEventsPanel
-    events={$sessionEvents}
+    events={[...$lifecycle, ...$sessionEvents]}
     {eventTitle}
     {eventTime}
     {selectedSession}
+    selectedSessionDetail={selectedSessionObj}
+    canOperate={data.canOperate}
+    commandPending={commandPending}
+    liveLifecycle={latestLifecycle}
   />
   <ActiveStudyWidgetUpdatesPanel
     canOperate={data.canOperate}
@@ -638,6 +745,7 @@
   <ActiveStudySensorStatusPanel sensorStatuses={$sensorStatus} {sensorTitle} />
   <ActiveStudyNotesPanel
     {selectedSession}
+    canOperate={data.canOperate}
     bind:noteText
     onHandleNoteKeydown={handleNoteKeydown}
     {noteEntries}

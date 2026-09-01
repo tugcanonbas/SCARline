@@ -111,12 +111,12 @@
       <p class="layout-properties__label">Assigned Display</p>
       <select
         class="layout-properties__select"
-        value={String(selectedWidget.targetDisplay ?? '0')}
+        value={String(selectedWidget.targetDisplay ?? 'primary')}
         onchange={(event) => onDisplayChange((event.currentTarget as HTMLSelectElement).value)}
       >
         {#each displays as display}
           {@const bounds = displayBounds(display)}
-          <option value={String(display.index ?? 0)}>
+          <option value={String(display.id ?? 'primary')}>
             Display #{String(display.index ?? 0)} · {bounds.width}×{bounds.height}
           </option>
         {/each}

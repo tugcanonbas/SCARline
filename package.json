@@ -1,25 +1,39 @@
 {
-  "name": "the-scarline",
-  "version": "0.1.0",
+  "name": "scarline",
   "private": true,
-  "packageManager": "pnpm@10.7.1",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "electron"
-    ]
+  "engines": {
+    "node": ">=22",
+    "npm": ">=10"
+  },
+  "workspaces": [
+    "packages/*",
+    "services/*",
+    "apps/*"
+  ],
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.62.1",
+    "typescript": "5.8.2"
   },
   "scripts": {
-    "widgets:build-css": "node apps/admin-panel/scripts/build-widgets-css.mjs",
-    "widgets:check-css": "node apps/admin-panel/scripts/build-widgets-css.mjs --check",
-    "build": "pnpm widgets:build-css && pnpm -r build",
-    "check": "pnpm widgets:check-css && pnpm -r check",
-    "dev": "./scarline start --dev",
-    "docs:dev": "pnpm --dir docs dev",
-    "docs:build": "pnpm --dir docs build",
-    "docs:preview": "pnpm --dir docs preview",
-    "test": "pnpm -r test",
-    "test:widgets": "node --test tests/widgets/*.test.mjs",
-    "test:e2e": "node --test tests/integration/platform-e2e.test.mjs",
-    "lint": "pnpm -r lint"
+    "build": "npm run widgets:build-css && npm run build -w @scarline/contracts -w @scarline/cli -w @scarline/core-api -w @scarline/sim-bridge -w @scarline/mock-simulator -w @scarline/admin-panel -w @scarline/overlay-web -w @scarline/desktop-overlay",
+    "build:cli": "npm run build -w @scarline/contracts -w @scarline/cli",
+    "build:core-api": "npm run build -w @scarline/contracts -w @scarline/core-api",
+    "build:sim-bridge": "npm run build -w @scarline/contracts -w @scarline/sim-bridge -w @scarline/mock-simulator",
+    "build:admin-panel": "npm run build -w @scarline/contracts -w @scarline/admin-panel",
+    "build:overlays": "npm run build -w @scarline/contracts -w @scarline/overlay-web -w @scarline/desktop-overlay",
+    "check": "npm run widgets:check-css && npm run typecheck --workspaces && npm test --workspaces",
+    "test:e2e": "npm run build:core-api && node scripts/run-isolated-e2e.mjs",
+    "dev:cli": "npm run dev -w @scarline/cli --",
+    "dev:core-api": "npm run dev -w @scarline/core-api",
+    "dev:sim-bridge": "npm run dev -w @scarline/sim-bridge",
+    "dev:mock-simulator": "npm run dev -w @scarline/mock-simulator",
+    "dev:admin-panel": "npm run dev -w @scarline/admin-panel",
+    "dev:overlay-web": "npm run dev -w @scarline/overlay-web",
+    "dev:desktop-overlay": "npm run dev -w @scarline/desktop-overlay",
+    "postinstall": "npm run build:cli && npm run build -w @scarline/desktop-overlay && npm link -w @scarline/cli",
+    "package:cli": "npm pack -w @scarline/cli",
+    "widgets:build-css": "npm run widgets:build-css -w @scarline/admin-panel",
+    "widgets:check-css": "npm run widgets:check-css -w @scarline/admin-panel"
   }
 }

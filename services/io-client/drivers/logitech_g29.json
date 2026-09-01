@@ -1,0 +1,40 @@
+{
+  "key": "logitech_g29",
+  "name": "Logitech G29 Steering Wheel",
+  "version": "1.0.0",
+  "deviceType": "steering-wheel",
+  "platforms": ["linux"],
+  "capabilities": ["driving.steering", "driving.pedals", "driving.buttons"],
+  "configurationSchema": {
+    "type": "object",
+    "properties": {
+      "devicePath": { "type": "string" },
+      "sampleRate": { "type": "number", "minimum": 1, "maximum": 500 },
+      "invertPedals": { "type": "boolean", "default": true },
+      "steeringDeadzone": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 0.5,
+        "default": 0.02
+      },
+      "pedalDeadzone": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 0.5,
+        "default": 0.02
+      }
+    }
+  },
+  "channels": [
+    {
+      "key": "controls",
+      "name": "Driving controls",
+      "modality": "driving",
+      "unit": null,
+      "sampleRate": 100,
+      "configurationSchema": {}
+    }
+  ],
+  "optionalDependency": "evdev",
+  "mock": false
+}

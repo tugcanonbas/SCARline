@@ -6,17 +6,32 @@
   import StatusBadge from "$lib/components/StatusBadge.svelte";
   import StudyTabs from "$lib/components/StudyTabs.svelte";
   import SurfaceCard from "$lib/components/SurfaceCard.svelte";
-  import { formatDate, formatStatusLabel, shortId } from "$lib/format";
+  import { formatDate, shortId } from "$lib/format";
+  import { appPath } from "$lib/paths";
+  import { SESSION_OPERATION_ACCESS_REQUIRED } from "$lib/permissions";
 
   let { data, form } = $props();
 
-  const allowedTransitions: Record<string, string[]> = {
-    created: ["start"],
-    running: ["pause", "complete", "cancel"],
-    paused: ["resume", "cancel"],
-    completed: [],
-    cancelled: [],
-  };
+  let selectedConditionIds = $state<string[]>([]);
+
+  function handleConditionSelection(conditionId: string, selected: boolean) {
+    selectedConditionIds = selected
+      ? [...selectedConditionIds, conditionId]
+      : selectedConditionIds.filter((id) => id !== conditionId);
+  }
+
+  function handleMoveCondition(conditionId: string, direction: -1 | 1) {
+    const index = selectedConditionIds.indexOf(conditionId);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= selectedConditionIds.length) return;
+    const next = [...selectedConditionIds];
+    [next[index], next[target]] = [next[target]!, next[index]!];
+    selectedConditionIds = next;
+  }
+
+  function conditionName(conditionId: string) {
+    return data.conditions.find((condition: Record<string, unknown>) => condition.id === conditionId)?.name ?? shortId(conditionId);
+  }
 
   const runningCount = $derived(
     data.sessions.filter(
@@ -33,7 +48,7 @@
 <PageHeader
   eyebrow="Study"
   title="Sessions"
-  description="Create sessions and manage their lifecycle."
+  description="Create and queue study sessions for operation in Active Study."
 />
 <StudyTabs
   studyId={data.studyId}
@@ -65,16 +80,16 @@
 </div>
 
 <div class="section-grid section-grid--sidebar mt-4">
-  {#if data.canOperate}
-    <SurfaceCard
+  <SurfaceCard
       title="Create Session"
-      subtitle="Bind a participant and optional condition before starting the session."
+      subtitle="Bind a participant and one or more ordered conditions before queueing the session."
     >
       {#if form?.message}
         <InlineNotice tone="danger" message={form.message} />
       {/if}
 
-      <form class="form-stack" method="POST" action="?/create">
+      <form method="POST" action="?/create">
+        <fieldset class="form-stack" disabled={!data.canOperate} title={!data.canOperate ? SESSION_OPERATION_ACCESS_REQUIRED : undefined}>
         <label class="form-field">
           <span>Name</span>
           <input name="name" placeholder="Session 1" />
@@ -90,25 +105,50 @@
             {/each}
           </select>
         </label>
-        <label class="form-field">
-          <span>Condition</span>
-          <select name="conditionId">
-            <option value="">None</option>
+        <div class="form-field">
+          <span>Conditions</span>
+          <div class="list-stack">
             {#each data.conditions as condition}
-              <option value={condition.id}>{condition.name}</option>
+              <label class="entity-card entity-card--tight">
+                <input
+                  type="checkbox"
+                  checked={selectedConditionIds.includes(String(condition.id))}
+                  onchange={(event) => handleConditionSelection(String(condition.id), event.currentTarget.checked)}
+                />
+                <span>{condition.name}</span>
+              </label>
             {/each}
-          </select>
-        </label>
-        <div class="form-actions">
-          <button class="button-primary" type="submit">Create Session</button>
+          </div>
         </div>
+        {#if selectedConditionIds.length > 0}
+          <div class="form-field">
+            <span>Condition Order</span>
+            <div class="list-stack">
+              {#each selectedConditionIds as conditionId, index}
+                <div class="entity-card entity-card--tight">
+                  <input type="hidden" name="conditionIds" value={conditionId} />
+                  <div class="toolbar">
+                    <span>{index + 1}. {conditionName(conditionId)}</span>
+                    <div class="action-strip">
+                      <button class="button-chip" type="button" disabled={index === 0} onclick={() => handleMoveCondition(conditionId, -1)}>Move Up</button>
+                      <button class="button-chip" type="button" disabled={index === selectedConditionIds.length - 1} onclick={() => handleMoveCondition(conditionId, 1)}>Move Down</button>
+                    </div>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
+        <div class="form-actions">
+          <button class="button-primary" type="submit" title={!data.canOperate ? SESSION_OPERATION_ACCESS_REQUIRED : undefined}>Create Session</button>
+        </div>
+        </fieldset>
       </form>
-    </SurfaceCard>
-  {/if}
+  </SurfaceCard>
 
   <SurfaceCard
     title="Session Queue"
-    subtitle="Manage and transition the states of your study sessions."
+    subtitle="Review queued sessions and open Active Study to operate them."
   >
     <div class="list-stack">
       {#each data.sessions as session}
@@ -121,9 +161,7 @@
               <p class="entity-card__meta">
                 Participant {session.participantId
                   ? shortId(session.participantId as string)
-                  : "unassigned"} · Condition {session.conditionId
-                  ? shortId(session.conditionId as string)
-                  : "none"}
+                  : "unassigned"} · {session.conditionCount ?? 0} condition{session.conditionCount === 1 ? "" : "s"}
               </p>
             </div>
             <StatusBadge status={session.status} />
@@ -144,48 +182,9 @@
             </div>
           </div>
 
-          {#if data.canOperate}
-            {@const validActions =
-              allowedTransitions[session.status as string] ?? []}
-            {#if validActions.length > 0}
-              <div class="form-actions">
-                {#each validActions as actionName}
-                  {#if actionName === "cancel"}
-                    <form method="POST" action="?/cancel">
-                      <input
-                        name="sessionId"
-                        type="hidden"
-                        value={session.id}
-                      />
-                      <input
-                        name="reason"
-                        type="hidden"
-                        value="Operator cancelled session"
-                      />
-                      <button class="button-danger" type="submit"
-                        >{formatStatusLabel(actionName)}</button
-                      >
-                    </form>
-                  {:else}
-                    <form method="POST" action={`?/${actionName}`}>
-                      <input
-                        name="sessionId"
-                        type="hidden"
-                        value={session.id}
-                      />
-                      <button class="button-chip" type="submit"
-                        >{formatStatusLabel(actionName)}</button
-                      >
-                    </form>
-                  {/if}
-                {/each}
-              </div>
-            {:else}
-              <p class="entity-card__meta mt-2">
-                No further actions — this session has reached its final state.
-              </p>
-            {/if}
-          {/if}
+          <div class="form-actions">
+            <a class="button-secondary" href={appPath(`/user-studies/${data.studyId}/active-study?sessionId=${session.id}`)}>Open Active Study</a>
+          </div>
         </div>
       {:else}
         <EmptyState message="No sessions have been created yet." />

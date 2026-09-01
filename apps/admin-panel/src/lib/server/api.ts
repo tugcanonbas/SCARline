@@ -1,14 +1,28 @@
 import { error, fail } from '@sveltejs/kit';
 
+// Route adapters intentionally accept multiple CoreAPI response shapes while
+// the migrated screens retain their existing view models.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function unwrapPayload(payload: any): any {
+  const data = payload && typeof payload === 'object' && 'data' in payload
+    ? (payload as { data: unknown }).data
+    : payload;
+  if (data && typeof data === 'object' && 'items' in data && Array.isArray((data as { items: unknown }).items)) {
+    return (data as { items: unknown[] }).items;
+  }
+  return data;
+}
+
 export async function apiRequest(
   fetch: typeof globalThis.fetch,
   apiBase: string,
   path: string,
   token: string | null,
   init: RequestInit = {}
-) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<any> {
   const headers = new Headers(init.headers);
-  headers.set('content-type', 'application/json');
+  if (init.body !== undefined) headers.set('content-type', 'application/json');
   if (token) {
     headers.set('authorization', `Bearer ${token}`);
   }
@@ -18,12 +32,12 @@ export async function apiRequest(
     headers
   });
 
-  const payload = await response.json().catch(() => null);
+  const payload = response.status === 204 ? null : await response.json().catch(() => null);
   if (!response.ok) {
     throw error(response.status, typeof payload?.error?.message === 'string' && response.status < 500 ? payload.error.message : 'Request failed');
   }
 
-  return payload?.data ?? payload;
+  return unwrapPayload(payload);
 }
 
 export async function apiAction(
@@ -35,7 +49,7 @@ export async function apiAction(
   fallbackMessage = 'Request failed'
 ) {
   const headers = new Headers(init.headers);
-  headers.set('content-type', 'application/json');
+  if (init.body !== undefined) headers.set('content-type', 'application/json');
   if (token) {
     headers.set('authorization', `Bearer ${token}`);
   }
@@ -44,7 +58,7 @@ export async function apiAction(
     ...init,
     headers
   });
-  const payload = await response.json().catch(() => null);
+  const payload = response.status === 204 ? null : await response.json().catch(() => null);
 
   if (!response.ok) {
     return {
@@ -59,6 +73,6 @@ export async function apiAction(
 
   return {
     ok: true as const,
-    data: payload?.data ?? payload
+    data: unwrapPayload(payload)
   };
 }

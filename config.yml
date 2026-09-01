@@ -1,0 +1,134 @@
+# SCARline bootstrap configuration.
+#
+# Paths are resolved relative to the repository root. Secrets do not belong in
+# this file; the CLI loads them from .env.
+
+version: 1
+
+bootstrap:
+  # Used only when the users table is empty. The initial account must change
+  # its password at first login.
+  admin_username: admin
+
+api:
+  allowed_origins:
+    - http://localhost:5173
+    - http://localhost:4000
+  command_timeout_seconds: 30
+  access_token_ttl_minutes: 15
+  refresh_token_ttl_days: 30
+  overlay_token_ttl_minutes: 5
+  overlay_renderer_session_ttl_hours: 12
+  pagination_default_limit: 50
+  pagination_max_limit: 200
+  event_batch_size: 100
+  event_flush_milliseconds: 250
+  exports_directory: ./.runtime/exports
+  widgets_directory: ./widgets
+  sensors_directory: ./services/io-client/drivers
+
+platform:
+  environment: development
+  port: 8088
+  runtime_directory: ./.runtime
+  open_browser: true
+  startup_timeout_seconds: 600
+  shutdown_timeout_seconds: 30
+
+docker:
+  compose_file: compose.yml
+  project_name: scarline
+  remove_orphans: true
+
+database:
+  host: database
+  port: 5432
+  name: scarline
+  user: scarline
+
+rabbitmq:
+  host: rabbitmq
+  port: 5672
+  management_port: 15672
+  user: scarline
+
+sim_bridge:
+  # Container clients use `host`; host-native diagnostic clients use
+  # `public_host`. The server itself listens on all container interfaces.
+  host: sim-bridge
+  public_host: 127.0.0.1
+  port: 9000
+  adapter_path: /adapter
+  adapter_command_timeout_seconds: 20
+  adapter_heartbeat_interval_seconds: 5
+  adapter_stale_timeout_seconds: 15
+  adapter_reconnect_grace_seconds: 10
+  maximum_websocket_message_bytes: 1048576
+  telemetry_maximum_hz: 100
+  command_journal: ./.runtime/sim-bridge/command-journal.json
+
+simulator:
+  # May be overridden with `scarline start --simulator carla|mock`.
+  # `scarline start --no-sim` uses the Mock Simulator on unsupported systems.
+  default: mock
+  autostart: true
+
+  carla:
+    # CARLA itself runs on the host OS and is owned by the CLI. The Python
+    # adapter runs through the `carla` Compose profile and connects back to it.
+    # Set this to the local CarlaUE4 launcher (absolute or repository-relative).
+    version: 0.9.16
+    executable: null
+    public_host: 127.0.0.1
+    host: host.docker.internal
+    port: 2000
+    quality: Epic
+    additional_arguments: []
+    synchronous_mode: true
+    fixed_delta_seconds: 0.05
+    adapter_id: carla-primary
+    priority: 10
+    reconnect_interval_seconds: 2
+    health_port: 8082
+    command_journal: ./.runtime/carla-client/command-journal.json
+    media_directory: ./.runtime/carla-client/media
+    control_timeout_milliseconds: 500
+
+  mock:
+    enabled: true
+    telemetry_hz: 20
+    adapter_id: mock-primary
+    priority: 100
+    reconnect_interval_seconds: 2
+    command_journal: ./.runtime/mock-simulator/command-journal.json
+
+services:
+  core_api:
+    enabled: true
+  admin_panel:
+    enabled: true
+    port: 5173
+  sim_bridge:
+    enabled: true
+  overlay_web:
+    enabled: true
+    port: 4000
+    public_origin: http://localhost:4000
+  desktop_overlay:
+    enabled: true
+  io_client:
+    enabled: true
+    runtime: host
+    python_executable: python3
+    heartbeat_interval_seconds: 5
+    stale_timeout_seconds: 15
+    health_port: 8081
+    command_journal: ./.runtime/io-client/command-journal.json
+    media_directory: ./.runtime/io-client/media
+    mock_enabled: true
+    batch_max_samples: 100
+    batch_max_milliseconds: 100
+
+logging:
+  level: info
+  directory: ./.runtime/logs

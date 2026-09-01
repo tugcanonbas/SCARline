@@ -3,42 +3,14 @@ import { requireRole } from '$lib/server/rbac';
 
 export const load = async ({ fetch, locals }) => {
   await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin']);
-  return {
-    configuration: await apiRequest(fetch, locals.apiBase, '/system/configuration', locals.accessToken),
-    processManager: await apiRequest(fetch, locals.apiBase, '/system/process-manager/status', locals.accessToken).catch((error) => ({
-      unavailable: true,
-      message: error.message
-    }))
-  };
-};
-
-export const actions = {
-  update: async ({ fetch, locals, request }) => {
-    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin']);
-    const formData = await request.formData();
-    await apiRequest(fetch, locals.apiBase, '/system/configuration', locals.accessToken, {
-      method: 'PUT',
-      body: JSON.stringify({
-        carlaServerPath: formData.get('carlaServerPath') || null,
-        dataDirectory: formData.get('dataDirectory'),
-        platformPort: Number(formData.get('platformPort')),
-        carlaServerPort: Number(formData.get('carlaServerPort')),
-        transparentOverlayEnabled: formData.get('transparentOverlayEnabled') === 'on'
-      })
-    });
-  },
-  carla: async ({ fetch, locals, request }) => {
-    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin']);
-    const formData = await request.formData();
-    const action = String(formData.get('action'));
-    await apiRequest(fetch, locals.apiBase, `/system/carla/${action}`, locals.accessToken, {
-      method: 'POST'
-    });
-  },
-  overlayReload: async ({ fetch, locals }) => {
-    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin']);
-    await apiRequest(fetch, locals.apiBase, '/system/overlay/reload', locals.accessToken, {
-      method: 'POST'
-    });
-  }
+  const [system, readinessResponse] = await Promise.all([
+    apiRequest(fetch, locals.apiBase, '/system/status', locals.accessToken) as Promise<Record<string, unknown>>,
+    fetch(`${locals.apiBase.replace(/\/api\/v1\/?$/, '')}/ready`)
+  ]);
+  const readiness = await readinessResponse.json().catch(() => ({
+    status: 'unhealthy',
+    checkedAt: new Date().toISOString(),
+    components: []
+  }));
+  return { system, readiness };
 };
