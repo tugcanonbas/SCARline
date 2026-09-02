@@ -119,7 +119,7 @@ services:
   io_client:
     enabled: true
     runtime: host
-    python_executable: python3
+    python_executable: C:\Users\laura\AppData\Local\Python\pythoncore-3.14-64\python.exe
     heartbeat_interval_seconds: 5
     stale_timeout_seconds: 15
     health_port: 8081

@@ -9,6 +9,7 @@
   import { formatDate, shortId } from "$lib/format";
   import { appPath } from "$lib/paths";
   import { SESSION_OPERATION_ACCESS_REQUIRED } from "$lib/permissions";
+  import { ChevronUp, ChevronDown } from "lucide-svelte";
 
   let { data, form } = $props();
 
@@ -23,15 +24,24 @@
   function handleMoveCondition(conditionId: string, direction: -1 | 1) {
     const index = selectedConditionIds.indexOf(conditionId);
     const target = index + direction;
-    if (index < 0 || target < 0 || target >= selectedConditionIds.length) return;
+    if (index < 0 || target < 0 || target >= selectedConditionIds.length)
+      return;
     const next = [...selectedConditionIds];
     [next[index], next[target]] = [next[target]!, next[index]!];
     selectedConditionIds = next;
   }
 
-  function conditionName(conditionId: string) {
-    return data.conditions.find((condition: Record<string, unknown>) => condition.id === conditionId)?.name ?? shortId(conditionId);
-  }
+  const orderedConditions = $derived([
+    ...selectedConditionIds.map((id) =>
+      data.conditions.find(
+        (condition: Record<string, unknown>) => String(condition.id) === id,
+      ),
+    ),
+    ...data.conditions.filter(
+      (condition: Record<string, unknown>) =>
+        !selectedConditionIds.includes(String(condition.id)),
+    ),
+  ].filter(Boolean) as Record<string, unknown>[]);
 
   const runningCount = $derived(
     data.sessions.filter(
@@ -60,7 +70,6 @@
     label="Sessions"
     value={data.sessions.length}
     hint="Created session records"
-    accent
   />
   <MetricCard
     label="Running"
@@ -81,22 +90,26 @@
 
 <div class="section-grid section-grid--sidebar mt-4">
   <SurfaceCard
-      title="Create Session"
-      subtitle="Bind a participant and one or more ordered conditions before queueing the session."
-    >
-      {#if form?.message}
-        <InlineNotice tone="danger" message={form.message} />
-      {/if}
+    title="Create Session"
+    subtitle="Bind a participant and one or more ordered conditions before queueing the session."
+  >
+    {#if form?.message}
+      <InlineNotice tone="danger" message={form.message} />
+    {/if}
 
-      <form method="POST" action="?/create">
-        <fieldset class="form-stack" disabled={!data.canOperate} title={!data.canOperate ? SESSION_OPERATION_ACCESS_REQUIRED : undefined}>
-        <label class="form-field">
+    <form method="POST" action="?/create">
+      <fieldset
+        class="form-stack"
+        disabled={!data.canOperate}
+        title={!data.canOperate ? SESSION_OPERATION_ACCESS_REQUIRED : undefined}
+      >
+        <label class="form-field required">
           <span>Name</span>
-          <input name="name" placeholder="Session 1" />
+          <input name="name" placeholder="Session 1" required />
         </label>
-        <label class="form-field">
+        <label class="form-field required">
           <span>Participant</span>
-          <select name="participantId">
+          <select name="participantId" required>
             <option value="">Unassigned</option>
             {#each data.participants as participant}
               <option value={participant.id}
@@ -105,45 +118,66 @@
             {/each}
           </select>
         </label>
-        <div class="form-field">
+        
+        <!-- Conditions field: select and order in one list -->
+        <div class="form-field required">
           <span>Conditions</span>
-          <div class="list-stack">
-            {#each data.conditions as condition}
-              <label class="entity-card entity-card--tight">
-                <input
-                  type="checkbox"
-                  checked={selectedConditionIds.includes(String(condition.id))}
-                  onchange={(event) => handleConditionSelection(String(condition.id), event.currentTarget.checked)}
-                />
-                <span>{condition.name}</span>
-              </label>
+          <div class="list-stack list-stack--tight">
+            {#each orderedConditions as condition (condition.id)}
+              {@const conditionId = String(condition.id)}
+              {@const index = selectedConditionIds.indexOf(conditionId)}
+              {@const selected = index !== -1}
+              <div class="condition-row toolbar">
+                <label class="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={selected}
+                    onchange={(event) =>
+                      handleConditionSelection(
+                        conditionId,
+                        event.currentTarget.checked,
+                      )}
+                  />
+                  <span
+                    >{selected ? `${index + 1}. ` : ""}{condition.name}</span
+                  >
+                </label>
+                {#if selected}
+                  <input type="hidden" name="conditionIds" value={conditionId} />
+                  <div class="action-strip">
+                    <button
+                      class="button-chip"
+                      type="button"
+                      disabled={index === 0}
+                      onclick={() => handleMoveCondition(conditionId, -1)}
+                      ><ChevronUp size={16} /></button
+                    >
+                    <button
+                      class="button-chip"
+                      type="button"
+                      disabled={index === selectedConditionIds.length - 1}
+                      onclick={() => handleMoveCondition(conditionId, 1)}
+                      ><ChevronDown size={16} /></button
+                    >
+                  </div>
+                {/if}
+              </div>
+            {:else}
+              <p class="text-sm opacity-60">No conditions available.</p>
             {/each}
           </div>
         </div>
-        {#if selectedConditionIds.length > 0}
-          <div class="form-field">
-            <span>Condition Order</span>
-            <div class="list-stack">
-              {#each selectedConditionIds as conditionId, index}
-                <div class="entity-card entity-card--tight">
-                  <input type="hidden" name="conditionIds" value={conditionId} />
-                  <div class="toolbar">
-                    <span>{index + 1}. {conditionName(conditionId)}</span>
-                    <div class="action-strip">
-                      <button class="button-chip" type="button" disabled={index === 0} onclick={() => handleMoveCondition(conditionId, -1)}>Move Up</button>
-                      <button class="button-chip" type="button" disabled={index === selectedConditionIds.length - 1} onclick={() => handleMoveCondition(conditionId, 1)}>Move Down</button>
-                    </div>
-                  </div>
-                </div>
-              {/each}
-            </div>
-          </div>
-        {/if}
         <div class="form-actions">
-          <button class="button-primary" type="submit" title={!data.canOperate ? SESSION_OPERATION_ACCESS_REQUIRED : undefined}>Create Session</button>
+          <button
+            class="button-primary"
+            type="submit"
+            title={!data.canOperate
+              ? SESSION_OPERATION_ACCESS_REQUIRED
+              : undefined}>Create Session</button
+          >
         </div>
-        </fieldset>
-      </form>
+      </fieldset>
+    </form>
   </SurfaceCard>
 
   <SurfaceCard
@@ -161,7 +195,10 @@
               <p class="entity-card__meta">
                 Participant {session.participantId
                   ? shortId(session.participantId as string)
-                  : "unassigned"} · {session.conditionCount ?? 0} condition{session.conditionCount === 1 ? "" : "s"}
+                  : "unassigned"} · {session.conditionCount ?? 0} condition{session.conditionCount ===
+                1
+                  ? ""
+                  : "s"}
               </p>
             </div>
             <StatusBadge status={session.status} />
@@ -183,7 +220,12 @@
           </div>
 
           <div class="form-actions">
-            <a class="button-secondary" href={appPath(`/user-studies/${data.studyId}/active-study?sessionId=${session.id}`)}>Open Active Study</a>
+            <a
+              class="button-secondary"
+              href={appPath(
+                `/user-studies/${data.studyId}/active-study?sessionId=${session.id}`,
+              )}>Open Active Study</a
+            >
           </div>
         </div>
       {:else}

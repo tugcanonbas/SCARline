@@ -16,8 +16,9 @@
   };
 
   const activeStudies = $derived(
-    data.studies.filter((study: StudyListItem) => ["configured", "ready", "running"].includes(study.status))
-      .length,
+    data.studies.filter((study: StudyListItem) =>
+      ["configured", "ready", "running"].includes(study.status),
+    ).length,
   );
   const draftStudies = $derived(
     data.studies.filter((study: StudyListItem) => study.status === "draft")
@@ -44,21 +45,18 @@
         New Study
       </a>
     {:else}
-      <button class="button-primary" type="button" disabled title={STUDY_DESIGN_ACCESS_REQUIRED}>
+      <button
+        class="button-primary"
+        type="button"
+        disabled
+        title={STUDY_DESIGN_ACCESS_REQUIRED}
+      >
         <Plus size={24} strokeWidth={1.5} />
         New Study
       </button>
     {/if}
   {/snippet}
 </PageHeader>
-
-<div class="study-data">
-  <div>{activeStudies} active {activeStudies === 1 ? "study" : "studies"}</div>
-  <span>|</span>
-  <div>{draftStudies} draft {draftStudies === 1 ? "study" : "studies"}</div>
-  <span>|</span>
-  <div>{totalParticipants} participant{totalParticipants === 1 ? "" : "s"}</div>
-</div>
 
 <div class="list-stack study-list">
   {#each data.studies as study}
@@ -74,7 +72,9 @@
         <div class="pill-row">
           <StatusBadge status={study.status} />
           <span class="status-badge status-badge--muted"
-            >{study.participantCount} participant{study.participantCount === 1 ? "" : "s"}</span
+            >{study.participantCount} participant{study.participantCount === 1
+              ? ""
+              : "s"}</span
           >
         </div>
       </div>

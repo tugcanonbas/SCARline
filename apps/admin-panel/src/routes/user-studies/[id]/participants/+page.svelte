@@ -1,11 +1,11 @@
 <script lang="ts">
-  import EmptyState from '$lib/components/admin/EmptyState.svelte';
-  import MetricCard from '$lib/components/admin/MetricCard.svelte';
-  import PageHeader from '$lib/components/PageHeader.svelte';
-  import StudyTabs from '$lib/components/StudyTabs.svelte';
-  import SurfaceCard from '$lib/components/SurfaceCard.svelte';
-  import { formatDate, shortId } from '$lib/format';
-  import { STUDY_DESIGN_ACCESS_REQUIRED } from '$lib/permissions';
+  import EmptyState from "$lib/components/admin/EmptyState.svelte";
+  import MetricCard from "$lib/components/admin/MetricCard.svelte";
+  import PageHeader from "$lib/components/PageHeader.svelte";
+  import StudyTabs from "$lib/components/StudyTabs.svelte";
+  import SurfaceCard from "$lib/components/SurfaceCard.svelte";
+  import { formatDate, shortId } from "$lib/format";
+  import { STUDY_DESIGN_ACCESS_REQUIRED } from "$lib/permissions";
 
   let { data } = $props();
 
@@ -16,7 +16,7 @@
   }
 
   function participantNotes(participant: Record<string, unknown>) {
-    return String(participant.notes ?? 'No notes recorded');
+    return String(participant.notes ?? "No notes recorded");
   }
 
   function participantCreated(participant: Record<string, unknown>) {
@@ -26,36 +26,76 @@
   }
 </script>
 
-<PageHeader eyebrow="Study" title="Participants" description="Create anonymized participant records and attach operator notes." />
-<StudyTabs studyId={data.studyId} current={`/user-studies/${data.studyId}/participants`} />
+<PageHeader
+  eyebrow="Study"
+  title="Participants"
+  description="Create anonymized participant records and attach operator notes."
+/>
+<StudyTabs
+  studyId={data.studyId}
+  current={`/user-studies/${data.studyId}/participants`}
+/>
 
 <div class="metric-grid">
-  <MetricCard label="Participant Records" value={data.participants.length} hint="Anonymized IDs ready for sessions" accent />
-  <MetricCard label="Coding Pattern" value="P-###" hint="Recommended local identifier format" />
-  <MetricCard label="Notes" value={data.participants.filter((participant: Record<string, unknown>) => participant.notes).length} hint="Records with operator notes" />
-  <MetricCard label="Privacy" value="ID" hint="No direct personal identifiers shown here" />
+  <MetricCard
+    label="Participant Records"
+    value={data.participants.length}
+    hint="Anonymized IDs ready for sessions"
+  />
+  <MetricCard
+    label="Coding Pattern"
+    value="P-###"
+    hint="Recommended local identifier format"
+  />
+  <MetricCard
+    label="Notes"
+    value={data.participants.filter(
+      (participant: Record<string, unknown>) => participant.notes,
+    ).length}
+    hint="Records with operator notes"
+  />
+  <MetricCard
+    label="Privacy"
+    value="ID"
+    hint="No direct personal identifiers shown here"
+  />
 </div>
 
-<div class="section-grid section-grid--sidebar">
-  <SurfaceCard title="Add Participant" subtitle="Create the participant record used by session setup.">
-      <form method="POST">
-        <fieldset class="form-stack" disabled={!data.canManage} title={!data.canManage ? STUDY_DESIGN_ACCESS_REQUIRED : undefined}>
-        <label class="form-field">
-          <span>Participant Code</span>
-          <input name="participantCode" placeholder="P-001" required />
+<div class="section-grid section-grid--sidebar mt-4">
+  <SurfaceCard
+    title="Add Participant"
+    subtitle="Create the participant record used by session setup."
+  >
+    <form method="POST">
+      <fieldset
+        class="form-stack"
+        disabled={!data.canManage}
+        title={!data.canManage ? STUDY_DESIGN_ACCESS_REQUIRED : undefined}
+      >
+        <label class="form-field required">
+          <span>Participant Number</span>
+          <input name="participantNumber" placeholder="P-001" required />
         </label>
         <label class="form-field">
           <span>Notes</span>
           <textarea class="min-h-32" name="notes"></textarea>
         </label>
         <div class="form-actions">
-          <button class="button-primary" type="submit" title={!data.canManage ? STUDY_DESIGN_ACCESS_REQUIRED : undefined}>Add Participant</button>
+          <button
+            class="button-primary"
+            type="submit"
+            title={!data.canManage ? STUDY_DESIGN_ACCESS_REQUIRED : undefined}
+            >Add Participant</button
+          >
         </div>
-        </fieldset>
-      </form>
+      </fieldset>
+    </form>
   </SurfaceCard>
 
-  <SurfaceCard title="Current Participants" subtitle="Use these records when creating or reviewing sessions.">
+  <SurfaceCard
+    title="Current Participants"
+    subtitle="Use these records when creating or reviewing sessions."
+  >
     <div class="list-stack">
       {#each data.participants as participant}
         <div class="entity-card entity-card--tight">
