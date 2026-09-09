@@ -65,36 +65,56 @@ export class RabbitManager {
   }
 
   private async openConnection(): Promise<void> {
-    const connection = await amqp.connect(this.url);
-    const channel = await connection.createConfirmChannel();
+    // carla connection - 2026-09-01: retry initial AMQP connection so a brief
+    // delay between Docker's RabbitMQ healthcheck passing and port 5672 fully
+    // accepting connections does not crash core-api on startup.
+    const MAX_ATTEMPTS = 10;
+    const RETRY_DELAY_MS = 2_000;
+    let lastError: unknown;
 
-    this.connection = connection;
-    this.channel = channel;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const connection = await amqp.connect(this.url);
+        const channel = await connection.createConfirmChannel();
 
-    connection.on('error', (error) => {
-      console.error('RabbitMQ connection error', error);
-    });
-    connection.on('close', () => {
-      if (this.connection === connection) {
-        this.connection = null;
-        this.channel = null;
+        this.connection = connection;
+        this.channel = channel;
+
+        connection.on('error', (error) => {
+          console.error('RabbitMQ connection error', error);
+        });
+        connection.on('close', () => {
+          if (this.connection === connection) {
+            this.connection = null;
+            this.channel = null;
+          }
+          this.scheduleReconnect();
+        });
+        channel.on('error', (error) => {
+          console.error('RabbitMQ channel error', error);
+        });
+        channel.on('close', () => {
+          if (this.channel === channel) {
+            this.channel = null;
+          }
+          this.scheduleReconnect();
+        });
+
+        await this.assertTopology(channel);
+        await channel.prefetch(PREFETCH_COUNT);
+        await this.restoreConsumers();
+        await this.drainBufferedPublishes();
+        return;
+      } catch (error) {
+        lastError = error;
+        if (attempt < MAX_ATTEMPTS) {
+          console.warn(`RabbitMQ connection attempt ${attempt}/${MAX_ATTEMPTS} failed — retrying in ${RETRY_DELAY_MS}ms`);
+          await new Promise<void>((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+        }
       }
-      this.scheduleReconnect();
-    });
-    channel.on('error', (error) => {
-      console.error('RabbitMQ channel error', error);
-    });
-    channel.on('close', () => {
-      if (this.channel === channel) {
-        this.channel = null;
-      }
-      this.scheduleReconnect();
-    });
+    }
 
-    await this.assertTopology(channel);
-    await channel.prefetch(PREFETCH_COUNT);
-    await this.restoreConsumers();
-    await this.drainBufferedPublishes();
+    throw lastError;
   }
 
   private scheduleReconnect(): void {

@@ -110,10 +110,43 @@ function Get-ConfigValue {
     }
   }
 
+  # carla connection - 2026-09-01: fallback line scanner that supports dotted
+  # nested YAML keys (e.g. "carla.server_path") without requiring ConvertFrom-Yaml.
+  # Walks indentation levels: for "a.b.c" it finds "a:" then inside finds "b:" then "c: value".
   $content = Get-Content $ConfigFile
-  for ($i = 0; $i -lt $content.Length; $i++) {
-    if ($content[$i] -match "^$Key\s*:\s*(.+)$") {
+  $parts = $Key -split "\."
+
+  # Try flat key first (backward-compat)
+  foreach ($line in $content) {
+    if ($line -match "^$Key\s*:\s*(.+)$") {
       return $Matches[1].Trim().Trim("'").Trim('"')
+    }
+  }
+
+  # Walk nested key levels
+  $currentDepth = 0
+  $partIndex = 0
+  for ($i = 0; $i -lt $content.Length; $i++) {
+    $line = $content[$i]
+    if ($line -match "^(\s*)([\w_-]+)\s*:\s*(.*)$") {
+      $indent  = $Matches[1].Length
+      $lineKey = $Matches[2]
+      $lineVal = $Matches[3].Trim().Trim("'").Trim('"')
+
+      if ($indent -eq $currentDepth -and $lineKey -eq $parts[$partIndex]) {
+        if ($partIndex -eq $parts.Length - 1) {
+          # Reached the final key
+          if ($lineVal -ne "") { return $lineVal }
+          return $Default
+        }
+        $partIndex++
+        $currentDepth = $indent + 2  # expect next level indented by 2
+      } elseif ($indent -lt $currentDepth -and $partIndex -gt 0) {
+        # Stepped back out — reset search
+        $partIndex = 0
+        $currentDepth = 0
+        $i--  # re-evaluate this line at the root level
+      }
     }
   }
   return $Default
@@ -221,6 +254,72 @@ function Stop-Carla {
   }
 }
 
+function Start-KeyboardDriver {
+  if ($NoCarla) {
+    return
+  }
+
+  # carla connection - 2026-09-01: carla==0.9.16 wheel requires Python 3.10+.
+  # Prefer py -3.12 (which has the matching carla wheel installed) over the
+  # system python (3.7 which has 0.9.14 and causes a binary mismatch crash).
+  $pythonExe = $null
+  if (Get-Command py -ErrorAction SilentlyContinue) {
+    $test312 = & py -3.12 -c "import carla" 2>$null; if ($LASTEXITCODE -eq 0) { $pythonExe = "py -3.12" }
+    if (-not $pythonExe) {
+      $test310 = & py -3.10 -c "import carla" 2>$null; if ($LASTEXITCODE -eq 0) { $pythonExe = "py -3.10" }
+    }
+  }
+  if (-not $pythonExe -and (Get-Command python -ErrorAction SilentlyContinue)) {
+    $pythonExe = "python"
+  }
+  if (-not $pythonExe) {
+    Write-Warning "python not installed; skipping keyboard driver"
+    return
+  }
+
+  $pidFile = Join-Path $PidDir "keyboard-driver.pid"
+  if (Test-Path $pidFile) {
+    $existingPid = Get-Content $pidFile
+    if (Get-Process -Id $existingPid -ErrorAction SilentlyContinue) {
+      return
+    }
+  }
+
+  $driverScript = Join-Path $RootDir "python\carla-client\scarline_carla\pygame_driver.py"
+  if (-not (Test-Path $driverScript)) {
+    Write-Warning "pygame_driver.py not found at $driverScript; skipping keyboard driver"
+    return
+  }
+
+  $logOut = Join-Path $LogDir "keyboard-driver.log"
+  $logErr = Join-Path $LogDir "keyboard-driver.err.log"
+
+  # Launch in a new window so the PyGame window gets its own process group
+  # and receives keyboard focus independently of the terminal.
+  # $pythonExe may be "py -3.12", "py -3.10", or "python" — split accordingly.
+  $pyParts = $pythonExe -split " "
+  $pyBin   = $pyParts[0]
+  $pyArgs  = if ($pyParts.Count -gt 1) { @($pyParts[1], "-u", $driverScript) } else { @("-u", $driverScript) }
+
+  $process = Start-Process -FilePath $pyBin `
+    -ArgumentList $pyArgs `
+    -RedirectStandardOutput $logOut `
+    -RedirectStandardError  $logErr `
+    -PassThru
+
+  Set-Content -Path $pidFile -Value $process.Id
+  Write-Host "SCARline keyboard driver started (pid $($process.Id)) using $pythonExe"
+}
+
+function Stop-KeyboardDriver {
+  $pidFile = Join-Path $PidDir "keyboard-driver.pid"
+  if (Test-Path $pidFile) {
+    $targetPid = Get-Content $pidFile
+    Stop-Process -Id $targetPid -ErrorAction SilentlyContinue
+    Remove-Item $pidFile -Force
+  }
+}
+
 function Start-OverlayDesktop {
   if ($NoOverlay) {
     return
@@ -279,6 +378,9 @@ function Start-IpcServer {
 
   $socketPath = "tcp://127.0.0.1:4098"
   $env:OVERLAY_CONTROL_PORT = $OverlayControlPort
+  $env:CARLA_SERVER_PATH = Get-ConfigValue "carla.server_path" ""
+  $env:CARLA_SERVER_PORT = if ($env:CARLA_SERVER_PORT) { $env:CARLA_SERVER_PORT } else { "2000" }
+  $env:SCARLINE_CARLA_QUALITY = Get-ConfigValue "carla.quality" "Epic"
   $process = Start-Process -FilePath "python" -ArgumentList @((Join-Path $RootDir "infra/process-manager/ipc_server.py"), $socketPath, $RuntimeDir) -RedirectStandardOutput (Join-Path $LogDir "process-manager-ipc.log") -RedirectStandardError (Join-Path $LogDir "process-manager-ipc.err.log") -PassThru
   Set-Content -Path $pidFile -Value $process.Id
 }
@@ -468,7 +570,6 @@ switch ($Command) {
     } else {
       Invoke-Compose @("up", "--build", "-d", "mock-simulator", "carla-client")
       Wait-ForComposeHealth @("mock-simulator", "carla-client")
-      Start-Carla
     }
     Start-OverlayDesktop
     Start-IpcServer
@@ -485,14 +586,14 @@ switch ($Command) {
     Stop-Supervisor
     Stop-IpcServer
     Stop-OverlayDesktop
-    Stop-Carla
+    Stop-KeyboardDriver
     Invoke-Compose @("down")
   }
   "restart" {
     Stop-Supervisor
     Stop-IpcServer
     Stop-OverlayDesktop
-    Stop-Carla
+    Stop-KeyboardDriver
     Invoke-Compose @("down")
     Invoke-Compose @("up", "--build", "-d", "postgres", "rabbitmq", "schema-bootstrap")
     Wait-ForComposeHealth @("postgres", "rabbitmq")
@@ -500,7 +601,6 @@ switch ($Command) {
     Invoke-Compose @("up", "--build", "-d", "core-api", "sim-bridge", "admin-panel", "overlay-web", "docs", "io-client", "nginx", "mock-simulator")
     if (-not $NoCarla) {
       Invoke-Compose @("up", "--build", "-d", "carla-client")
-      Start-Carla
     }
     Start-OverlayDesktop
     Start-IpcServer
@@ -517,6 +617,9 @@ switch ($Command) {
     }
     if (Test-Path (Join-Path $PidDir "supervisor.pid")) {
       Write-Host "supervisor: host pid $(Get-Content (Join-Path $PidDir "supervisor.pid"))"
+    }
+    if (Test-Path (Join-Path $PidDir "keyboard-driver.pid")) {
+      Write-Host "keyboard-driver: host pid $(Get-Content (Join-Path $PidDir "keyboard-driver.pid"))"
     }
   }
   "logs" {

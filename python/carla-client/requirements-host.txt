@@ -1,0 +1,7 @@
+# Host-only dependencies for the SCARline PyGame keyboard driver.
+# carla is NOT on PyPI for 0.9.16 -- it is bundled with the CARLA binary.
+# Install it from: <CARLA_ROOT>/PythonAPI/carla/dist/carla-0.9.16-*.egg
+#   e.g. easy_install <CARLA_ROOT>/PythonAPI/carla/dist/carla-0.9.16-cp37-cp37m-win_amd64.egg
+# pygame and numpy can be installed normally:
+pygame>=2.5
+numpy

@@ -55,7 +55,7 @@ class CarlaAdapter:
         print(f"carla-client: connecting to CARLA server at {CARLA_SERVER_HOST}:{CARLA_SERVER_PORT}", flush=True)
         try:
             self.client = carla.Client(CARLA_SERVER_HOST, CARLA_SERVER_PORT)
-            self.client.set_timeout(15.0)
+            self.client.set_timeout(30.0)
             self.world = self.client.get_world()
             print("carla-client: CARLA server connected successfully", flush=True)
             return True
@@ -94,12 +94,13 @@ class CarlaAdapter:
         self._stop_spawning.set()
         # end carla connection
 
-        # 1. Stop all sensors first
+        # 1. Stop active sensors
         sensors = self.sensors
         self.sensors = []
         for sensor in sensors:
             with suppress(BaseException):
-                sensor.stop()
+                if getattr(sensor, "is_listening", False):
+                    sensor.stop()
 
         # 2. Disable autopilot on all NPC vehicles and ego vehicle before destroying
         npcs = self.npc_vehicles
@@ -114,16 +115,24 @@ class CarlaAdapter:
             with suppress(BaseException):
                 vehicle.set_autopilot(False)
 
-        # 3. Destroy all actors safely via CARLA client commands
+        # 3. Destroy all actors safely via a single CARLA batch command
         all_actors = [a for a in (sensors + ([vehicle] if vehicle else []) + npcs) if a is not None]
         if self.client is not None and carla is not None and all_actors:
             with suppress(BaseException):
                 commands = [carla.command.DestroyActor(x) for x in all_actors]
                 self.client.apply_batch_sync(commands, False)
 
-        for actor in all_actors:
-            with suppress(BaseException):
-                actor.destroy()
+        # carla connection - 2026-09-01: clean up any leftover orphan hero/autopilot vehicles
+        if self.world is not None:
+            with suppress(Exception):
+                orphans = [
+                    a for a in self.world.get_actors().filter("vehicle.*")
+                    if a.attributes.get("role_name") in ("hero", "autopilot")
+                ]
+                for o in orphans:
+                    with suppress(Exception):
+                        o.destroy()
+        # end carla connection
 
         # 4. Reset CARLA and TM to asynchronous mode so server never freezes between sessions
         if self.world is not None:
@@ -172,9 +181,8 @@ class CarlaAdapter:
                     continue
                 # end carla connection
 
-                if self.world is not None:
-                    # carla connection - 2026-08-24: use has_world() guard above, detect tick failure
-                    # to clear stale connection (avoids world.get_settings() RPC on every tick)
+                if self.world is not None and self.simulation_mode == "synchronous":
+                    # carla connection - 2026-09-01: only tick when in synchronous mode
                     try:
                         self.world.tick()
                     except Exception:
@@ -355,8 +363,8 @@ class CarlaAdapter:
         blueprint = str(vehicle_cfg.get("blueprint") or "vehicle.lincoln.mkz_2020")
         traffic = config.get("traffic") if isinstance(config.get("traffic"), dict) else {}
         sensors = config.get("sensors") if isinstance(config.get("sensors"), list) else []
-        # carla connection - 2026-08-23
-        self.simulation_mode = str(config.get("simulationMode") or "synchronous")
+        # carla connection - 2026-09-01: default to asynchronous mode for smooth 60+ FPS simulation
+        self.simulation_mode = str(config.get("simulationMode") or "asynchronous")
         self.fixed_delta_seconds = float(config.get("fixedDeltaSeconds") or 0.05)
         # end carla connection
         # carla connection - 2026-08-24
@@ -372,9 +380,9 @@ class CarlaAdapter:
             with suppress(Exception):
                 settings = self.world.get_settings()
                 settings.synchronous_mode = (self.simulation_mode == "synchronous")
-                settings.fixed_delta_seconds = self.fixed_delta_seconds
+                settings.fixed_delta_seconds = self.fixed_delta_seconds if self.simulation_mode == "synchronous" else None
                 self.world.apply_settings(settings)
-                print(f"carla-client: simulation mode={self.simulation_mode}, fixed_delta={self.fixed_delta_seconds}", flush=True)
+                print(f"carla-client: simulation mode={self.simulation_mode}, fixed_delta={settings.fixed_delta_seconds}", flush=True)
         if self.client is not None:
             with suppress(Exception):
                 self.tm = self.client.get_trafficmanager()
@@ -413,7 +421,16 @@ class CarlaAdapter:
                     matched = [m for m in available_maps if "Town10" in m]
                 if matched:
                     target_map = matched[0]
+            # carla connection - 2026-09-01: skip world reload if map is already active
+            if self.world is not None:
+                with suppress(Exception):
+                    cur_map = self.world.get_map().name
+                    if cur_map.endswith(target_map) or target_map.endswith(cur_map) or cur_map == target_map:
+                        return True, f"Map {target_map} already active"
+            # carla connection - 2026-09-01: set generous timeout during map loading
+            self.client.set_timeout(90.0)
             self.world = self.client.load_world(target_map)
+            self.client.set_timeout(30.0)
             # end carla connection
             return True, f"Loaded map {target_map}"
         except Exception as error:
@@ -474,7 +491,6 @@ class CarlaAdapter:
                     ),
                 )
                 sensor = self.world.spawn_actor(blueprint, transform, attach_to=self.vehicle)
-                sensor.listen(lambda _data, sid=sensor_id: None)
                 self.sensors.append(sensor)
             except Exception as error:
                 return False, f"Failed to configure sensor: {error}"
@@ -603,8 +619,9 @@ class CarlaAdapter:
 
     async def heartbeat_loop(self, socket) -> None:
         while True:
-            # carla connection - 2026-08-24: live probe so server restarts are detected immediately
-            connected = self.ensure_connected()
+            # carla connection - 2026-09-01: during active session or if world is already present,
+            # use non-blocking has_world() to prevent 5-second RPC freezes on the event loop
+            connected = self.has_world() if (self.session_id or self.has_world()) else self.ensure_connected()
             # end carla connection
             await socket.send(
                 json.dumps(

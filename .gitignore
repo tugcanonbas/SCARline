@@ -212,6 +212,10 @@ build/
 .scarline-runtime/
 /exports/
 
+### Analysis / planning docs (not part of the project) ###
+PROTECTION_MAP.md
+SCARline_Merge_Execution_Plan.md
+
 # pytype static type analyzer
 .pytype/
 
