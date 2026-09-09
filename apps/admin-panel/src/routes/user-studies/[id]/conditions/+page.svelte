@@ -1,12 +1,14 @@
 <script lang="ts">
+  import ConditionExpressionBuilder from "$lib/components/admin/ConditionExpressionBuilder.svelte";
   import EmptyState from "$lib/components/admin/EmptyState.svelte";
   import MetricCard from "$lib/components/admin/MetricCard.svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
   import StudyTabs from "$lib/components/StudyTabs.svelte";
+  import StudyLifecycleControls from "$lib/components/admin/studies/StudyLifecycleControls.svelte";
   import SurfaceCard from "$lib/components/SurfaceCard.svelte";
   import { enhance } from "$app/forms";
-  import { appPath } from "$lib/paths";
-  import { Database } from "lucide-svelte";
+  import { formatStatusLabel } from "$lib/format";
+  import { STUDY_DESIGN_ACCESS_REQUIRED } from "$lib/permissions";
 
   let { data } = $props();
 
@@ -139,15 +141,7 @@
   description={data.study?.description ?? "No description"}
 >
   {#snippet actions()}
-    <div class="action-strip">
-      <a
-        class="button-primary"
-        href={appPath(`/user-studies/${data.study.id}/sessions`)}
-      >
-        <Database size={24} strokeWidth={1.5} />
-        New Session
-      </a>
-    </div>
+    <StudyLifecycleControls study={data.study} readiness={data.readiness} canManage={data.canManage} />
   {/snippet}
 </PageHeader>
 <StudyTabs
@@ -164,7 +158,7 @@
   <MetricCard
     label="Weather Overrides"
     value={weatherCount}
-    hint="Conditions changing CARLA weather"
+    hint="Conditions changing simulator weather"
   />
   <MetricCard
     label="Widget Overrides"
@@ -180,12 +174,12 @@
 
 <div class="section-grid section-grid--balanced mt-4">
   <!-- ── Add Condition ──────────────────────────────────────────────────── -->
-  {#if data.canManage}
-    <SurfaceCard
+  <SurfaceCard
       title="Add Condition"
-      subtitle="Define a new study condition variant with CARLA, widget, and trigger rule configuration."
+      subtitle="Define a new study condition variant with simulator, widget, and trigger rule configuration."
     >
-      <form class="form-stack" method="POST" action="?/create" use:enhance>
+      <form method="POST" action="?/create" use:enhance>
+        <fieldset class="form-stack" disabled={!data.canManage} title={!data.canManage ? STUDY_DESIGN_ACCESS_REQUIRED : undefined}>
         <label class="form-field">
           <span>Name <span class="text-red-400">*</span></span>
           <input bind:value={newName} name="name" required />
@@ -199,9 +193,9 @@
           ></textarea>
         </label>
 
-        <!-- CARLA overrides -->
+        <!-- Simulator overrides -->
         <div class="condition-section">
-          <p class="condition-section__title">CARLA Overrides</p>
+          <p class="condition-section__title">Simulator Overrides</p>
           <label class="form-field">
             <span>Weather Preset</span>
             <select bind:value={newWeather} name="weather">
@@ -287,15 +281,10 @@
                 placeholder="Widget ID"
                 type="text"
               />
-              <input
-                bind:value={rule.condition}
-                class="trigger-input trigger-input--wide"
-                placeholder="e.g. vehicle.speed > vehicle.speedLimit"
-                type="text"
-              />
+              <ConditionExpressionBuilder bind:value={rule.condition} />
               <select bind:value={rule.action} class="trigger-select">
                 {#each triggerActions as action}
-                  <option value={action}>{action}</option>
+                  <option value={action}>{formatStatusLabel(action)}</option>
                 {/each}
               </select>
               <button
@@ -307,12 +296,12 @@
           {/each}
         </div>
 
-        <button class="button-primary" disabled={!newName.trim()} type="submit"
+        <button class="button-primary" disabled={!data.canManage || !newName.trim()} title={!data.canManage ? STUDY_DESIGN_ACCESS_REQUIRED : undefined} type="submit"
           >Save Condition</button
         >
+        </fieldset>
       </form>
-    </SurfaceCard>
-  {/if}
+  </SurfaceCard>
 
   <!-- ── Condition Set ──────────────────────────────────────────────────── -->
   <SurfaceCard
@@ -356,6 +345,9 @@
                     >Delete</button
                   >
                 </form>
+              {:else}
+                <button class="condition-action-btn" type="button" disabled title={STUDY_DESIGN_ACCESS_REQUIRED}>Edit</button>
+                <button class="condition-action-btn condition-action-btn--danger" type="button" disabled title={STUDY_DESIGN_ACCESS_REQUIRED}>Delete</button>
               {/if}
             </div>
           </div>
@@ -473,15 +465,10 @@
                         placeholder="Widget ID"
                         type="text"
                       />
-                      <input
-                        bind:value={rule.condition}
-                        class="trigger-input trigger-input--wide"
-                        placeholder="vehicle.speed > vehicle.speedLimit"
-                        type="text"
-                      />
+                      <ConditionExpressionBuilder bind:value={rule.condition} />
                       <select bind:value={rule.action} class="trigger-select">
                         {#each triggerActions as action}
-                          <option value={action}>{action}</option>
+                          <option value={action}>{formatStatusLabel(action)}</option>
                         {/each}
                       </select>
                       <button

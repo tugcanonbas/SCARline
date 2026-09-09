@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import InlineNotice from "$lib/components/admin/InlineNotice.svelte";
   import MetricCard from "$lib/components/admin/MetricCard.svelte";
   import ParticipantLayoutCanvas from "$lib/components/admin/participant-view/ParticipantLayoutCanvas.svelte";
@@ -6,15 +7,17 @@
   import ParticipantLayoutInspector from "$lib/components/admin/participant-view/ParticipantLayoutInspector.svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
   import StudyTabs from "$lib/components/StudyTabs.svelte";
+  import StudyLifecycleControls from "$lib/components/admin/studies/StudyLifecycleControls.svelte";
   import { appPath } from "$lib/paths";
-  import { Database } from "lucide-svelte";
+  import { createRealtimeStore } from "$lib/stores/realtime";
+  import { STUDY_DESIGN_ACCESS_REQUIRED } from "$lib/permissions";
 
   // Route-level regression markers preserved for source-inspection tests:
-  // Bindings Config, Trigger Rules, Style Overrides, Launch Selected Mode,
+  // Bindings Config, Trigger Rules, Style Overrides, Launch Selected Widgets,
   // Close All Widgets, Assigned Display, Target display, layout-widget-preview__frame, sandbox="allow-scripts"
 
   let { data } = $props();
-  const apiBase = "/api";
+  const apiBase = appPath("/api");
   const currentLayout = $derived(
     (data.participantLayout as Record<string, unknown> | null) ??
       (data.layouts[0] as Record<string, unknown> | null) ??
@@ -27,6 +30,8 @@
     name: string;
     category: string;
     description?: string;
+    entry?: string;
+    version?: string;
     ui?: {
       preferredWidth?: number;
       preferredHeight?: number;
@@ -56,22 +61,33 @@
     id: string;
     widgetId: string;
     windowMode: "transparent_electron" | "browser_popup";
+    inputMode: "click_through" | "interactive";
     targetDisplay: string;
     order: number;
     x: number;
     y: number;
     w: number;
     h: number;
+    enabled: boolean;
+    configuration: Record<string, unknown>;
     bindingsConfig: Record<string, unknown>;
     triggerRules: unknown[];
     styleOverrides: Record<string, unknown>;
   };
+  class LayoutSaveError extends Error {
+    readonly code: string;
+    constructor(code: string, message: string) {
+      super(message);
+      this.name = "LayoutSaveError";
+      this.code = code;
+    }
+  }
 
   const CANVAS_MAX_W = 1040;
   const CANVAS_MAX_H = 640;
   const FALLBACK_DISPLAY: OverlayDisplay = {
     index: 0,
-    id: "fallback-0",
+    id: "primary",
     label: "Fallback Display",
     isPrimary: true,
     bounds: { x: 0, y: 0, width: 1920, height: 1080 },
@@ -90,9 +106,12 @@
   let canvasEl = $state<HTMLDivElement | null>(null);
   let searchQuery = $state("");
   let activeCategory = $state("all");
+  let widgetCatalogue: WidgetMeta[] = $derived(data.widgets as WidgetMeta[]);
+  let widgetRevision = $state(0);
+  let refreshingWidgets = $state(false);
   let saving = $state(false);
   let saveResult = $state<{ ok: boolean; message: string } | null>(null);
-  let targetDisplay = $state("0");
+  let targetDisplay = $state("primary");
   let launchMode = $state<"transparent_electron" | "browser_popup">(
     "transparent_electron",
   );
@@ -104,6 +123,13 @@
   let triggerRulesError = $state<string | null>(null);
   let styleOverridesError = $state<string | null>(null);
   let displayFallbackNotice = $state<string | null>(null);
+  let persistedLayoutId = $state("");
+  let expectedRevisions = $state<Array<{ conditionId: string; layoutId: string | null; revision: number }>>([]);
+  let lastSavedSignature = $state("");
+  let lastAutosaveAttemptSignature = $state("");
+  let autosaveBlocked = $state(false);
+  let liveWindowIds = $state<string[]>([]);
+  const realtime = createRealtimeStore();
 
   function normalizeRect(value: unknown, fallback: OverlayDisplay["bounds"]) {
     const rect =
@@ -170,10 +196,18 @@
     Boolean(overlayDisplayPayload?.fallback) ||
       detectedDisplays[0]?.id === FALLBACK_DISPLAY.id,
   );
+  const invalidDisplayAssignments = $derived.by(() =>
+    usingFallbackDisplay
+      ? []
+      : placed.filter((widget) => !detectedDisplays.some(
+          (display) => display.id === widget.targetDisplay || display.index === Number(widget.targetDisplay),
+        )),
+  );
   const selectedDisplay = $derived(
     detectedDisplays.find(
-      (display) => display.index === Number(targetDisplay),
+      (display) => display.id === targetDisplay,
     ) ??
+      detectedDisplays.find((display) => display.index === Number(targetDisplay)) ??
       detectedDisplays.find((display) => display.isPrimary) ??
       detectedDisplays[0] ??
       FALLBACK_DISPLAY,
@@ -245,6 +279,7 @@
 
   function displayForIndex(index: string | number) {
     return (
+      detectedDisplays.find((display) => display.id === String(index)) ??
       detectedDisplays.find((display) => display.index === Number(index)) ??
       selectedDisplay ??
       FALLBACK_DISPLAY
@@ -315,7 +350,7 @@
     );
     return {
       ...widget,
-      targetDisplay: String(displayIndex),
+      targetDisplay: displayForIndex(displayIndex).id,
       x: clamp(Math.round(widget.x), 0, Math.max(0, bounds.width - width)),
       y: clamp(Math.round(widget.y), 0, Math.max(0, bounds.height - height)),
       w: width,
@@ -336,7 +371,7 @@
 
   const placedOnSelectedDisplay = $derived(
     placed.filter(
-      (widget) => Number(widget.targetDisplay) === selectedDisplay.index,
+      (widget) => displayForIndex(widget.targetDisplay).id === selectedDisplay.id,
     ),
   );
   const placedCanvas = $derived(
@@ -357,13 +392,15 @@
       mode === "transparent_electron" ? "transparent" : "web",
     );
     url.searchParams.set("toolbar", mode === "browser_popup" ? "1" : "0");
-    if (data.accessToken)
-      url.searchParams.set("token", data.accessToken as string);
     return url.toString();
   }
 
   function getWidgetPreviewUrl(widgetId: string) {
-    return `/overlay/assets/${widgetId}/index.html?preview=admin`;
+    const entry = (getWidgetMeta(widgetId)?.entry ?? "index.html")
+      .split("/")
+      .map(encodeURIComponent)
+      .join("/");
+    return `${appPath(`/overlay/assets/${widgetId}/${entry}`)}?preview=admin&revision=${widgetRevision}`;
   }
 
   function relativeBounds(widget: PlacedWidget) {
@@ -385,6 +422,11 @@
     };
   }
 
+  function browserPopupFeatures(widget: PlacedWidget) {
+    const bounds = absoluteBounds(widget);
+    return `popup=yes,width=${bounds.width},height=${bounds.height},left=${bounds.x},top=${bounds.y},resizable=yes,scrollbars=no`;
+  }
+
   function launchPriority(left: PlacedWidget, right: PlacedWidget) {
     return left.order - right.order || left.y - right.y || left.x - right.x;
   }
@@ -395,13 +437,11 @@
     mode: "transparent_electron" | "browser_popup" = widget.windowMode,
   ) {
     const meta = getWidgetMeta(widget.widgetId);
-    const targetDisplayValue = displayForIndex(widget.targetDisplay).index;
-    const bounds = absoluteBounds(widget);
+    const targetDisplayValue = displayForIndex(widget.targetDisplay).id;
     const response = await fetch(`${apiBase}/system/overlay/windows/open`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${data.accessToken as string}`,
       },
       body: JSON.stringify({
         studyId: data.studyId as string,
@@ -409,61 +449,54 @@
         instanceId: widget.id,
         mode,
         targetDisplay: targetDisplayValue,
+        bounds: relativeBounds(widget),
       }),
     });
     if (response.ok) {
+      if (mode === "transparent_electron") {
+        liveWindowIds = [...new Set([...liveWindowIds, widget.id])];
+      }
       return;
     }
 
     const payload = await response.json().catch(() => null);
-    const directResponse = await fetch("http://127.0.0.1:4097/windows/open", {
+    throw new Error(
+      payload?.error?.message ||
+        "Couldn't open the widget window. Make sure the SCARline desktop app is running on the operator machine, then try again.",
+    );
+  }
+
+  async function requestBrowserRenderGrant(
+    layoutId: string,
+    instanceId: string | null,
+  ): Promise<string> {
+    const response = await fetch(`${apiBase}/system/overlay/render-grants`, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-      },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        mode: "windows",
-        targetDisplay: targetDisplayValue,
-        windows: [
-          {
-            instanceId: widget.id,
-            widgetId: widget.widgetId,
-            mode,
-            clickThrough: false,
-            bounds,
-            minWidth: meta?.ui?.minWidth ?? bounds.width,
-            minHeight: meta?.ui?.minHeight ?? bounds.height,
-            preferredWidth: meta?.ui?.preferredWidth ?? bounds.width,
-            preferredHeight: meta?.ui?.preferredHeight ?? bounds.height,
-            url: getWidgetOverlayUrl(layoutId, widget.id, mode),
-          },
-        ],
-        session: {
-          studyId: data.studyId as string,
-          sessionId: null,
-          layoutId,
-          conditionId: null,
-        },
+        rendererMode: "browser",
+        layoutId,
+        instanceId,
+        sessionId: null,
       }),
-    }).catch(() => null);
-    if (!directResponse?.ok) {
-      throw new Error(
-        payload?.error?.message ||
-          "Failed to open Electron widget window. Ensure the desktop overlay control server is running.",
-      );
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || typeof payload?.data?.launchUrl !== "string") {
+      throw new Error(payload?.error?.message ?? "Failed to authorize the browser overlay");
     }
+    return payload.data.launchUrl;
   }
 
   // ─── Catalogue filtering ────────────────────────────────────────────────────
   const categories = $derived([
     "all",
     ...new Set(
-      (data.widgets as WidgetMeta[]).map((w) => w.category).filter(Boolean),
+      widgetCatalogue.map((w) => w.category).filter(Boolean),
     ),
   ]);
 
   const filteredWidgets = $derived(
-    (data.widgets as WidgetMeta[]).filter((w) => {
+    widgetCatalogue.filter((w) => {
       const matchCat =
         activeCategory === "all" || w.category === activeCategory;
       const matchSearch =
@@ -544,11 +577,12 @@
         w.windowMode === "browser_popup"
           ? "browser_popup"
           : "transparent_electron",
+      inputMode: w.inputMode === "interactive" ? "interactive" : "click_through",
       targetDisplay: String(
         w.targetDisplay ??
           layout.targetDisplay ??
           currentLayout?.targetDisplay ??
-          "0",
+          "primary",
       ),
       order: Number(w.order ?? i),
       x: Math.round(Number(w.x ?? 40 + i * 200)),
@@ -559,6 +593,8 @@
       h: Math.round(
         Number(w.height ?? getWidgetBaseSize(String(w.widgetId ?? "")).height),
       ),
+      enabled: w.enabled !== false,
+      configuration: (w.configuration as Record<string, unknown>) ?? {},
       bindingsConfig: (w.bindingsConfig as Record<string, unknown>) ?? {},
       triggerRules: (w.triggerRules as unknown[]) ?? [],
       styleOverrides: (w.styleOverrides as Record<string, unknown>) ?? {},
@@ -570,28 +606,80 @@
     if (initializedLayoutId !== nextLayoutId) {
       layoutName =
         (currentLayout?.name as string) ?? "Primary Participant Layout";
-      targetDisplay = String(currentLayout?.targetDisplay ?? "0");
+      targetDisplay = String(currentLayout?.targetDisplay ?? "primary");
       placed = buildInitialPlaced();
+      liveWindowIds = Array.isArray(data.overlayWindows)
+        ? data.overlayWindows.map((window: Record<string, unknown>) => String(window.instanceId ?? "")).filter(Boolean)
+        : [];
+      persistedLayoutId = String(currentLayout?.id ?? "");
+      const loadedExpectedRevisions = Array.isArray(currentLayout?.expectedRevisions)
+        ? currentLayout.expectedRevisions
+        : data.expectedRevisions;
+      expectedRevisions = Array.isArray(loadedExpectedRevisions)
+        ? (loadedExpectedRevisions as Array<Record<string, unknown>>).map((entry) => ({
+            conditionId: String(entry.conditionId ?? ""),
+            layoutId: entry.layoutId === null ? null : String(entry.layoutId ?? ""),
+            revision: Number(entry.revision ?? 0),
+          }))
+        : [];
       selectedId = null;
       initializedLayoutId = nextLayoutId;
+      lastSavedSignature = layoutDraftSignature();
+      lastAutosaveAttemptSignature = "";
+      autosaveBlocked = false;
     }
   });
 
   $effect(() => {
-    if (detectedDisplays.length === 0) return;
-    const exists = detectedDisplays.some(
-      (display) => display.index === Number(targetDisplay),
-    );
-    if (!exists) {
-      const previousDisplay = targetDisplay;
-      const fallback =
-        detectedDisplays.find((display) => display.isPrimary) ??
-        detectedDisplays[0];
-      targetDisplay = String(fallback.index);
-      displayFallbackNotice = `Saved display #${previousDisplay} is unavailable. Participant View is using display #${fallback.index}.`;
-    } else {
+    if (usingFallbackDisplay || invalidDisplayAssignments.length === 0) {
       displayFallbackNotice = null;
+      return;
     }
+    const affected = invalidDisplayAssignments.map((widget) => getWidgetMeta(widget.widgetId)?.name ?? widget.widgetId);
+    displayFallbackNotice = `Saved displays are unavailable for: ${affected.join(", ")}. Reassign each widget before saving or launching.`;
+  });
+
+  $effect(() => {
+    const signature = layoutDraftSignature();
+    if (
+      !data.canManage
+      ||
+      !initializedLayoutId
+      || !lastSavedSignature
+      || signature === lastSavedSignature
+      || signature === lastAutosaveAttemptSignature
+      || saving
+      || autosaveBlocked
+      || invalidDisplayAssignments.length > 0
+    ) return;
+    const timer = window.setTimeout(() => void saveLayout(false), 900);
+    return () => window.clearTimeout(timer);
+  });
+
+  onMount(() => {
+    const unsubscribe = realtime.overlayWindows.subscribe((events) => {
+      const event = events[0];
+      if (!event || event.type !== "overlay.window.changed") return;
+      const instanceId = String(event.instanceId ?? "");
+      const bounds = event.bounds as Record<string, unknown> | undefined;
+      if (!instanceId || !bounds) return;
+      liveWindowIds = [...new Set([...liveWindowIds, instanceId])];
+      placed = placed.map((widget) => widget.id === instanceId
+        ? {
+            ...widget,
+            targetDisplay: String(event.targetDisplay ?? widget.targetDisplay),
+            x: Math.round(Number(bounds.x ?? widget.x)),
+            y: Math.round(Number(bounds.y ?? widget.y)),
+            w: Math.max(1, Math.round(Number(bounds.width ?? widget.w))),
+            h: Math.max(1, Math.round(Number(bounds.height ?? widget.h))),
+          }
+        : widget);
+    });
+    realtime.connect(["overlay.windows"], { studyId: String(data.studyId) }, data.webSocketOrigin);
+    return () => {
+      unsubscribe();
+      realtime.disconnect();
+    };
   });
 
   $effect(() => {
@@ -617,7 +705,52 @@
   });
 
   function getWidgetMeta(widgetId: string): WidgetMeta | undefined {
-    return (data.widgets as WidgetMeta[]).find((w) => w.id === widgetId);
+    return widgetCatalogue.find((w) => w.id === widgetId);
+  }
+
+  async function refreshWidgets() {
+    if (refreshingWidgets) return;
+    refreshingWidgets = true;
+    saveResult = null;
+    try {
+      const response = await fetch(`${apiBase}/system/widgets/refresh`, {
+        method: "POST",
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.message ?? payload?.error?.message ?? "Widget refresh failed");
+      }
+      const result = payload?.data as Record<string, unknown> | undefined;
+      if (!result || !Array.isArray(result.catalogue)) {
+        throw new Error("Widget refresh returned an invalid catalogue");
+      }
+      widgetCatalogue = result.catalogue as WidgetMeta[];
+      widgetRevision += 1;
+      if (
+        activeCategory !== "all"
+        && !widgetCatalogue.some((widget) => widget.category === activeCategory)
+      ) {
+        activeCategory = "all";
+      }
+      const created = Number(result.created ?? 0);
+      const updated = Number(result.updated ?? 0);
+      const reactivated = Number(result.reactivated ?? 0);
+      const deactivated = Number(result.deactivated ?? 0);
+      const changes = created + updated + reactivated + deactivated;
+      saveResult = {
+        ok: true,
+        message: changes === 0
+          ? `Widget catalogue is current (${widgetCatalogue.length} detected)`
+          : `Widgets refreshed: ${widgetCatalogue.length} detected, ${created} added, ${updated} updated, ${reactivated} restored, ${deactivated} unavailable`,
+      };
+    } catch (error) {
+      saveResult = {
+        ok: false,
+        message: error instanceof Error ? error.message : "Widget refresh failed",
+      };
+    } finally {
+      refreshingWidgets = false;
+    }
   }
   function getWidgetBaseSize(widgetId: string) {
     const meta = getWidgetMeta(widgetId);
@@ -695,12 +828,15 @@
         id: crypto.randomUUID(),
         widgetId: draggingWidgetId,
         windowMode: "transparent_electron",
-        targetDisplay: String(display.index),
+        inputMode: "click_through",
+        targetDisplay: display.id,
         order: placed.length,
         x,
         y,
         w,
         h,
+        enabled: true,
+        configuration: {},
         bindingsConfig: {},
         triggerRules: [],
         styleOverrides: {},
@@ -738,10 +874,10 @@
                 globalX + Math.round(p.w / 2),
                 globalY + Math.round(p.h / 2),
               );
-              targetDisplay = String(display.index);
+              targetDisplay = display.id;
               return {
                 ...p,
-                targetDisplay: String(display.index),
+                targetDisplay: display.id,
                 x: clamp(
                   Math.round(globalX - display.bounds.x),
                   0,
@@ -808,21 +944,50 @@
   }
 
   // ─── Save layout ─────────────────────────────────────────────────────────────
-  async function saveLayout() {
+  async function saveLayout(manual = true) {
+    if (!data.canManage) {
+      saveResult = { ok: false, message: STUDY_DESIGN_ACCESS_REQUIRED };
+      return;
+    }
+    if (saving) return;
+    if (invalidDisplayAssignments.length > 0) {
+      saveResult = {
+        ok: false,
+        message: displayFallbackNotice ?? "Reassign unavailable displays before saving the participant layout.",
+      };
+      return;
+    }
+    if (autosaveBlocked) {
+      saveResult = {
+        ok: false,
+        message: "The participant layout changed elsewhere. Reload Participant View before saving again.",
+      };
+      return;
+    }
     saving = true;
     saveResult = null;
+    const signature = layoutDraftSignature();
+    if (!manual) lastAutosaveAttemptSignature = signature;
     try {
-      const layoutId = await persistLayout();
+      if (signature !== lastSavedSignature) {
+        await persistLayout();
+        lastSavedSignature = signature;
+      }
+      await applySavedLayoutToLiveWindows();
       saveResult = {
         ok: true,
-        message: `Layout saved (${layoutId.slice(0, 8)})`,
+        message: manual ? "Layout saved" : "Layout saved automatically",
       };
     } catch (error) {
+      if (error instanceof LayoutSaveError && error.code === "LAYOUT_VERSION_CONFLICT") {
+        autosaveBlocked = true;
+      }
       saveResult = {
         ok: false,
         message:
           error instanceof Error ? error.message : "Failed to save layout",
       };
+      lastAutosaveAttemptSignature = signature;
     } finally {
       saving = false;
     }
@@ -834,12 +999,15 @@
         id: p.id,
         widgetId: p.widgetId,
         windowMode: p.windowMode,
+        inputMode: p.inputMode,
         targetDisplay: p.targetDisplay,
         order: i,
         x: Math.round(p.x),
         y: Math.round(p.y),
         width: Math.round(p.w),
         height: Math.round(p.h),
+        enabled: p.enabled,
+        configuration: p.configuration,
         bindingsConfig: p.bindingsConfig,
         triggerRules: p.triggerRules,
         styleOverrides: p.styleOverrides,
@@ -847,76 +1015,81 @@
     };
   }
 
-  async function persistLayout(): Promise<string> {
-    if (!data.accessToken) {
-      throw new Error("No access token available");
-    }
+  function layoutDraftSignature() {
+    return JSON.stringify({ layoutName, targetDisplay, ...buildLayoutPayload() });
+  }
 
+  async function responseErrorMessage(response: Response, fallback: string) {
+    const payload = await response.json().catch(() => null);
+    const message = payload?.error?.message ?? payload?.message;
+    return typeof message === "string" && message.trim() ? message : fallback;
+  }
+
+  async function persistLayout(): Promise<string> {
     const payload = {
       ...buildLayoutPayload(),
       name: layoutName,
       type: "participant",
       targetDisplay,
       studyId: data.studyId as string,
+      expectedRevisions,
     };
-
-    const layoutsResponse = await fetch(
-      `${apiBase}/studies/${data.studyId}/layouts`,
-      {
-        headers: {
-          authorization: `Bearer ${data.accessToken as string}`,
-        },
-      },
-    );
-    if (!layoutsResponse.ok) {
-      throw new Error("Failed to query study layouts");
-    }
-    const layoutsPayload = await layoutsResponse.json().catch(() => null);
-    const existing =
-      (layoutsPayload?.data ?? []).find(
-        (entry: Record<string, unknown>) => entry.type === "participant",
-      ) ??
-      layoutsPayload?.data?.[0] ??
-      null;
-
-    if (existing?.id) {
-      const response = await fetch(
-        `${apiBase}/studies/${data.studyId}/layouts/${existing.id}`,
-        {
-          method: "PUT",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${data.accessToken as string}`,
-          },
-          body: JSON.stringify(payload),
-        },
-      );
-      if (!response.ok) {
-        throw new Error("Failed to update participant layout");
-      }
-      return String(existing.id);
-    }
-
-    const response = await fetch(`${apiBase}/studies/${data.studyId}/layouts`, {
-      method: "POST",
+    const response = await fetch(
+      persistedLayoutId
+        ? `${apiBase}/studies/${data.studyId}/layouts/${persistedLayoutId}`
+        : `${apiBase}/studies/${data.studyId}/layouts`, {
+      method: persistedLayoutId ? "PUT" : "POST",
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${data.accessToken as string}`,
       },
       body: JSON.stringify(payload),
     });
+    const result = await response.json().catch(() => null);
     if (!response.ok) {
-      throw new Error("Failed to create participant layout");
+      throw new LayoutSaveError(
+        String(result?.error?.code ?? "LAYOUT_SAVE_FAILED"),
+        String(result?.error?.message ?? "Failed to save participant layout. Retry saving."),
+      );
     }
-    const created = await response.json().catch(() => null);
-    const layoutId = String(created?.data?.id ?? "");
+    const layoutId = String(result?.data?.id ?? "");
     if (!layoutId) {
       throw new Error("Participant layout created without id");
     }
+    persistedLayoutId = layoutId;
+    expectedRevisions = Array.isArray(result?.data?.expectedRevisions)
+      ? result.data.expectedRevisions
+      : expectedRevisions;
+    lastSavedSignature = layoutDraftSignature();
     return layoutId;
   }
 
+  async function applySavedLayoutToLiveWindows() {
+    const live = placed.filter((widget) => liveWindowIds.includes(widget.id));
+    if (live.length === 0) return;
+    const response = await fetch(`${apiBase}/system/overlay/windows/update`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        windows: live.map((widget) => ({
+          instanceId: widget.id,
+          targetDisplay: widget.targetDisplay,
+          windowMode: "transparent_electron",
+          inputMode: widget.inputMode,
+          bounds: relativeBounds(widget),
+        })),
+      }),
+    });
+    if (response.ok) return;
+    throw new Error(
+      `${await responseErrorMessage(response, "The live windows could not be updated.")} The layout was saved. Retry with Save Layout.`,
+    );
+  }
+
   async function launchSelectedMode() {
+    if (invalidDisplayAssignments.length > 0) {
+      saveResult = { ok: false, message: displayFallbackNotice ?? "Reassign unavailable displays before launching." };
+      return;
+    }
     const targets = [...placed].sort(launchPriority);
     if (targets.length === 0) {
       saveResult = {
@@ -926,38 +1099,45 @@
       return;
     }
 
+    const browserLauncher = launchMode === "browser_popup"
+      ? window.open("about:blank", `scarline-layout-${data.studyId as string}`, "popup=yes,width=760,height=680,resizable=yes,scrollbars=yes")
+      : null;
     try {
       const layoutId = await persistLayout();
+
+      if (launchMode === "browser_popup") {
+        const launchUrl = await requestBrowserRenderGrant(layoutId, null);
+        const target = browserLauncher ?? window.open(launchUrl, `scarline-layout-${data.studyId as string}`, "popup=yes,width=760,height=680,resizable=yes,scrollbars=yes");
+        if (target === null) {
+          throw new Error("The browser blocked the overlay launcher. Allow popups for SCARline and try again.");
+        }
+        target.location.href = launchUrl;
+        saveResult = { ok: true, message: `Overlay launcher opened for ${targets.length} widget(s)` };
+        return;
+      }
 
       let opened = 0;
       for (const widget of targets) {
         try {
-          await openOverlayWindow(layoutId, widget, launchMode);
+          await openOverlayWindow(layoutId, widget, "transparent_electron");
           opened += 1;
         } catch (error) {
           console.error("Failed to launch overlay widget", widget.id, error);
         }
       }
 
-      if (launchMode === "browser_popup") {
-        saveResult =
-          opened > 0
-            ? { ok: true, message: `Opened ${opened} browser widget window(s)` }
-            : { ok: false, message: "Failed to open browser widget windows" };
-        return;
-      }
-
       saveResult =
         opened > 0
           ? {
               ok: true,
-              message: `Opened ${opened} transparent Electron widget window(s)`,
+              message: `Opened ${opened} transparent overlay window(s)`,
             }
           : {
               ok: false,
-              message: "Failed to open transparent Electron widget windows",
+              message: "Failed to open transparent overlay windows",
             };
     } catch (error) {
+      if (browserLauncher !== null && !browserLauncher.closed) browserLauncher.close();
       saveResult = {
         ok: false,
         message:
@@ -970,18 +1150,33 @@
     if (!selectedWidget) {
       return;
     }
+    if (invalidDisplayAssignments.some((entry) => entry.id === selectedWidget.id)) {
+      saveResult = { ok: false, message: displayFallbackNotice ?? "Reassign the unavailable display before launching." };
+      return;
+    }
     const widget = { ...selectedWidget };
+    const browserWindow = widget.windowMode === "browser_popup"
+      ? window.open("about:blank", `scarline-widget-${widget.id}`, browserPopupFeatures(widget))
+      : null;
     try {
       const layoutId = await persistLayout();
-      await openOverlayWindow(layoutId, widget);
+      if (widget.windowMode === "browser_popup") {
+        const launchUrl = await requestBrowserRenderGrant(layoutId, widget.id);
+        const target = browserWindow ?? window.open(launchUrl, `scarline-widget-${widget.id}`, browserPopupFeatures(widget));
+        if (target === null) throw new Error("The browser blocked the widget popup. Allow popups for SCARline and try again.");
+        target.location.href = launchUrl;
+      } else {
+        await openOverlayWindow(layoutId, widget, "transparent_electron");
+      }
       saveResult = {
         ok: true,
         message:
           widget.windowMode === "browser_popup"
             ? "Browser widget window opened"
-            : "Electron widget window opened",
+            : "Transparent overlay window opened",
       };
     } catch (error) {
+      if (browserWindow !== null && !browserWindow.closed) browserWindow.close();
       saveResult = {
         ok: false,
         message:
@@ -1007,7 +1202,6 @@
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${data.accessToken as string}`,
       },
       body: JSON.stringify(body),
     });
@@ -1016,28 +1210,16 @@
     }
 
     const payload = await response.json().catch(() => null);
-    const directResponse = await fetch("http://127.0.0.1:4097/windows/close", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        layoutId: layoutId || undefined,
-        instanceIds: body.instanceIds,
-        closeAll: body.closeAll,
-      }),
-    }).catch(() => null);
-    if (!directResponse?.ok) {
-      throw new Error(
-        payload?.error?.message ||
-          "Failed to close widget window. Ensure the desktop overlay control server is running.",
-      );
-    }
+    throw new Error(
+      payload?.error?.message ||
+        "Couldn't close the widget window. Make sure the SCARline desktop app is running on the operator machine, then try again.",
+    );
   }
 
   async function closePlacedWidgetWindow(id: string) {
     try {
       await closeOverlayWindows({ instanceIds: [id] });
+      liveWindowIds = liveWindowIds.filter((instanceId) => instanceId !== id);
       saveResult = { ok: true, message: "Widget window closed" };
     } catch (error) {
       saveResult = {
@@ -1058,6 +1240,7 @@
   async function closeAllWidgetWindows() {
     try {
       await closeOverlayWindows({ closeAll: true });
+      liveWindowIds = [];
       saveResult = { ok: true, message: "All widget windows closed" };
     } catch (error) {
       saveResult = {
@@ -1157,15 +1340,7 @@
   description={data.study?.description ?? "No description"}
 >
   {#snippet actions()}
-    <div class="action-strip">
-      <a
-        class="button-primary"
-        href={appPath(`/user-studies/${data.study.id}/sessions`)}
-      >
-        <Database size={24} strokeWidth={1.5} />
-        New Session
-      </a>
-    </div>
+    <StudyLifecycleControls study={data.study} readiness={data.readiness} canManage={data.canManage} />
   {/snippet}
 </PageHeader>
 <StudyTabs
@@ -1181,7 +1356,7 @@
   />
   <MetricCard
     label="Catalogue"
-    value={data.widgets.length}
+    value={widgetCatalogue.length}
     hint="Available widgets"
   />
   <MetricCard
@@ -1216,11 +1391,11 @@
 
 {#if displayFallbackNotice}
   <div class="mt-4">
-    <InlineNotice tone="warning" message={displayFallbackNotice} />
+    <InlineNotice tone="danger" message={displayFallbackNotice} />
   </div>
 {/if}
 
-<div class="layout-editor-shell">
+<fieldset class="layout-editor-shell" disabled={!data.canManage} title={!data.canManage ? STUDY_DESIGN_ACCESS_REQUIRED : undefined}>
   <ParticipantLayoutCatalogue
     bind:searchQuery
     bind:activeCategory
@@ -1229,6 +1404,8 @@
     {getPreviewMetrics}
     {getWidgetPreviewUrl}
     onWidgetDragStart={onCatalogueDragStart}
+    {refreshingWidgets}
+    onRefreshWidgets={refreshWidgets}
   />
 
   <ParticipantLayoutCanvas
@@ -1288,4 +1465,4 @@
     onOpenSelectedWidgetWindow={openSelectedWidgetWindow}
     onCloseSelectedWidgetWindow={closeSelectedWidgetWindow}
   />
-</div>
+</fieldset>

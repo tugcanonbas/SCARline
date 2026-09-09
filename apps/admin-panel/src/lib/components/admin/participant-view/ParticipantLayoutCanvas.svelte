@@ -12,7 +12,7 @@
     topologyHint = '',
     selectedDisplayHint = '',
     layoutName = $bindable(''),
-    targetDisplay = $bindable('0'),
+    targetDisplay = $bindable('primary'),
     launchMode = $bindable<'transparent_electron' | 'browser_popup'>('transparent_electron'),
     saving = false,
     placed = [],
@@ -102,7 +102,7 @@
       <select bind:value={targetDisplay} class="layout-properties__select">
         {#each displays as display}
           {@const bounds = displayBounds(display)}
-          <option value={String(display.index ?? 0)}>
+          <option value={String(display.id ?? 'primary')}>
             #{String(display.index ?? 0)} · {bounds.width}×{bounds.height}
           </option>
         {/each}
@@ -111,12 +111,12 @@
     <label class="layout-canvas-display">
       <span>Launch Mode</span>
       <select bind:value={launchMode} class="layout-properties__select">
-        <option value="transparent_electron">Transparent (Electron)</option>
-        <option value="browser_popup">Browser windows</option>
+        <option value="transparent_electron">Transparent (desktop overlay)</option>
+        <option value="browser_popup">Browser window</option>
       </select>
     </label>
     <button class="button-secondary" onclick={onLaunchSelectedMode} type="button">
-      Launch Selected Mode
+      Launch Selected Widgets
     </button>
     <button class="button-secondary" onclick={onCloseAllWidgets} type="button">
       Close All Widgets
@@ -146,7 +146,7 @@
           class={`layout-display-chip ${isSelected ? 'layout-display-chip--selected' : ''}`}
           type="button"
           onclick={() => {
-            targetDisplay = String(display.index ?? 0);
+            targetDisplay = String(display.id ?? 'primary');
           }}
           title={`Display #${String(display.index ?? 0)} · ${bounds.width}×${bounds.height} @ ${bounds.x},${bounds.y}`}
         >
@@ -175,7 +175,7 @@
           type="button"
           onclick={(event) => {
             event.stopPropagation();
-            targetDisplay = String(display.index ?? 0);
+            targetDisplay = String(display.id ?? 'primary');
           }}
           title={`Display #${String(display.index ?? 0)} · ${String(display.sourceWidth ?? displayWidth)}×${String(display.sourceHeight ?? displayHeight)} @ ${String(display.sourceX ?? 0)},${String(display.sourceY ?? 0)}`}
         >

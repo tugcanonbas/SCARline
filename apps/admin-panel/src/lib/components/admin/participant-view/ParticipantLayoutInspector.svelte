@@ -111,12 +111,12 @@
       <p class="layout-properties__label">Assigned Display</p>
       <select
         class="layout-properties__select"
-        value={String(selectedWidget.targetDisplay ?? '0')}
+        value={String(selectedWidget.targetDisplay ?? 'primary')}
         onchange={(event) => onDisplayChange((event.currentTarget as HTMLSelectElement).value)}
       >
         {#each displays as display}
           {@const bounds = displayBounds(display)}
-          <option value={String(display.index ?? 0)}>
+          <option value={String(display.id ?? 'primary')}>
             Display #{String(display.index ?? 0)} · {bounds.width}×{bounds.height}
           </option>
         {/each}
@@ -132,45 +132,55 @@
             (event.currentTarget as HTMLSelectElement).value as 'transparent_electron' | 'browser_popup',
           )}
       >
-        <option value="transparent_electron">Transparent (Electron)</option>
+        <option value="transparent_electron">Transparent (desktop overlay)</option>
         <option value="browser_popup">Browser window</option>
       </select>
     </div>
     <div class="layout-properties__section">
-      <p class="layout-properties__label">Bindings Config</p>
-      <textarea
-        class="layout-properties__textarea"
-        rows="7"
-        value={bindingsDraft}
-        oninput={(event) => onBindingsInput((event.currentTarget as HTMLTextAreaElement).value)}
-      ></textarea>
-      {#if bindingsError}
-        <p class="layout-properties__error">{bindingsError}</p>
-      {/if}
-    </div>
-    <div class="layout-properties__section">
-      <p class="layout-properties__label">Trigger Rules</p>
-      <textarea
-        class="layout-properties__textarea"
-        rows="7"
-        value={triggerRulesDraft}
-        oninput={(event) => onTriggerRulesInput((event.currentTarget as HTMLTextAreaElement).value)}
-      ></textarea>
-      {#if triggerRulesError}
-        <p class="layout-properties__error">{triggerRulesError}</p>
-      {/if}
-    </div>
-    <div class="layout-properties__section">
-      <p class="layout-properties__label">Style Overrides</p>
-      <textarea
-        class="layout-properties__textarea"
-        rows="7"
-        value={styleOverridesDraft}
-        oninput={(event) => onStyleOverridesInput((event.currentTarget as HTMLTextAreaElement).value)}
-      ></textarea>
-      {#if styleOverridesError}
-        <p class="layout-properties__error">{styleOverridesError}</p>
-      {/if}
+      <details>
+        <summary>Advanced: widget behavior (JSON)</summary>
+        <p class="layout-properties__desc mt-2">
+          These control where this widget gets its data, when it
+          automatically shows or hides, and custom CSS. Most widgets work
+          fine without touching these.
+        </p>
+        <div class="mt-2">
+          <p class="layout-properties__label">Bindings Config</p>
+          <textarea
+            class="layout-properties__textarea"
+            rows="7"
+            value={bindingsDraft}
+            oninput={(event) => onBindingsInput((event.currentTarget as HTMLTextAreaElement).value)}
+          ></textarea>
+          {#if bindingsError}
+            <p class="layout-properties__error">{bindingsError}</p>
+          {/if}
+        </div>
+        <div class="mt-2">
+          <p class="layout-properties__label">Trigger Rules</p>
+          <textarea
+            class="layout-properties__textarea"
+            rows="7"
+            value={triggerRulesDraft}
+            oninput={(event) => onTriggerRulesInput((event.currentTarget as HTMLTextAreaElement).value)}
+          ></textarea>
+          {#if triggerRulesError}
+            <p class="layout-properties__error">{triggerRulesError}</p>
+          {/if}
+        </div>
+        <div class="mt-2">
+          <p class="layout-properties__label">Style Overrides</p>
+          <textarea
+            class="layout-properties__textarea"
+            rows="7"
+            value={styleOverridesDraft}
+            oninput={(event) => onStyleOverridesInput((event.currentTarget as HTMLTextAreaElement).value)}
+          ></textarea>
+          {#if styleOverridesError}
+            <p class="layout-properties__error">{styleOverridesError}</p>
+          {/if}
+        </div>
+      </details>
     </div>
     <div class="layout-properties__section">
       <button class="button-secondary button-block" type="button" onclick={onOpenSelectedWidgetWindow}>

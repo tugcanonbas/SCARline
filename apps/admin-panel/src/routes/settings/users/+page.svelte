@@ -2,9 +2,10 @@
   import EmptyState from "$lib/components/admin/EmptyState.svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
   import SurfaceCard from "$lib/components/SurfaceCard.svelte";
+  import { formatStatusLabel } from "$lib/format";
 
   let { data } = $props();
-  const roles = ["admin", "researcher", "operator", "viewer"];
+  const roles = ["admin", "researcher", "operator", "observer"];
 </script>
 
 <div class="section-grid section-grid--sidebar">
@@ -27,7 +28,7 @@
         </label>
         <label class="form-field">
           <span>Initial Password</span>
-          <input minlength="8" name="password" type="password" required />
+          <input minlength="12" name="password" type="password" required />
         </label>
       </div>
       <label class="form-field">
@@ -48,9 +49,9 @@
                 name="roles"
                 type="checkbox"
                 value={role}
-                checked={role === "viewer"}
+                checked={role === "observer"}
               />
-              <span>{role}</span>
+              <span>{formatStatusLabel(role)}</span>
             </label>
           {/each}
         </div>
@@ -97,7 +98,7 @@
               <label class="form-field form-field--compact">
                 <span>New Password</span>
                 <input
-                  minlength="8"
+                  minlength="12"
                   name="password"
                   placeholder="Leave unchanged"
                   type="password"
@@ -113,7 +114,7 @@
                     value={role}
                     checked={(user.roles ?? []).includes(role)}
                   />
-                  <span>{role}</span>
+                  <span>{formatStatusLabel(role)}</span>
                 </label>
               {/each}
             </div>

@@ -1,14 +1,20 @@
 <script lang="ts">
+  import { enhance } from "$app/forms";
   import EmptyState from "$lib/components/admin/EmptyState.svelte";
+  import InlineNotice from "$lib/components/admin/InlineNotice.svelte";
   import MetricCard from "$lib/components/admin/MetricCard.svelte";
   import KeyValueGrid from "$lib/components/KeyValueGrid.svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
   import StudyTabs from "$lib/components/StudyTabs.svelte";
+  import StudyLifecycleControls from "$lib/components/admin/studies/StudyLifecycleControls.svelte";
   import SurfaceCard from "$lib/components/SurfaceCard.svelte";
   import { appPath } from "$lib/paths";
-  import { Database } from "lucide-svelte";
+  import { formatStatusLabel } from "$lib/format";
+  import { studySectionHref } from "$lib/studySections";
+  import { STUDY_DESIGN_ACCESS_REQUIRED } from "$lib/permissions";
 
-  let { data } = $props();
+  let { data, form } = $props();
+  let saving = $state(false);
   const configItems = $derived([
     { label: "Map", value: data.config?.map ?? "Not configured" },
     {
@@ -110,15 +116,7 @@
   description={data.study?.description ?? "No description"}
 >
   {#snippet actions()}
-    <div class="action-strip">
-      <a
-        class="button-primary"
-        href={appPath(`/user-studies/${data.study.id}/sessions`)}
-      >
-        <Database size={24} strokeWidth={1.5} />
-        New Session
-      </a>
-    </div>
+    <StudyLifecycleControls study={data.study} readiness={data.readiness} canManage={data.canManage} />
   {/snippet}
 </PageHeader>
 <StudyTabs
@@ -140,9 +138,9 @@
     hint="Baseline before condition overrides"
   />
   <MetricCard
-    label="Sensors"
+    label="Simulated Sensors"
     value={configuredSensors.length}
-    hint="Simulator-attached devices"
+    hint="Virtual sensors attached to the vehicle in-simulator"
   />
   <MetricCard
     label="NPC Vehicles"
@@ -154,12 +152,34 @@
 </div>
 
 <div class="section-grid section-grid--balanced mt-4">
-  {#if data.canManage}
-    <SurfaceCard
+  <SurfaceCard
       title="Simulator Defaults"
-      subtitle="These values are persisted as the study-level CARLA baseline."
+      subtitle="These values are the study-level baseline for the driving simulator (default: CARLA)."
     >
-      <form class="form-stack" method="POST">
+      {#if form?.message && !saving}
+        <InlineNotice
+          tone={form.saved ? "success" : "danger"}
+          message={form.message}
+        />
+      {/if}
+      <form
+        action="?/saveSimulator"
+        class="form-stack"
+        method="POST"
+        use:enhance={() => {
+          saving = true;
+          return async ({ update }) => {
+            try {
+              await update({ reset: false, invalidateAll: true });
+            } finally {
+              saving = false;
+            }
+          };
+        }}
+      >
+        <fieldset class="contents" disabled={!data.canManage} title={!data.canManage ? STUDY_DESIGN_ACCESS_REQUIRED : undefined}>
+        <input name="controlMode" type="hidden" value={data.config?.controlMode ?? "io"} />
+        <input name="randomSeed" type="hidden" value={data.config?.randomSeed ?? 0} />
         <label class="form-field">
           <span>Map</span>
           <select name="map">
@@ -177,7 +197,7 @@
             {#each data.weather as preset}
               <option
                 value={preset}
-                selected={data.config?.weather_preset === preset}
+                selected={(data.config?.weatherPreset ?? data.config?.weather_preset) === preset}
                 >{preset}</option
               >
             {/each}
@@ -189,7 +209,7 @@
             {#each data.vehicles as vehicle}
               <option
                 value={vehicle}
-                selected={data.config?.ego_vehicle_blueprint === vehicle}
+                selected={(data.config?.egoVehicleBlueprint ?? data.config?.ego_vehicle_blueprint) === vehicle}
                 >{vehicle}</option
               >
             {/each}
@@ -281,30 +301,53 @@
                 value="synchronous"
                 selected={(data.config?.simulationMode ??
                   data.config?.simulation_mode ??
-                  "synchronous") === "synchronous"}>synchronous</option
+                  "synchronous") === "synchronous"}
+                >{formatStatusLabel("synchronous")}</option
               >
               <option
                 value="asynchronous"
+                disabled
                 selected={(data.config?.simulationMode ??
                   data.config?.simulation_mode) === "asynchronous"}
-                >asynchronous</option
+                >{formatStatusLabel("asynchronous")}</option
               >
             </select>
+            <span class="form-field__hint"
+              >Synchronous: the simulator waits for SCARline to process each
+              step, so timing stays consistent but runs slower. Asynchronous:
+              the simulator runs at its own pace without waiting, which is
+              faster but less precise.</span
+            >
           </label>
           <label class="form-field">
             <span>Fixed Delta Seconds</span>
             <input
               name="fixedDeltaSeconds"
+              readonly
               step="0.01"
               type="number"
               value={data.config?.fixedDeltaSeconds ??
                 data.config?.fixed_delta_seconds ??
                 0.05}
             />
+            <span class="form-field__hint"
+              >How much simulated time passes on each step (in seconds).
+              Smaller values are more precise but require more processing
+              power; 0.05 is a good default.</span
+            >
           </label>
         </div>
         <div class="detail-panel">
-          <p class="entity-card__title">Simulator Sensors</p>
+          <p class="entity-card__title">Simulated Vehicle Sensors</p>
+          <p class="form-field__hint">
+            Virtual sensors attached to the vehicle inside the simulator
+            (cameras, LiDAR, GPS). For physical lab hardware — steering
+            wheels, eye trackers, heart-rate monitors — use the
+            <a href={appPath(studySectionHref(data.studyId, "sensors"))}
+              >Sensors tab</a
+            >
+            instead.
+          </p>
           <div class="choice-grid mt-3">
             <label class="flex items-center gap-2 text-sm"
               ><input
@@ -408,7 +451,7 @@
               checked={Boolean(recordingConfig.enabled ?? false)}
               name="recordingEnabled"
               type="checkbox"
-            /> Enable CARLA recording</label
+            /> Enable simulator recording</label
           >
           <input
             name="spectatorX"
@@ -443,10 +486,12 @@
             />
           </label>
         </div>
-        <button class="button-primary" type="submit">Save Configuration</button>
+        <button class="button-primary" disabled={saving || !data.canManage} title={!data.canManage ? STUDY_DESIGN_ACCESS_REQUIRED : undefined} type="submit">
+          {saving ? "Saving…" : "Save Configuration"}
+        </button>
+        </fieldset>
       </form>
-    </SurfaceCard>
-  {/if}
+  </SurfaceCard>
 
   <SurfaceCard title="Current Setup">
     <KeyValueGrid items={configItems} />

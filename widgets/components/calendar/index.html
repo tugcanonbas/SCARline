@@ -74,17 +74,17 @@
     </style>
 </head>
 
-<body class="bg-transparent min-h-screen flex items-center justify-center p-4">
+<body class="m-0 h-screen w-full overflow-hidden bg-transparent">
 
     <!-- Card Container: 150x129 (from meta.json) -->
-    <div
-        class="bg-transparent w-[150px] h-[129px] rounded-lg overflow-hidden shadow-lg relative text-white flex flex-col p-2 isolate">
+    <div data-scarline-widget-root
+        class="bg-transparent w-full h-full rounded-lg overflow-hidden shadow-lg relative text-white flex flex-col p-2 isolate">
 
 
 
         <!-- Header -->
         <div class="relative z-10 flex items-center justify-between mb-1.5 px-1">
-            <button
+            <button type="button" data-action="calendar.previous_month"
                 class="w-5 h-5 flex items-center justify-center rounded border border-white/20 text-white/40 hover:text-white transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none"
                     stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
@@ -97,7 +97,7 @@
                 <div id="year-label" class="text-[8px] font-medium text-white/40 leading-none mt-0.5"
                     data-bind="calendar.year_label">2026</div>
             </div>
-            <button
+            <button type="button" data-action="calendar.next_month"
                 class="w-5 h-5 flex items-center justify-center rounded border border-white/20 text-white/40 hover:text-white transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none"
                     stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">

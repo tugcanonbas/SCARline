@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scarline-carla-client"
+version = "1.0.0"
+description = "CARLA 0.9.16 simulator adapter for SCARline"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "carla==0.9.16",
+  "PyYAML==6.0.2",
+  "websockets==15.0.1",
+]
+
+[project.scripts]
+scarline-carla-client = "scarline_carla.__main__:entrypoint"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["scarline_carla*"]

@@ -63,6 +63,30 @@
     "contacts.select_4": {
       "description": "Select the fourth contact.",
       "interactionType": "click"
+    },
+    "contacts.select_5": {
+      "description": "Select the fifth contact.",
+      "interactionType": "click"
+    },
+    "contacts.select_6": {
+      "description": "Select the sixth contact.",
+      "interactionType": "click"
+    },
+    "contacts.select_7": {
+      "description": "Select the seventh contact.",
+      "interactionType": "click"
+    },
+    "contacts.select_8": {
+      "description": "Select the eighth contact.",
+      "interactionType": "click"
+    },
+    "contacts.select_9": {
+      "description": "Select the ninth contact.",
+      "interactionType": "click"
+    },
+    "contacts.select_10": {
+      "description": "Select the tenth contact.",
+      "interactionType": "click"
     }
   },
   "ui": {

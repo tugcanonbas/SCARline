@@ -1,44 +1,24 @@
 <script lang="ts">
   import { appPath } from "$lib/paths";
+  import { ArrowLeft } from "lucide-svelte";
   import {
-    ArrowLeft,
-    FileText,
-    ScanEye,
-    CarFront,
-    GalleryThumbnails,
-    TestTubeDiagonal,
-  } from "lucide-svelte";
+    STUDY_SECTIONS,
+    STUDY_SECTION_ORDER,
+    studySectionHref,
+  } from "$lib/studySections";
 
-  let { studyId, current, icon } = $props<{
+  let { studyId, current } = $props<{
     studyId: string;
     current: string;
-    icon?: string;
   }>();
 
-  const tabs = $derived.by(() => {
-    const basePath = `/user-studies/${studyId}`;
-
-    return [
-      { href: `${basePath}/overview`, label: "Overview", icon: FileText },
-      {
-        href: `${basePath}/conditions`,
-        label: "Conditions",
-        icon: TestTubeDiagonal,
-      },
-      {
-        href: `${basePath}/carla-config`,
-        label: "CARLA Setup",
-        icon: CarFront,
-      },
-      { href: `${basePath}/sensors`, label: "Sensors", icon: ScanEye },
-      {
-        href: `${basePath}/participant-view`,
-        label: "Participant View",
-        icon: GalleryThumbnails,
-      },
-      { href: `${basePath}/active-study`, label: "Active Study" },
-    ];
-  });
+  const tabs = $derived(
+    STUDY_SECTION_ORDER.map((key) => ({
+      href: studySectionHref(studyId, key),
+      label: STUDY_SECTIONS[key].label,
+      icon: STUDY_SECTIONS[key].icon,
+    })),
+  );
 </script>
 
 <nav class="study-tabs">
@@ -57,7 +37,7 @@
       href={appPath(tab.href)}
     >
       {#if tab.icon}
-        <svelte:component this={tab.icon} size={16} />
+        <tab.icon size={16} />
       {/if}
 
       {tab.label}

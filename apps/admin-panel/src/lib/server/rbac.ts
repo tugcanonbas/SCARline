@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 
-type Role = 'admin' | 'researcher' | 'operator' | 'viewer';
+type Role = 'admin' | 'researcher' | 'operator' | 'observer';
 
 export async function requireRole(
   fetch: typeof globalThis.fetch,

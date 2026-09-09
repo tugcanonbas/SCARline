@@ -1,10 +1,9 @@
-import { apiRequest } from '$lib/server/api';
+import { getBootstrapState } from '$lib/server/bootstrap';
 
 export const load = async ({ fetch, locals }) => {
-  const health = await apiRequest(fetch, locals.apiBase, '/health', locals.accessToken);
-  const bootstrap = await apiRequest(fetch, locals.apiBase, '/system/bootstrap', locals.accessToken);
+  const bootstrap = await getBootstrapState(fetch, locals.apiBase);
   return {
-    health,
+    health: bootstrap.health,
     bootstrap
   };
 };

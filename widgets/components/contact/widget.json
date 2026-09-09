@@ -24,7 +24,7 @@
     "contact.company": {
       "type": "string",
       "description": "Selected contact company.",
-      "default": "HCIS Lab"
+      "default": "SCARline Lab"
     }
   },
   "actions": {
@@ -34,6 +34,14 @@
     },
     "contact.message": {
       "description": "Send a message to the selected contact.",
+      "interactionType": "click"
+    },
+    "contact.back": {
+      "description": "Return to the contact list.",
+      "interactionType": "click"
+    },
+    "contact.navigate": {
+      "description": "Navigate to the selected contact.",
       "interactionType": "click"
     }
   },

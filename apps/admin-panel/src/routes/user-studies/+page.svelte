@@ -4,6 +4,7 @@
   import PageHeader from "$lib/components/PageHeader.svelte";
   import { Plus, ArrowRight } from "lucide-svelte";
   import StatusBadge from "$lib/components/StatusBadge.svelte";
+  import { STUDY_DESIGN_ACCESS_REQUIRED } from "$lib/permissions";
 
   let { data } = $props();
   type StudyListItem = {
@@ -15,7 +16,7 @@
   };
 
   const activeStudies = $derived(
-    data.studies.filter((study: StudyListItem) => study.status === "active")
+    data.studies.filter((study: StudyListItem) => ["configured", "ready", "running"].includes(study.status))
       .length,
   );
   const draftStudies = $derived(
@@ -42,21 +43,26 @@
         <Plus size={24} strokeWidth={1.5} />
         New Study
       </a>
+    {:else}
+      <button class="button-primary" type="button" disabled title={STUDY_DESIGN_ACCESS_REQUIRED}>
+        <Plus size={24} strokeWidth={1.5} />
+        New Study
+      </button>
     {/if}
   {/snippet}
 </PageHeader>
 
 <div class="study-data">
-  <div>{activeStudies} active studies</div>
+  <div>{activeStudies} active {activeStudies === 1 ? "study" : "studies"}</div>
   <span>|</span>
-  <div>{draftStudies} draft studies</div>
+  <div>{draftStudies} draft {draftStudies === 1 ? "study" : "studies"}</div>
   <span>|</span>
-  <div>{totalParticipants} participants</div>
+  <div>{totalParticipants} participant{totalParticipants === 1 ? "" : "s"}</div>
 </div>
 
 <div class="list-stack study-list">
   {#each data.studies as study}
-    <section class="entity-card">
+    <a class="entity-card" href={appPath(`/user-studies/${study.id}/overview`)}>
       <div class="entity-card__header">
         <div class="min-w-0">
           <p class="entity-card__title">{study.name}</p>
@@ -68,43 +74,11 @@
         <div class="pill-row">
           <StatusBadge status={study.status} />
           <span class="status-badge status-badge--muted"
-            >{study.participantCount} participants</span
+            >{study.participantCount} participant{study.participantCount === 1 ? "" : "s"}</span
           >
         </div>
       </div>
-
-      <div class="section-grid">
-        <div class="detail-grid-3">
-          <div class="technical-panel">
-            <p class="technical-label">Overview</p>
-            <p class="technical-value">
-              Study summary, setup checklist, and current readiness.
-            </p>
-          </div>
-          <div class="technical-panel">
-            <p class="technical-label">Configuration</p>
-            <p class="technical-value">
-              Participants, conditions, simulator config, and sensors.
-            </p>
-          </div>
-          <div class="technical-panel">
-            <p class="technical-label">Operations</p>
-            <p class="technical-value">
-              Session queue, active controls, and participant layout.
-            </p>
-          </div>
-        </div>
-
-        <div class="form-actions">
-          <a
-            class="button-primary"
-            href={appPath(`/user-studies/${study.id}/overview`)}
-          >
-            View <ArrowRight size={24} strokeWidth={1.5} />
-          </a>
-        </div>
-      </div>
-    </section>
+    </a>
   {:else}
     <EmptyState
       message="No studies yet. Create a study to start configuring conditions, layouts, and sessions."

@@ -6,7 +6,10 @@
   import StatusBadge from "$lib/components/StatusBadge.svelte";
   import StudyTabs from "$lib/components/StudyTabs.svelte";
   import SurfaceCard from "$lib/components/SurfaceCard.svelte";
-  import { Users, TestTubeDiagonal, Database } from "lucide-svelte";
+  import StudyLifecycleControls from "$lib/components/admin/studies/StudyLifecycleControls.svelte";
+  import { formatDate, formatStatusLabel } from "$lib/format";
+  import { STUDY_SECTIONS, studySectionHref } from "$lib/studySections";
+  import { Users, TestTubeDiagonal, Database, CircleCheck, CircleX } from "lucide-svelte";
 
   let { data } = $props();
   const participantCount = $derived(
@@ -19,10 +22,30 @@
     data.study.sessionCount ?? data.study.session_count ?? 0,
   );
   const updatedAt = $derived(
-    data.study.updatedAt ?? data.study.updated_at ?? "Unknown",
+    formatDate(data.study.updatedAt ?? data.study.updated_at),
+  );
+  const createdAt = $derived(formatDate(data.study.createdAt ?? data.study.created_at));
+
+  // Only opened by default for a study that hasn't been set up yet — once
+  // participants, conditions, or sessions exist, this stays collapsed
+  // (though it's always reopenable via its summary) instead of permanently
+  // duplicating the tab bar's navigation.
+  const isNewStudy = $derived(
+    participantCount === 0 && conditionCount === 0 && sessionCount === 0,
+  );
+  const readinessChecks = $derived(
+    Array.isArray(data.readiness?.checks)
+      ? data.readiness.checks as Array<Record<string, unknown>>
+      : [],
   );
 
-  let showChecklist = $state(true);
+  function readinessCheck(key: string) {
+    return readinessChecks.find((entry) => entry.key === key) ?? null;
+  }
+
+  function readinessRoute(key: string, fallback: string) {
+    return String(readinessCheck(key)?.correctionRoute ?? fallback);
+  }
 </script>
 
 <PageHeader
@@ -31,15 +54,11 @@
   description={data.study.description ?? "No description"}
 >
   {#snippet actions()}
-    <div class="action-strip">
-      <a
-        class="button-primary"
-        href={appPath(`/user-studies/${data.study.id}/sessions`)}
-      >
-        <Database size={24} strokeWidth={1.5} />
-        New Session
-      </a>
-    </div>
+    <StudyLifecycleControls
+      study={data.study}
+      readiness={data.readiness}
+      canManage={data.canManage}
+    />
   {/snippet}
 </PageHeader>
 <StudyTabs
@@ -49,7 +68,7 @@
 
 <div class="metric-grid">
   <MetricCard
-    label="Participants"
+    label={STUDY_SECTIONS.participants.label}
     value={participantCount}
     hint="Participants in the study"
     href={appPath(`/user-studies/${data.study.id}/participants`)}
@@ -57,7 +76,7 @@
     icon={Users}
   />
   <MetricCard
-    label="Study conditions"
+    label={STUDY_SECTIONS.conditions.label}
     value={conditionCount}
     hint="Experimental variants of the study"
     href={appPath(`/user-studies/${data.study.id}/conditions`)}
@@ -65,7 +84,7 @@
     icon={TestTubeDiagonal}
   />
   <MetricCard
-    label="Sessions"
+    label={STUDY_SECTIONS.sessions.label}
     value={sessionCount}
     hint="Study sessions"
     href={appPath(`/user-studies/${data.study.id}/sessions`)}
@@ -81,58 +100,122 @@
   </MetricCard>
 </div>
 
-{#if showChecklist}
-  <div class="mt-4 section-grid" id="checklist">
-    <SurfaceCard title="Quick Start" subtitle="Steps to get you started.">
-      <div class="metric-grid">
+<details class="surface-card mt-4" id="checklist" open={isNewStudy}>
+  <summary class="surface-card__title" style="cursor: pointer;"
+    >Quick Start — steps to get you started</summary
+  >
+  <div class="surface-card__body mt-4">
+    <div class="metric-grid">
+      <a
+        class="entity-card entity-card--tight"
+        href={appPath(readinessRoute("participants", studySectionHref(data.study.id, "participants")))}
+      >
+        <p class="entity-card__title">
+          1. {STUDY_SECTIONS.participants.label}
+          {#if readinessCheck("participants")?.status === "ready"}
+            <CircleCheck size={18} aria-hidden="true" /><span class="sr-only">Ready</span>
+          {:else}
+            <CircleX size={18} aria-hidden="true" /><span class="sr-only">Not Ready</span>
+          {/if}
+        </p>
+        <p class="entity-card__meta">
+          Add and configure new participants. Currently
+          {participantCount} participant{participantCount === 1 ? "" : "s"} available.
+        </p>
+      </a>
+      <a
+        class="entity-card entity-card--tight"
+        href={appPath(readinessRoute("conditions", studySectionHref(data.study.id, "conditions")))}
+      >
+        <p class="entity-card__title">
+          2. {STUDY_SECTIONS.conditions.label}
+          {#if readinessCheck("conditions")?.status === "ready"}
+            <CircleCheck size={18} aria-hidden="true" /><span class="sr-only">Ready</span>
+          {:else}
+            <CircleX size={18} aria-hidden="true" /><span class="sr-only">Not Ready</span>
+          {/if}
+        </p>
+        <p class="entity-card__meta">
+          Configure experimental conditions. Currently {conditionCount} condition{conditionCount ===
+          1
+            ? ""
+            : "s"} configured.
+        </p>
+      </a>
+      <a
+        class="entity-card entity-card--tight"
+        href={appPath(readinessRoute("simulator", studySectionHref(data.study.id, "simulator")))}
+      >
+        <p class="entity-card__title">
+          3. {STUDY_SECTIONS.simulator.label}
+          {#if readinessCheck("simulator")?.status === "ready"}
+            <CircleCheck size={18} aria-hidden="true" /><span class="sr-only">Ready</span>
+          {:else}
+            <CircleX size={18} aria-hidden="true" /><span class="sr-only">Not Ready</span>
+          {/if}
+        </p>
+        <p class="entity-card__meta">
+          Set up the simulator, including map, weather, vehicle, traffic, and
+          default sensors (default simulator: CARLA).
+        </p>
+      </a>
+      <a
+        class="entity-card entity-card--tight"
+        href={appPath(readinessRoute("sensors", studySectionHref(data.study.id, "sensors")))}
+      >
+        <p class="entity-card__title">4. {STUDY_SECTIONS.sensors.label}
+          {#if readinessCheck("sensors")?.status === "ready"}
+            <CircleCheck size={18} aria-hidden="true" /><span class="sr-only">Ready</span>
+          {:else}
+            <CircleX size={18} aria-hidden="true" /><span class="sr-only">Not Ready</span>
+          {/if}
+        </p>
+        <p class="entity-card__meta">
+          Choose which hardware sensors this study records from.
+        </p>
+      </a>
+      <a
+        class="entity-card entity-card--tight"
+        href={appPath(readinessRoute("participant_view", studySectionHref(data.study.id, "participant-view")))}
+      >
+        <p class="entity-card__title">
+          5. {STUDY_SECTIONS["participant-view"].label}
+          {#if readinessCheck("participant_view")?.status === "ready"}
+            <CircleCheck size={18} aria-hidden="true" /><span class="sr-only">Ready</span>
+          {:else}
+            <CircleX size={18} aria-hidden="true" /><span class="sr-only">Not Ready</span>
+          {/if}
+        </p>
+        <p class="entity-card__meta">
+          Design what participants see on their display during a session.
+        </p>
+      </a>
+      {#each [
+        { key: "desktop_host", number: 6, label: "Desktop Host" },
+        { key: "displays", number: 7, label: "Displays" },
+        { key: "widget_renderer", number: 8, label: "Widget Renderer" },
+        { key: "study_status", number: 9, label: "Study Status" },
+      ] as item}
         <a
           class="entity-card entity-card--tight"
-          href={appPath(`/user-studies/${data.study.id}/participants`)}
+          href={appPath(readinessRoute(item.key, `/user-studies/${data.study.id}/overview#checklist`))}
         >
-          <p class="entity-card__title">1. Register participants</p>
+          <p class="entity-card__title">
+            {item.number}. {item.label}
+            {#if readinessCheck(item.key)?.status === "ready"}
+              <CircleCheck size={18} aria-hidden="true" /><span class="sr-only">Ready</span>
+            {:else}
+              <CircleX size={18} aria-hidden="true" /><span class="sr-only">Not Ready</span>
+            {/if}
+          </p>
           <p class="entity-card__meta">
-            {participantCount} participant records available
+            {String(readinessCheck(item.key)?.message ?? "Readiness has not been checked yet.")}
           </p>
         </a>
-        <a
-          class="entity-card entity-card--tight"
-          href={appPath(`/user-studies/${data.study.id}/conditions`)}
-        >
-          <p class="entity-card__title">2. Define conditions</p>
-          <p class="entity-card__meta">
-            {conditionCount} condition variants configured
-          </p>
-        </a>
-        <a
-          class="entity-card entity-card--tight"
-          href={appPath(`/user-studies/${data.study.id}/carla-config`)}
-        >
-          <p class="entity-card__title">3. Configure simulator</p>
-          <p class="entity-card__meta">
-            Map, weather, ego vehicle, traffic, and sensor baseline
-          </p>
-        </a>
-        <a
-          class="entity-card entity-card--tight"
-          href={appPath(`/user-studies/${data.study.id}/participant-view`)}
-        >
-          <p class="entity-card__title">4. Prepare overlay layout</p>
-          <p class="entity-card__meta">
-            Participant-facing widget composition and hidden states
-          </p>
-        </a>
-      </div>
-      <div class="mt-2">
-        <button
-          class="button-secondary"
-          onclick={() => {
-            showChecklist = false;
-          }}>Hide Checklist</button
-        >
-      </div>
-    </SurfaceCard>
+      {/each}
+    </div>
   </div>
-{/if}
+</details>
 
 <div class="mt-4 section-grid">
   <SurfaceCard title="Study Information" subtitle="">
@@ -143,18 +226,19 @@
     <div class="kv-grid">
       <div class="kv-item">
         <div class="kv-label">Status</div>
-        <p class="kv-value">{data.study.status}</p>
+        <p class="kv-value">{formatStatusLabel(data.study.status)}</p>
       </div>
       <div class="kv-item">
         <div class="kv-label">Created</div>
         <p class="kv-value">
-          {data.study.created_at ?? "Unknown"} by {data.study.created_by ??
-            "Unknown"}
+          {createdAt}{data.study.created_by
+            ? ` by ${data.study.created_by}`
+            : ""}
         </p>
       </div>
       <div class="kv-item">
         <div class="kv-label">Last Update</div>
-        <p class="kv-value">{data.study.updated_at ?? "Unknown"}</p>
+        <p class="kv-value">{updatedAt}</p>
       </div>
     </div>
   </SurfaceCard>

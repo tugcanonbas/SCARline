@@ -36,8 +36,8 @@ function Test-RuntimeRequirements {
     }
   }
 
-  if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
-    throw "Error: pnpm is not installed."
+  if (-not (Get-Command npm -ErrorAction SilentlyContinue) -and -not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
+    throw "Error: npm or pnpm is required."
   }
 }
 
@@ -58,27 +58,15 @@ function Ensure-OverlayDependencies {
   }
 
   Write-Host "Preparing desktop overlay dependencies"
-  & pnpm.cmd install --frozen-lockfile --filter "@scarline/desktop-overlay..."
-  if ($LASTEXITCODE -ne 0) {
-    Write-Warning "Frozen lockfile install failed for desktop overlay; retrying without --frozen-lockfile"
+  if (Get-Command npm -ErrorAction SilentlyContinue) {
+    & npm.cmd run build -w @scarline/desktop-overlay
+  } elseif (Get-Command pnpm -ErrorAction SilentlyContinue) {
     & pnpm.cmd install --filter "@scarline/desktop-overlay..."
-    if ($LASTEXITCODE -ne 0) {
-      throw "Failed to install desktop overlay dependencies"
-    }
   }
 
   if (-not (Test-OverlayElectronBinary)) {
-    Write-Host "Repairing Electron runtime for desktop overlay"
-    & pnpm.cmd --dir (Join-Path $RootDir "apps/desktop-overlay") rebuild electron
-  }
-
-  if (-not (Test-OverlayElectronBinary)) {
-    Write-Warning "Electron runtime still invalid after rebuild; forcing overlay reinstall"
-    & pnpm.cmd install --force --filter "@scarline/desktop-overlay..."
-    if ($LASTEXITCODE -ne 0) {
-      throw "Failed to force reinstall desktop overlay dependencies"
-    }
-    & pnpm.cmd --dir (Join-Path $RootDir "apps/desktop-overlay") rebuild electron
+    Write-Warning "Electron runtime not yet ready; building overlay packages"
+    & npm.cmd run build:overlays
   }
 
   if (-not (Test-OverlayElectronBinary)) {
@@ -153,12 +141,24 @@ function Get-ConfigValue {
 }
 
 function ComposeArgs {
-  $args = @("-f", (Join-Path $RootDir "docker-compose.yml"))
+  $baseCompose = if (Test-Path (Join-Path $RootDir "compose.yml")) { "compose.yml" } else { "docker-compose.yml" }
+  $args = @("-f", (Join-Path $RootDir $baseCompose))
   if ($Dev) {
-    $args += @("-f", (Join-Path $RootDir "docker-compose.dev.yml"))
+    if (Test-Path (Join-Path $RootDir "compose.dev.yml")) {
+      $args += @("-f", (Join-Path $RootDir "compose.dev.yml"))
+    } elseif (Test-Path (Join-Path $RootDir "docker-compose.dev.yml")) {
+      $args += @("-f", (Join-Path $RootDir "docker-compose.dev.yml"))
+    }
   }
   if ($WidgetTest) {
-    $args += @("-f", (Join-Path $RootDir "docker-compose.widget-test.yml"))
+    if (Test-Path (Join-Path $RootDir "compose.widget-test.yml")) {
+      $args += @("-f", (Join-Path $RootDir "compose.widget-test.yml"))
+    } elseif (Test-Path (Join-Path $RootDir "docker-compose.widget-test.yml")) {
+      $args += @("-f", (Join-Path $RootDir "docker-compose.widget-test.yml"))
+    }
+  }
+  if (-not $NoCarla) {
+    $args += @("--profile", "carla")
   }
   return $args
 }
@@ -324,8 +324,8 @@ function Start-OverlayDesktop {
   if ($NoOverlay) {
     return
   }
-  if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
-    Write-Warning "pnpm not installed; skipping transparent overlay launch"
+  if (-not (Get-Command npm -ErrorAction SilentlyContinue) -and -not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
+    Write-Warning "npm or pnpm not installed; skipping transparent overlay launch"
     return
   }
 
@@ -341,7 +341,9 @@ function Start-OverlayDesktop {
 
   $env:OVERLAY_URL = if ($env:OVERLAY_URL) { $env:OVERLAY_URL } else { "http://localhost:$env:SCARLINE_PORT/overlay/?chrome=transparent" }
   $env:OVERLAY_CONTROL_PORT = $OverlayControlPort
-  $process = Start-Process -FilePath "pnpm.cmd" -ArgumentList @("--dir", (Join-Path $RootDir "apps/desktop-overlay"), "start") -RedirectStandardOutput (Join-Path $LogDir "overlay-desktop.log") -RedirectStandardError (Join-Path $LogDir "overlay-desktop.err.log") -PassThru
+  $pkgRunner = if (Get-Command npm -ErrorAction SilentlyContinue) { "npm.cmd" } else { "pnpm.cmd" }
+  $pkgArgs = if ($pkgRunner -eq "npm.cmd") { @("start", "-w", "@scarline/desktop-overlay") } else { @("--dir", (Join-Path $RootDir "apps/desktop-overlay"), "start") }
+  $process = Start-Process -FilePath $pkgRunner -ArgumentList $pkgArgs -RedirectStandardOutput (Join-Path $LogDir "overlay-desktop.log") -RedirectStandardError (Join-Path $LogDir "overlay-desktop.err.log") -PassThru
   Set-Content -Path $pidFile -Value $process.Id
   Start-Sleep -Seconds 2
   if (-not (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) {
@@ -464,7 +466,11 @@ while (`$true) {
       } catch {}
       if (-not `$overlayProc -or -not `$overlayHealthy) {
         if (Can-Restart 'overlay-desktop') {
-          & pnpm.cmd --dir '$RootDir/apps/desktop-overlay' start >> '$LogDir/overlay-desktop.log' 2>> '$LogDir/overlay-desktop.err.log' &
+          if (Get-Command npm -ErrorAction SilentlyContinue) {
+            & npm.cmd start -w @scarline/desktop-overlay >> '$LogDir/overlay-desktop.log' 2>> '$LogDir/overlay-desktop.err.log' &
+          } else {
+            & pnpm.cmd --dir '$RootDir/apps/desktop-overlay' start >> '$LogDir/overlay-desktop.log' 2>> '$LogDir/overlay-desktop.err.log' &
+          }
           Mark-Failed 'overlay-desktop'
         }
       } else {

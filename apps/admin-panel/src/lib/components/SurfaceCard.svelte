@@ -1,5 +1,4 @@
 <script lang="ts">
-  import type { Component } from 'svelte';
   import { Plus, List, TestTubeDiagonal, User } from 'lucide-svelte';
 
   let {
@@ -15,7 +14,8 @@
   } = $props<{
     title?: string;
     subtitle?: string;
-    icon?: Component<any> | 'plus' | 'list' | 'test-tube-diagonal' | 'user' | null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    icon?: any;
     children?: () => unknown;
     actions?: () => unknown;
     className?: string;
@@ -24,7 +24,7 @@
     accent?: boolean;
   }>();
 
-  const Icon = $derived(icon === 'plus' ? Plus : (icon === 'list' ? List : (icon === 'test-tube-diagonal' ? TestTubeDiagonal : (icon === 'user' ? User : (icon as Component<any>)))));
+  const Icon = $derived(icon === 'plus' ? Plus : (icon === 'list' ? List : (icon === 'test-tube-diagonal' ? TestTubeDiagonal : (icon === 'user' ? User : icon))));
 </script>
 
 {#snippet Header()}

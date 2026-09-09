@@ -1,63 +1,35 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { appPath } from '$lib/paths';
-import { clearAuthSession, getAuthCookieOptions, resolvePostLoginRedirect, sanitizeRedirectTarget } from '$lib/server/auth';
-import { getBootstrapState } from '$lib/server/bootstrap';
+import {
+  captureRefreshCookie,
+  logoutAuthSession,
+  resolvePostLoginRedirect,
+  sanitizeRedirectTarget,
+  setAccessSession
+} from '$lib/server/auth';
 
-export const load = async ({ cookies, fetch, locals, url }) => {
-  if (url.searchParams.get('logout') === '1') {
-    const refreshToken = cookies.get('scarline_refresh_token');
-    if (refreshToken) {
-      await fetch(`${locals.apiBase}/auth/logout`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify({ refreshToken })
-      }).catch(() => undefined);
-    }
-
-    clearAuthSession({ cookies, locals });
+export const load = async (event) => {
+  if (event.url.searchParams.get('logout') === '1') await logoutAuthSession(event);
+  if (event.locals.accessToken && event.url.searchParams.get('logout') !== '1') {
+    throw redirect(303, appPath(resolvePostLoginRedirect(event.url)));
   }
-
-  const bootstrap = await getBootstrapState(fetch, locals.apiBase);
-  if (!bootstrap.onboardingCompleted) {
-    throw redirect(303, appPath('/onboarding/system'));
-  }
-
-  if (locals.accessToken && url.searchParams.get('logout') !== '1') {
-    throw redirect(303, appPath(resolvePostLoginRedirect(url)));
-  }
-
-  return {
-    redirectTo: sanitizeRedirectTarget(url.searchParams.get('redirectTo'))
-  };
+  return { redirectTo: sanitizeRedirectTarget(event.url.searchParams.get('redirectTo')) };
 };
 
 export const actions = {
-  default: async ({ fetch, locals, request, cookies, url }) => {
-    const formData = await request.formData();
-    const redirectTo = sanitizeRedirectTarget(String(formData.get('redirectTo') ?? '')) ?? resolvePostLoginRedirect(url);
-    const response = await fetch(`${locals.apiBase}/auth/login`, {
+  default: async (event) => {
+    const formData = await event.request.formData();
+    const redirectTo = sanitizeRedirectTarget(String(formData.get('redirectTo') ?? '')) ?? resolvePostLoginRedirect(event.url);
+    const response = await globalThis.fetch(`${event.locals.apiBase}/auth/login`, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify({
-        username: formData.get('username'),
-        password: formData.get('password')
-      })
+      headers: { 'content-type': 'application/json', origin: event.url.origin },
+      body: JSON.stringify({ username: formData.get('username'), password: formData.get('password') })
     });
-
-    if (!response.ok) {
-      return fail(401, {
-        message: 'Invalid username or password'
-      });
-    }
-
-    const payload = await response.json();
-    const cookieOptions = getAuthCookieOptions();
-    cookies.set('scarline_access_token', payload.data.accessToken, cookieOptions);
-    cookies.set('scarline_refresh_token', payload.data.refreshToken, cookieOptions);
-    throw redirect(303, appPath(redirectTo));
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || !payload?.data) return fail(response.status || 401, { message: 'Invalid username or password' });
+    const user = setAccessSession(event.cookies, payload.data);
+    captureRefreshCookie(response, event.cookies);
+    event.locals.accessToken = payload.data.accessToken;
+    throw redirect(303, appPath(user.passwordResetRequired ? '/change-password' : redirectTo));
   }
 };

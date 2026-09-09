@@ -4,11 +4,15 @@
   import PageHeader from '$lib/components/PageHeader.svelte';
   import StudyTabs from '$lib/components/StudyTabs.svelte';
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
+  import { formatDate, shortId } from '$lib/format';
+  import { STUDY_DESIGN_ACCESS_REQUIRED } from '$lib/permissions';
 
   let { data } = $props();
 
   function participantCode(participant: Record<string, unknown>) {
-    return String(participant.participantCode ?? participant.participant_code ?? participant.id);
+    const code = participant.participantCode ?? participant.participant_code;
+    if (code) return String(code);
+    return `No code (${shortId(participant.id as string)})`;
   }
 
   function participantNotes(participant: Record<string, unknown>) {
@@ -16,7 +20,9 @@
   }
 
   function participantCreated(participant: Record<string, unknown>) {
-    return String(participant.createdAt ?? participant.created_at ?? 'Not recorded');
+    return formatDate(
+      (participant.createdAt ?? participant.created_at) as string | undefined,
+    );
   }
 </script>
 
@@ -31,9 +37,9 @@
 </div>
 
 <div class="section-grid section-grid--sidebar">
-  {#if data.canManage}
-    <SurfaceCard title="Add Participant" subtitle="Create the participant record used by session setup.">
-      <form class="form-stack" method="POST">
+  <SurfaceCard title="Add Participant" subtitle="Create the participant record used by session setup.">
+      <form method="POST">
+        <fieldset class="form-stack" disabled={!data.canManage} title={!data.canManage ? STUDY_DESIGN_ACCESS_REQUIRED : undefined}>
         <label class="form-field">
           <span>Participant Code</span>
           <input name="participantCode" placeholder="P-001" required />
@@ -43,11 +49,11 @@
           <textarea class="min-h-32" name="notes"></textarea>
         </label>
         <div class="form-actions">
-          <button class="button-primary" type="submit">Add Participant</button>
+          <button class="button-primary" type="submit" title={!data.canManage ? STUDY_DESIGN_ACCESS_REQUIRED : undefined}>Add Participant</button>
         </div>
+        </fieldset>
       </form>
-    </SurfaceCard>
-  {/if}
+  </SurfaceCard>
 
   <SurfaceCard title="Current Participants" subtitle="Use these records when creating or reviewing sessions.">
     <div class="list-stack">

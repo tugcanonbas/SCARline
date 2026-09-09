@@ -4,6 +4,8 @@
   import KeyValueGrid from '$lib/components/KeyValueGrid.svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import SurfaceCard from '$lib/components/SurfaceCard.svelte';
+  import { formatDate, formatStatusLabel } from '$lib/format';
+  import { appPath } from '$lib/paths';
 
   let { data } = $props();
 
@@ -105,7 +107,7 @@
 />
 
 <div class="metric-grid">
-  <MetricCard label="Status" value={data.summary.status} hint="Session lifecycle state" accent />
+  <MetricCard label="Status" value={formatStatusLabel(data.summary.status)} hint="Session lifecycle state" accent />
   <MetricCard label="Events" value={data.summary.eventCount} hint="Persisted event records" />
   <MetricCard label="Modalities" value={data.summary.modalityCount} hint={`${sources} event sources`} />
   <MetricCard label="Duration" value={durationLabel} hint="Session elapsed time" />
@@ -113,7 +115,7 @@
 
 <!-- ── Timeline visualization ─────────────────────────────────────────────── -->
 <div class="mt-4">
-  <SurfaceCard title="Event Timeline" subtitle="Chronological event distribution mapped across session duration. Color = modality.">
+  <SurfaceCard title="Event Timeline" subtitle="Timeline of events during the session. Colors represent different event types.">
     <!-- Legend -->
     <div class="timeline-legend">
       {#each Object.entries(modalityColors) as [mod, color]}
@@ -186,9 +188,15 @@
           class="button-secondary"
           onclick={exportCSV}
           type="button"
-        >Export CSV</button>
+        >Export Visible Events (CSV)</button>
       </div>
     </div>
+    <p class="form-field__hint mt-2">
+      This only exports the events currently shown above (filtered, this
+      device). For the complete session in JSON, CSV, or ZIP, use
+      <a href={appPath(`/exports?prefillSessionId=${data.sessionId}`)}>Full Export</a
+      >.
+    </p>
 
     <p class="mt-3 mb-2 text-xs text-slate-500">{filteredEvents.length} events shown</p>
 
@@ -201,9 +209,9 @@
               style="background:{modalityColor(String(event.modality ?? 'unknown'))}"
             ></span>
             {eventType(event)}
-            <span class="ml-auto text-xs text-slate-500 font-normal">{event.timestamp}</span>
+            <span class="ml-auto text-xs text-slate-500 font-normal">{formatDate(event.timestamp)}</span>
           </summary>
-          <div class="mt-3 grid gap-3 md:grid-cols-3">
+          <div class="mt-3 grid gap-3 md:grid-cols-2">
             <div class="detail-panel">
               <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Source</p>
               <p class="mt-1 text-slate-100">{eventSource(event)}</p>
@@ -211,10 +219,6 @@
             <div class="detail-panel">
               <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Modality</p>
               <p class="mt-1" style="color:{modalityColor(String(event.modality ?? 'unknown'))}">{event.modality ?? 'unknown'}</p>
-            </div>
-            <div class="detail-panel">
-              <p class="text-xs uppercase tracking-[0.18em] text-slate-500">Routing Key</p>
-              <p class="mt-1 break-words text-slate-100">{event.routingKey ?? 'unknown'}</p>
             </div>
           </div>
           <div class="mt-3">

@@ -1,0 +1,28 @@
+{
+  "key": "ecg",
+  "name": "SiFi Labs ECG",
+  "version": "1.0.0",
+  "deviceType": "ecg",
+  "platforms": ["linux", "darwin", "win32"],
+  "capabilities": ["health.ecg"],
+  "configurationSchema": {
+    "type": "object",
+    "properties": {
+      "mac": { "type": "string" },
+      "sampleRate": { "enum": [250, 500, 1000] },
+      "mainsNotch": { "enum": [50, 60] }
+    }
+  },
+  "channels": [
+    {
+      "key": "ecg",
+      "name": "ECG waveform",
+      "modality": "health",
+      "unit": "mV",
+      "sampleRate": 500,
+      "configurationSchema": {}
+    }
+  ],
+  "optionalDependency": "sifi-bridge",
+  "mock": false
+}

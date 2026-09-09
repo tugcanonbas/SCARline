@@ -1,33 +1,23 @@
 <script lang="ts">
   import EmptyState from "$lib/components/admin/EmptyState.svelte";
+  import FilterBar from "$lib/components/FilterBar.svelte";
   import MetricCard from "$lib/components/admin/MetricCard.svelte";
   import { appPath } from "$lib/paths";
   import PageHeader from "$lib/components/PageHeader.svelte";
+  import StudyFilterSelect from "$lib/components/StudyFilterSelect.svelte";
   import SurfaceCard from "$lib/components/SurfaceCard.svelte";
+  import { formatDate } from "$lib/format";
   import { Filter } from "lucide-svelte";
 
   let { data } = $props();
-  const activeStudiesCount = $derived(
-    data.studies.filter(
-      (s: Record<string, unknown>) =>
-        s.status === "active" || s.status === "ACTIVE",
-    ).length || data.studies.length,
-  );
 
-  const totalSessionsCount = $derived(
-    new Set(
-      data.logs
-        .map(
-          (entry: Record<string, unknown>) =>
-            entry.sessionId ?? entry.session_id,
-        )
-        .filter(Boolean),
-    ).size,
-  );
-
-  // Note: Total data size is mocked here as it requires a backend aggregate endpoint
-  const totalDataSize = "1.4 GB";
-  const totalRecordsCount = $derived(data.logs.length);
+  function formatBytes(value: unknown) {
+    const bytes = Math.max(0, Number(value ?? 0));
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+    return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+  }
 </script>
 
 <PageHeader
@@ -39,42 +29,31 @@
 <div class="metric-grid">
   <MetricCard
     label="Active Studies"
-    value={activeStudiesCount}
-    hint="Currently active studies"
+    value={data.aggregates.activeStudyCount}
+    hint="Active studies matching the filters"
   />
   <MetricCard
     label="Total Sessions"
-    value={totalSessionsCount}
-    hint="Unique sessions in view"
+    value={data.aggregates.sessionCount}
+    hint="Unique sessions matching the filters"
   />
   <MetricCard
     label="Total Data Size"
-    value={totalDataSize}
-    hint="Estimated size on disk"
+    value={formatBytes(data.aggregates.storedPayloadBytes)}
+    hint="Stored payload size matching the filters"
   />
   <MetricCard
     label="Total Records"
-    value={totalRecordsCount}
-    hint="Visible events"
+    value={data.aggregates.eventCount}
+    hint="Events matching the filters"
   />
 </div>
 
 <div class="mt-4">
   <SurfaceCard title="Sessions" subtitle="Find and manage sessions.">
     <form class="flex flex-col gap-4" method="GET">
-      <div
-        class="filter-bar"
-        style="grid-template-columns: 1fr 1fr 1fr 1fr 1fr auto;"
-      >
-        <select class="w-full" style="width: 100%;" name="studyId">
-          <option value="">All studies</option>
-          {#each data.studies as study}
-            <option
-              value={study.id}
-              selected={data.filters.studyId === study.id}>{study.name}</option
-            >
-          {/each}
-        </select>
+      <FilterBar fieldCount={5}>
+        <StudyFilterSelect studies={data.studies} value={data.filters.studyId} />
         <input
           class="w-full"
           style="width: 100%;"
@@ -108,9 +87,9 @@
         <button class="button-primary" type="submit"
           ><Filter size={24} strokeWidth={1.5} /> Filter</button
         >
-      </div>
+      </FilterBar>
       <div class="flex items-center justify-end gap-4 mt-2">
-        <span class="entity-card__meta">{data.logs.length} results</span>
+        <span class="entity-card__meta">{data.logs.length} shown · {data.aggregates.eventCount} total</span>
       </div>
     </form>
     <div class="timeline-list mt-4">
@@ -124,17 +103,21 @@
           >
             <div>
               <p class="font-semibold">{entry.eventType ?? entry.event_type}</p>
-              <p class="entity-card__meta">{entry.modality} · {entry.source}</p>
+              <p class="entity-card__meta">
+                {entry.modality} · {entry.sourceKey ?? entry.sourceType ?? "Unknown source"}
+              </p>
             </div>
-            <p class="entity-card__meta">{entry.timestamp}</p>
+            <p class="entity-card__meta">{formatDate(entry.timestamp)}</p>
           </div>
-          <p class="truncate entity-card__meta">
-            {entry.routingKey ?? entry.routing_key}
-          </p>
         </a>
       {:else}
         <EmptyState message="No events match the current filters." />
       {/each}
     </div>
+    {#if data.nextQuery}
+      <div class="form-actions mt-4">
+        <a class="button-secondary" href={appPath(`/session-logs?${data.nextQuery}`)}>Next Page</a>
+      </div>
+    {/if}
   </SurfaceCard>
 </div>

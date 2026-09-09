@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { compile } from "tailwindcss";
@@ -8,7 +9,8 @@ const repoRoot = path.resolve(scriptDir, "../../..");
 const widgetsDir = path.join(repoRoot, "widgets");
 const sourceFile = path.join(widgetsDir, "tailwind-source.css");
 const outputFile = path.join(widgetsDir, "dist.css");
-const tailwindEntry = path.resolve(scriptDir, "../node_modules/tailwindcss/index.css");
+const require = createRequire(import.meta.url);
+const tailwindEntry = require.resolve("tailwindcss/index.css");
 const checkOnly = process.argv.includes("--check");
 
 function resolveBaseUrl(filePath) {
@@ -85,7 +87,7 @@ if (checkOnly) {
   const existing = await fs.readFile(outputFile, "utf8").catch(() => null);
   if (existing !== output) {
     console.error(
-      "widgets/dist.css is out of date. Run `pnpm widgets:build-css`.",
+      "widgets/dist.css is out of date. Run `npm run widgets:build-css`.",
     );
     process.exitCode = 1;
   }

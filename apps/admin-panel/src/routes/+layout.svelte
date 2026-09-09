@@ -22,7 +22,7 @@
 
   let { data, children } = $props();
 
-  type Role = "admin" | "researcher" | "operator" | "viewer";
+  type Role = "admin" | "researcher" | "operator" | "observer";
   type NavigationItem = {
     href: string;
     label: string;
@@ -31,7 +31,7 @@
     external?: boolean;
   };
 
-  const allRoles: Role[] = ["admin", "researcher", "operator", "viewer"];
+  const allRoles: Role[] = ["admin", "researcher", "operator", "observer"];
   const designRoles: Role[] = ["admin", "researcher"];
   const adminRoles: Role[] = ["admin"];
   const currentRoles = $derived((data.user?.roles ?? []) as Role[]);
@@ -65,7 +65,7 @@
       href: "/researchers",
       label: "Researchers",
       icon: UsersRound,
-      roles: designRoles,
+      roles: adminRoles,
     },
   ] satisfies NavigationItem[];
 
@@ -74,7 +74,7 @@
       href: "/settings",
       label: "Settings",
       icon: Settings2,
-      roles: designRoles,
+      roles: adminRoles,
     },
     {
       href: data.docsUrl ?? "/docs/",
@@ -104,6 +104,17 @@
     document.documentElement.dataset.scarlineSidebar = sidebarCollapsed
       ? "collapsed"
       : "expanded";
+  });
+
+  $effect(() => {
+    if (typeof document === "undefined") return;
+    document.documentElement.classList.toggle(
+      "scarline-no-scroll",
+      mobileNavOpen,
+    );
+    return () => {
+      document.documentElement.classList.remove("scarline-no-scroll");
+    };
   });
 
   function isActive(href: string) {
@@ -139,6 +150,15 @@
       {/if}
     </button>
 
+    {#if mobileNavOpen}
+      <button
+        class="scarline-sidebar-backdrop"
+        aria-label="Close navigation"
+        onclick={() => (mobileNavOpen = false)}
+        type="button"
+      ></button>
+    {/if}
+
     <aside
       class={`scarline-sidebar ${mobileNavOpen ? "scarline-sidebar--open" : ""} ${sidebarCollapsed ? "scarline-sidebar--collapsed" : ""}`}
       id="scarline-sidebar"
@@ -146,7 +166,7 @@
     >
       <div class="scarline-brand">
         <div class="branding">
-          <p class="scarline-brand-kicker">HCIS Lab @THI</p>
+          <p class="scarline-brand-kicker">SCARline Lab</p>
           <h1 class="scarline-brand-title">SCARline Hub</h1>
           <p class="scarline-brand-subtitle">Rapid-Prototyping platform</p>
         </div>
@@ -154,6 +174,7 @@
           <button
             class="scarline-sidebar-toggle"
             aria-controls="scarline-sidebar"
+            aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}
             aria-pressed={sidebarCollapsed}
             onclick={handleSidebarToggle}
             type="button"

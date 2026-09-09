@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { RefreshCw } from 'lucide-svelte';
+
   let {
     searchQuery = $bindable(''),
     activeCategory = $bindable('all'),
@@ -6,7 +8,9 @@
     filteredWidgets = [],
     getPreviewMetrics,
     getWidgetPreviewUrl,
-    onWidgetDragStart
+    onWidgetDragStart,
+    refreshingWidgets = false,
+    onRefreshWidgets
   } = $props<{
     searchQuery?: string;
     activeCategory?: string;
@@ -21,11 +25,22 @@
     };
     getWidgetPreviewUrl: (widgetId: string) => string;
     onWidgetDragStart: (event: DragEvent, widgetId: string) => void;
+    refreshingWidgets?: boolean;
+    onRefreshWidgets: () => void | Promise<void>;
   }>();
 </script>
 
 <aside class="layout-catalogue">
   <div class="layout-catalogue__header">
+    <button
+      class="button-secondary"
+      disabled={refreshingWidgets}
+      onclick={onRefreshWidgets}
+      type="button"
+    >
+      <RefreshCw size={16} strokeWidth={1.75} />
+      {refreshingWidgets ? 'Refreshing…' : 'Refresh Widgets'}
+    </button>
     <input
       bind:value={searchQuery}
       class="layout-catalogue__search"

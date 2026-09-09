@@ -63,8 +63,12 @@
     }
   },
   "actions": {
-    "calendar.add_event": {
-      "description": "Create or queue a new calendar event.",
+    "calendar.previous_month": {
+      "description": "Show the previous calendar month.",
+      "interactionType": "click"
+    },
+    "calendar.next_month": {
+      "description": "Show the next calendar month.",
       "interactionType": "click"
     }
   },
