@@ -1,6 +1,0 @@
-CREATE TABLE IF NOT EXISTS system_configuration (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  key VARCHAR(100) NOT NULL UNIQUE,
-  value JSONB NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);

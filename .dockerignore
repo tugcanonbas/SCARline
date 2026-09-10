@@ -1,8 +1,0 @@
-.git
-.runtime
-.env
-node_modules
-**/node_modules
-**/dist
-references
-npm-debug.log*
