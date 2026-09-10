@@ -29,7 +29,7 @@
             margin: 0;
             color: #F0ECE6;
             font-family: "Poppins", Arial, sans-serif;
-            font-size: 1rem;
+            font-size: clamp(0.8125rem, 0.9rem, 1.25rem);
             line-height: 1.4;
         }
 
@@ -146,7 +146,6 @@
         .participant-note,
         .organizers {
             color: rgba(240, 236, 230, 0.85);
-            font-size: clamp(0.8125rem, 1vw, 1.25rem);
             font-weight: 400;
             line-height: 1.4;
         }
@@ -252,9 +251,10 @@
             display: grid;
             grid-template-columns: repeat(6, minmax(0, 1fr));
             gap: clamp(1rem, 2.4vw, 3.5rem);
-            margin: 0 calc(-1 * clamp(1.5rem, 2vw, 3rem));
             padding: 0;
             list-style: none;
+            max-width: 100%;
+            margin: auto;
         }
 
         .schedule-slot {
@@ -262,15 +262,17 @@
             place-items: center;
             min-height: clamp(5.5rem, 5.85vw, 8.625rem);
             padding: 1.25rem 0.75rem;
+            border:#1B7FA3 solid 0.8px;
             border-radius: clamp(0.75rem, 1vw, 1.5rem);
-            background-color: #C4C4C4;
-            color: #292A2C;
+            background-color: #292A2C;
+            color: #CFD0D3;
         }
 
         .schedule-session {
             font-size: clamp(0.75rem, 0.8vw, 1.125rem);
             font-weight: 500;
             line-height: 1.3;
+            text-align: center;
         }
 
         .schedule-duration {
@@ -278,21 +280,21 @@
             margin-top: 0.125rem;
             font-size: clamp(0.625rem, 0.625vw, 0.875rem);
             line-height: 1.3;
+            text-align: center;
         }
 
         .schedule-item h3 {
             margin-top: clamp(1.5rem, 2.5vw, 3.5rem);
             color: #FFFFFF;
-            font-size: clamp(1rem, 1.2vw, 1.75rem);
+            font-size: clamp(1rem, 1vw, 1.75rem);
             font-weight: 500;
             line-height: 1.25;
         }
 
         .schedule-description {
-            margin-top: clamp(1rem, 1.5vw, 2.25rem);
-            color: #858D99;
-            font-size: clamp(1rem, 1.2vw, 1.75rem);
-            font-weight: 300;
+            margin-top: clamp(1rem, 0.4vw, 2.25rem);
+            color: rgba(240, 236, 230, 0.85);
+            font-weight: 400;
             line-height: 1.25;
         }
 
@@ -301,7 +303,6 @@
             padding: clamp(2rem, 4.2vw, 5.375rem) 0 clamp(2rem, 2.8vw, 3.625rem) var(--page-gutter);
             border-top: 0.5px solid rgba(240, 236, 230, 0.4);
             color: rgba(240, 236, 230, 0.85);
-            font-size: clamp(0.875rem, 1.5vw, 1.875rem);
             font-weight: 300;
             line-height: 1.25;
         }
@@ -341,6 +342,12 @@
             }
         }
 
+        @media (max-width: 700px) {
+            .abstract {
+                grid-template-columns: 1fr;
+            }
+        }
+
         @media (max-width: 600px) {
             .page {
                 --page-gutter: 1.5rem;
@@ -358,10 +365,6 @@
 
             .eyebrow {
                 line-height: 1.65;
-            }
-
-            .abstract {
-                grid-template-columns: 1fr;
             }
 
             .abstract,
@@ -448,7 +451,7 @@
             </section>
 
             <section class="workshop-goal" aria-labelledby="goal-title">
-                <h2 id="goal-title">The goal of the workshop</h2>
+                <h2 id="goal-title">Workshop goals</h2>
                 <p>The primary goal of this workshop is to introduce SCARline to the automotive HMI research community
                     and to collectively explore the challenges and opportunities of accessible simulator-based research
                     tooling.</p>
@@ -472,7 +475,7 @@
                     SCARline.</p>
 
                 <section class="expected-outcomes" aria-labelledby="outcomes-title">
-                    <h4 id="outcomes-title">Expected Outcomes</h4>
+                    <h4 id="outcomes-title">What you will get out of it:</h4>
                     <ul>
                         <li>Gather first-hand experience of the SCARline research pipeline, including HMI widget design
                             and study configuration and deployment.</li>
@@ -494,9 +497,8 @@
 
             <section class="workshop-schedule" aria-labelledby="schedule-title">
                 <h2 id="schedule-title">Workshop Schedule</h2>
-                <p class="participant-note">For the successful delivery of this workshop, we recommend <b>bringing
-                        laptops</b> for the
-                    session to fully engage with the hands-on widget creation activities, as the interactive
+                <p class="participant-note">For the successful delivery of this workshop, <b>we recommend bringing
+                        laptops</b> for the session to fully engage with the hands-on widget creation activities, as the interactive
                     components are optimized for laptop-based work.</p>
                 <ol class="schedule-grid" role="list">
                     <li class="schedule-item">
@@ -508,9 +510,7 @@
                         </div>
                         <h3>Introduction</h3>
                         <div class="schedule-description">
-                            <p>SCARline<br>Introduction 10 min</p>
-                            <p>Presentation 1,<br>10 min</p>
-                            <p>Presentation 2,<br>10 min</p>
+                            <p>We will introduce you to SCARline and you will hear two interesting presentations.</p>
                         </div>
                     </li>
 
@@ -523,7 +523,7 @@
                         </div>
                         <h3>Platform Walkthrough</h3>
                         <div class="schedule-description">
-                            <p>Show the platform capabilities with a 5–10 min narrated video</p>
+                            <p>We will show you the platform capabilities and answer any questions you may have.</p>
                         </div>
                     </li>
 
@@ -536,8 +536,7 @@
                         </div>
                         <h3>Widget Creation</h3>
                         <div class="schedule-description">
-                            <p>Explanation of how the widgets are created</p>
-                            <p>Groups design their own widgets from the set of 2–3 given</p>
+                            <p>We will explain how widgets can be created. As groups, you then get to design your own widgets.</p>
                         </div>
                     </li>
 
@@ -548,7 +547,7 @@
                                 <time class="schedule-duration" datetime="PT30M">30 min</time>
                             </div>
                         </div>
-                        <h3>SCARline Stations Preparations</h3>
+                        <h3>Recharge break</h3>
                     </li>
 
                     <li class="schedule-item">
@@ -560,7 +559,7 @@
                         </div>
                         <h3>Live Deployment</h3>
                         <div class="schedule-description">
-                            <p>Participants have the opportunity to explore SCARline themselves and deploy their widgets
+                            <p>You will have the opportunity to explore SCARline and deploy the widgets you created and see them live.
                             </p>
                         </div>
                     </li>
@@ -574,8 +573,7 @@
                         </div>
                         <h3>Feedback</h3>
                         <div class="schedule-description">
-                            <p>Filling out questionnaires</p>
-                            <p>Discussion and Questions</p>
+                            <p>We'd love to hear your feedback in the form of a discussion and a few questions.</p>
                         </div>
                     </li>
                 </ol>
@@ -587,14 +585,16 @@
                         aria-label="View the SCARline admin panel screenshot at full size in a new tab">
                         <img src="images/admin-panel-user-study.png" width="2556" height="1405" loading="lazy"
                             decoding="async"
-                            alt="SCARline admin panel showing a user study overview with participants, conditions, sessions and study configuration steps.">
+                            alt="Overview of a user study called Auto UI Study inside the SCARline platform. It shows a tab navigation for navigation to the overview, participants, conditions, simulator setup, sensors, participant view, sessions, and active study. Additionally, it shows four boxes with the participant amount, conditions, sessions, and the status. Below it are quick start tips.">
                     </a>
-                    <figcaption>User study overview in the SCARline admin panel.</figcaption>
+                    <figcaption>Overview of a user study called "Auto UI Study" inside the SCARline platform. From here, users can navigate through the different tabs to set up their study, manage the study, or use the quick start tips to quickly get going.</figcaption>
                 </figure>
             </section>
 
             <section class="organizers" aria-labelledby="organizers-title">
                 <h2 id="organizers-title">Organizers</h2>
+                <p><b>We're looking forward to seeing you at the 1st SCARline Workshop at AutoUI 2026!</b></p>
+
                 <p><a href="mailto:mos6318@thi.de">Monika Szuban</a> is a Master’s student in User Experience Design at
                     the Technische Hochschule Ingolstadt. Her research interests lie in gamification and user
                     engagement, exploring how playful design approaches can shape automotive and in-vehicle experiences.
@@ -632,7 +632,7 @@
         </main>
 
         <footer>
-            <p>Platform Presentation • September 2026</p>
+            <p><b>Questions?</b> Email us!</p>
             <p class="authors"><a href="mailto:mos6318@thi.de">Monika Szuban</a> • <a
                     href="mailto:tuo8203@thi.de">Tuğcan Önbaş</a> • <a href="mailto:lar3406@thi.de">Laura Radetzky</a> •
                 <a href="mailto:ignacio.alvarez@thi.de">Ignacio Alvarez</a> • <a
