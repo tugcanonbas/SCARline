@@ -129,6 +129,11 @@
   let lastAutosaveAttemptSignature = $state("");
   let autosaveBlocked = $state(false);
   let liveWindowIds = $state<string[]>([]);
+  let pendingLayoutSave: Promise<string> | null = null;
+  const savedWidgetIds = new Map<string, string>();
+  const browserWidgetWindows = new Map<string, Window>();
+  let browserLayoutWindow: Window | null = null;
+  let browserOverlayOrigin = "";
   const realtime = createRealtimeStore();
 
   function normalizeRect(value: unknown, fallback: OverlayDisplay["bounds"]) {
@@ -436,7 +441,6 @@
     widget: PlacedWidget,
     mode: "transparent_electron" | "browser_popup" = widget.windowMode,
   ) {
-    const meta = getWidgetMeta(widget.widgetId);
     const targetDisplayValue = displayForIndex(widget.targetDisplay).id;
     const response = await fetch(`${apiBase}/system/overlay/windows/open`, {
       method: "POST",
@@ -461,7 +465,7 @@
 
     const payload = await response.json().catch(() => null);
     throw new Error(
-      payload?.error?.message ||
+      payload?.error?.message || payload?.message ||
         "Couldn't open the widget window. Make sure the SCARline desktop app is running on the operator machine, then try again.",
     );
   }
@@ -482,7 +486,7 @@
     });
     const payload = await response.json().catch(() => null);
     if (!response.ok || typeof payload?.data?.launchUrl !== "string") {
-      throw new Error(payload?.error?.message ?? "Failed to authorize the browser overlay");
+      throw new Error(payload?.error?.message ?? payload?.message ?? "Failed to authorize the browser overlay");
     }
     return payload.data.launchUrl;
   }
@@ -971,7 +975,6 @@
     try {
       if (signature !== lastSavedSignature) {
         await persistLayout();
-        lastSavedSignature = signature;
       }
       await applySavedLayoutToLiveWindows();
       saveResult = {
@@ -1026,6 +1029,28 @@
   }
 
   async function persistLayout(): Promise<string> {
+    // Launches and autosave share the same revision sequence.
+    while (pendingLayoutSave !== null) await pendingLayoutSave;
+    if (!data.canManage) throw new Error(STUDY_DESIGN_ACCESS_REQUIRED);
+    if (autosaveBlocked) throw new Error("The participant layout changed elsewhere. Reload Participant View before saving again.");
+    if (invalidDisplayAssignments.length > 0) throw new Error(displayFallbackNotice ?? "Reassign unavailable displays before saving the participant layout.");
+    if (persistedLayoutId && layoutDraftSignature() === lastSavedSignature) return persistedLayoutId;
+    pendingLayoutSave = persistLayoutSnapshot();
+    try {
+      return await pendingLayoutSave;
+    } catch (error) {
+      if (error instanceof LayoutSaveError && error.code === "LAYOUT_VERSION_CONFLICT") autosaveBlocked = true;
+      throw error;
+    } finally {
+      pendingLayoutSave = null;
+    }
+  }
+
+  function savedWidgetId(id: string): string {
+    return savedWidgetIds.get(id) ?? id;
+  }
+
+  async function persistLayoutSnapshot(): Promise<string> {
     const payload = {
       ...buildLayoutPayload(),
       name: layoutName,
@@ -1048,7 +1073,7 @@
     if (!response.ok) {
       throw new LayoutSaveError(
         String(result?.error?.code ?? "LAYOUT_SAVE_FAILED"),
-        String(result?.error?.message ?? "Failed to save participant layout. Retry saving."),
+        String(result?.error?.message ?? result?.message ?? "Failed to save participant layout. Retry saving."),
       );
     }
     const layoutId = String(result?.data?.id ?? "");
@@ -1059,7 +1084,20 @@
     expectedRevisions = Array.isArray(result?.data?.expectedRevisions)
       ? result.data.expectedRevisions
       : expectedRevisions;
-    lastSavedSignature = layoutDraftSignature();
+    for (const saved of result?.data?.widgets ?? []) {
+      const submitted = payload.widgets[saved.order];
+      if (submitted && typeof saved.id === "string") savedWidgetIds.set(submitted.id, saved.id);
+    }
+    placed = placed.map((widget) => ({ ...widget, id: savedWidgetId(widget.id) }));
+    if (selectedId !== null) selectedId = savedWidgetId(selectedId);
+    if (selectedEditorId !== null) selectedEditorId = savedWidgetId(selectedEditorId);
+    liveWindowIds = liveWindowIds.map(savedWidgetId);
+    // Only the submitted snapshot was saved; edits made during the request stay dirty.
+    lastSavedSignature = JSON.stringify({
+      layoutName: payload.name,
+      targetDisplay: payload.targetDisplay,
+      widgets: payload.widgets.map((widget) => ({ ...widget, id: savedWidgetId(widget.id) })),
+    });
     return layoutId;
   }
 
@@ -1090,51 +1128,55 @@
       saveResult = { ok: false, message: displayFallbackNotice ?? "Reassign unavailable displays before launching." };
       return;
     }
-    const targets = [...placed].sort(launchPriority);
-    if (targets.length === 0) {
+    if (!placed.some((widget) => widget.enabled)) {
       saveResult = {
         ok: false,
-        message: "Add at least one widget before launching",
+        message: "Add and enable at least one widget before launching",
       };
       return;
     }
 
-    const browserLauncher = launchMode === "browser_popup"
+    const mode = launchMode;
+    const browserLauncher = mode === "browser_popup"
       ? window.open("about:blank", `scarline-layout-${data.studyId as string}`, "popup=yes,width=760,height=680,resizable=yes,scrollbars=yes")
       : null;
     try {
       const layoutId = await persistLayout();
+      const targets = placed.filter((widget) => widget.enabled).sort(launchPriority);
 
-      if (launchMode === "browser_popup") {
+      if (mode === "browser_popup") {
         const launchUrl = await requestBrowserRenderGrant(layoutId, null);
         const target = browserLauncher ?? window.open(launchUrl, `scarline-layout-${data.studyId as string}`, "popup=yes,width=760,height=680,resizable=yes,scrollbars=yes");
         if (target === null) {
           throw new Error("The browser blocked the overlay launcher. Allow popups for SCARline and try again.");
         }
         target.location.href = launchUrl;
+        browserLayoutWindow = target;
+        browserOverlayOrigin = new URL(launchUrl).origin;
         saveResult = { ok: true, message: `Overlay launcher opened for ${targets.length} widget(s)` };
         return;
       }
 
       let opened = 0;
+      const failures: string[] = [];
       for (const widget of targets) {
         try {
           await openOverlayWindow(layoutId, widget, "transparent_electron");
           opened += 1;
         } catch (error) {
-          console.error("Failed to launch overlay widget", widget.id, error);
+          failures.push(`${getWidgetMeta(widget.widgetId)?.name ?? widget.widgetId}: ${error instanceof Error ? error.message : "Could not open window"}`);
         }
       }
 
       saveResult =
-        opened > 0
+        failures.length === 0
           ? {
               ok: true,
               message: `Opened ${opened} transparent overlay window(s)`,
             }
           : {
               ok: false,
-              message: "Failed to open transparent overlay windows",
+              message: `${opened > 0 ? `Opened ${opened} window(s). ` : ""}${failures.join("; ")}`,
             };
     } catch (error) {
       if (browserLauncher !== null && !browserLauncher.closed) browserLauncher.close();
@@ -1154,17 +1196,28 @@
       saveResult = { ok: false, message: displayFallbackNotice ?? "Reassign the unavailable display before launching." };
       return;
     }
-    const widget = { ...selectedWidget };
+    if (!selectedWidget.enabled) {
+      saveResult = { ok: false, message: "Enable this widget before launching it." };
+      return;
+    }
+    let widget = { ...selectedWidget };
+    const existingBrowserWindow = browserWidgetWindows.get(widget.id);
     const browserWindow = widget.windowMode === "browser_popup"
-      ? window.open("about:blank", `scarline-widget-${widget.id}`, browserPopupFeatures(widget))
+      ? existingBrowserWindow && !existingBrowserWindow.closed
+        ? existingBrowserWindow
+        : window.open("about:blank", `scarline-widget-${widget.id}`, browserPopupFeatures(widget))
       : null;
     try {
       const layoutId = await persistLayout();
+      const saved = placed.find((entry) => entry.id === savedWidgetId(widget.id));
+      if (!saved) throw new Error("This widget was removed before it could be launched.");
+      widget = { ...saved, windowMode: widget.windowMode };
       if (widget.windowMode === "browser_popup") {
         const launchUrl = await requestBrowserRenderGrant(layoutId, widget.id);
         const target = browserWindow ?? window.open(launchUrl, `scarline-widget-${widget.id}`, browserPopupFeatures(widget));
         if (target === null) throw new Error("The browser blocked the widget popup. Allow popups for SCARline and try again.");
         target.location.href = launchUrl;
+        browserWidgetWindows.set(widget.id, target);
       } else {
         await openOverlayWindow(layoutId, widget, "transparent_electron");
       }
@@ -1191,7 +1244,26 @@
     instanceIds?: string[];
     closeAll?: boolean;
   }) {
-    const layoutId = String(currentLayout?.id ?? "");
+    let closedBrowser = false;
+    for (const [instanceId, popup] of browserWidgetWindows) {
+      if (!options.closeAll && !options.instanceIds?.includes(instanceId)) continue;
+      if (!popup.closed) { popup.close(); closedBrowser = true; }
+      browserWidgetWindows.delete(instanceId);
+    }
+    if (browserLayoutWindow !== null && !browserLayoutWindow.closed) {
+      if (options.closeAll) {
+        browserLayoutWindow.close();
+        browserLayoutWindow = null;
+      } else {
+        browserLayoutWindow.postMessage({
+          channel: "scarline.preview-control.v1", type: "close-widgets", instanceIds: options.instanceIds ?? [],
+        }, browserOverlayOrigin);
+      }
+      closedBrowser = true;
+    }
+    const desktopIds = options.closeAll ? liveWindowIds : liveWindowIds.filter((id) => options.instanceIds?.includes(id));
+    if (closedBrowser && desktopIds.length === 0) return;
+    const layoutId = persistedLayoutId;
     const body = {
       studyId: data.studyId as string,
       ...(layoutId ? { layoutId } : {}),
@@ -1211,7 +1283,7 @@
 
     const payload = await response.json().catch(() => null);
     throw new Error(
-      payload?.error?.message ||
+      payload?.error?.message || payload?.message ||
         "Couldn't close the widget window. Make sure the SCARline desktop app is running on the operator machine, then try again.",
     );
   }

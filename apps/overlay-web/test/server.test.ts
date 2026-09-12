@@ -11,11 +11,12 @@ test("serves the overlay shell and widget assets without credentials in URLs", a
   const root = await mkdtemp(path.join(os.tmpdir(), "scarline-overlay-web-"));
   await mkdir(path.join(root, "components", "example"), { recursive: true });
   await writeFile(path.join(root, "components", "example", "index.html"), "<h1>Widget</h1>");
+  await writeFile(path.join(root, "bridge.js"), "export {};");
   const app = buildOverlayWeb({
     coreApiOrigin: "http://localhost:8088",
     coreApiWebSocketOrigin: "ws://localhost:8088",
     widgetsDirectory: root,
-    rendererAssetsDirectory: path.resolve("dist"),
+    rendererAssetsDirectory: root,
   });
   context.after(() => app.close());
 
@@ -24,6 +25,12 @@ test("serves the overlay shell and widget assets without credentials in URLs", a
   assert.match(shell.body, /src="\/client\.js"/);
   assert.match(shell.body, /href="\/favicon\.ico"/);
   assert.doesNotMatch(shell.body, /token|bootstrap/i);
+  assert.match(String(shell.headers["content-security-policy"]), /base-uri 'self'/);
+
+  const bridge = await app.inject({ method: "GET", url: "/bridge.js", headers: { origin: "null" } });
+  assert.equal(bridge.statusCode, 200);
+  assert.equal(bridge.headers["access-control-allow-origin"], "*");
+  assert.equal(bridge.body, "export {};");
 
   const asset = await app.inject({ method: "GET", url: "/assets/example/index.html" });
   assert.equal(asset.statusCode, 200);

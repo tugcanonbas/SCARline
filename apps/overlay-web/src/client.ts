@@ -32,12 +32,13 @@ interface RuntimeSnapshot {
 interface ApiEnvelope<T> { data: T }
 
 const app = requiredElement("app");
+let rendererId = "";
 void start().catch(showError);
 
 async function start(): Promise<void> {
   const config = await fetchJson<RuntimeConfig>("/runtime-config.json", false);
   await exchangeBootstrap(config);
-  const snapshot = await fetchJson<ApiEnvelope<RuntimeSnapshot>>(`${config.coreApiOrigin}/api/v1/overlay/runtime`, true);
+  const snapshot = await fetchJson<ApiEnvelope<RuntimeSnapshot>>(`${rendererApi(config)}/runtime`, true);
   const route = routeParts();
   if (route.kind === "launcher") {
     await renderLauncher(config, snapshot.data);
@@ -51,15 +52,27 @@ async function start(): Promise<void> {
 async function exchangeBootstrap(config: RuntimeConfig): Promise<void> {
   const fragment = new URLSearchParams(location.hash.slice(1));
   const bootstrap = fragment.get("bootstrap");
-  if (bootstrap === null) return;
+  const storageKey = `scarline.overlay.renderer:${location.pathname}`;
+  rendererId = fragment.get("renderer") ?? sessionStorage.getItem(storageKey) ?? "";
   history.replaceState(null, "", `${location.pathname}${location.search}`);
-  const response = await fetch(`${config.coreApiOrigin}/api/v1/overlay/bootstrap`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${bootstrap}`, "content-type": "application/json" },
-    credentials: "include",
-    body: "{}",
-  });
-  if (!response.ok) throw new Error(`Overlay authorization failed (${response.status}).`);
+  if (bootstrap !== null) {
+    const response = await fetch(`${config.coreApiOrigin}/api/v1/overlay/bootstrap`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${bootstrap}`, "content-type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ scoped: true }),
+    });
+    if (!response.ok) throw new Error(`Overlay authorization failed (${response.status}). Launch the widget again from Participant View.`);
+    const result = await response.json() as ApiEnvelope<{ rendererId: string }>;
+    rendererId = result.data.rendererId;
+  }
+  if (!/^[0-9a-f-]{36}$/i.test(rendererId)) throw new Error("Launch this overlay from Participant View to authorize it.");
+  // Store only a non-secret session identifier; the credential stays HttpOnly.
+  sessionStorage.setItem(storageKey, rendererId);
+}
+
+function rendererApi(config: RuntimeConfig): string {
+  return `${config.coreApiOrigin}/api/v1/overlay/renderers/${rendererId}`;
 }
 
 async function renderLauncher(config: RuntimeConfig, snapshot: RuntimeSnapshot): Promise<void> {
@@ -72,7 +85,22 @@ async function renderLauncher(config: RuntimeConfig, snapshot: RuntimeSnapshot):
   const list = document.createElement("div");
   list.className = "launcher-list";
   app.append(heading, instructions, list);
-  const popups = new Set<Window>();
+  const popups = new Map<string, Window>();
+  const closePopups = () => {
+    for (const popup of popups.values()) if (!popup.closed) popup.close();
+    popups.clear();
+  };
+  window.addEventListener("beforeunload", closePopups);
+  window.addEventListener("message", (event) => {
+    if (event.source !== window.opener || !isRecord(event.data)
+      || event.data.channel !== "scarline.preview-control.v1" || event.data.type !== "close-widgets"
+      || !Array.isArray(event.data.instanceIds)) return;
+    for (const instanceId of event.data.instanceIds) {
+      if (typeof instanceId !== "string") continue;
+      popups.get(instanceId)?.close();
+      popups.delete(instanceId);
+    }
+  });
 
   for (const widget of snapshot.widgets) {
     const row = document.createElement("div");
@@ -84,13 +112,13 @@ async function renderLauncher(config: RuntimeConfig, snapshot: RuntimeSnapshot):
     button.textContent = "Open";
     const open = () => {
       const popup = window.open(
-        `/widget/${encodeURIComponent(widget.instanceId)}`,
+        `/widget/${encodeURIComponent(widget.instanceId)}#renderer=${encodeURIComponent(rendererId)}`,
         `scarline-widget-${widget.instanceId}`,
         popupFeatures(widget, snapshot.displays),
       );
       button.dataset.open = String(popup !== null);
       button.textContent = popup === null ? "Open" : "Opened";
-      if (popup !== null) popups.add(popup);
+      if (popup !== null) popups.set(widget.instanceId, popup);
       return popup;
     };
     button.addEventListener("click", open);
@@ -99,7 +127,7 @@ async function renderLauncher(config: RuntimeConfig, snapshot: RuntimeSnapshot):
     open();
   }
   await connectRuntime(config, null, () => undefined, () => {
-    for (const popup of popups) if (!popup.closed) popup.close();
+    closePopups();
     window.close();
   });
 }
@@ -184,7 +212,7 @@ async function connectRuntime(
     const version = ++connectionVersion;
     try {
       const ticket = await fetchJson<ApiEnvelope<{ token: string }>>(
-        `${config.coreApiOrigin}/api/v1/overlay/websocket-ticket`,
+        `${rendererApi(config)}/websocket-ticket`,
         true,
         { method: "POST", body: "{}", headers: { "content-type": "application/json" } },
       );
@@ -233,7 +261,7 @@ async function connectRuntime(
 }
 
 async function postInteraction(config: RuntimeConfig, instanceId: string, action: string, payload: Record<string, unknown>): Promise<void> {
-  const response = await fetch(`${config.coreApiOrigin}/api/v1/overlay/interactions`, {
+  const response = await fetch(`${rendererApi(config)}/interactions`, {
     method: "POST",
     credentials: "include",
     headers: { "content-type": "application/json" },
@@ -263,7 +291,7 @@ function startSystemBindings(send: (message: Record<string, unknown>) => void): 
 }
 
 function injectBridge(html: string, widgetKey: string): string {
-  const base = `<base href="/assets/${escapeAttribute(widgetKey)}/" /><script src="/bridge.js"></script>`;
+  const base = `<base href="${escapeAttribute(location.origin)}/assets/${escapeAttribute(widgetKey)}/" /><script type="module" src="/bridge.js"></script>`;
   if (/<head(?:\s[^>]*)?>/i.test(html)) return html.replace(/<head(?:\s[^>]*)?>/i, (match) => `${match}${base}`);
   return `${base}${html}`;
 }

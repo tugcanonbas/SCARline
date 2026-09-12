@@ -1,11 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import Fastify from "fastify";
+import cookie from "@fastify/cookie";
+import websocket from "@fastify/websocket";
+import { validatorCompiler, serializerCompiler } from "fastify-type-provider-zod";
 
 import type { Pool } from "pg";
 
 import { AuthService, type AuthenticatedPrincipal } from "../src/auth/service.js";
 import { loadCoreApiConfig } from "../src/config.js";
 import { ApiProblem } from "../src/errors.js";
+import { registerErrorHandling } from "../src/errors.js";
+import { registerRealtimeRoutes } from "../src/routes/realtime.js";
+import { overlayRendererCookie } from "../src/auth/overlay-cookie.js";
+import type { CoreApiConfig } from "../src/config.js";
+import type { RealtimeHub } from "../src/realtime/hub.js";
 
 const userId = "550e8400-e29b-41d4-a716-446655440020";
 const authSessionId = "550e8400-e29b-41d4-a716-446655440021";
@@ -207,4 +216,68 @@ test("overlay WebSocket tickets are single-use and expired tickets are rejected"
     () => auth.verifyOverlayWebSocketTicket(expired.token),
     (error) => error instanceof ApiProblem && error.problemCode === "INVALID_OVERLAY_TICKET",
   );
+});
+
+test("renderer cookies support HTTP loopback while keeping remote and HTTPS credentials secure", () => {
+  const rendererId = "550e8400-e29b-41d4-a716-446655440040";
+  for (const hostname of ["localhost", "127.0.0.1", "[::1]"]) {
+    const cookie = overlayRendererCookie({ protocol: "http", hostname }, rendererId);
+    assert.equal(cookie.options.secure, false);
+    assert.equal(cookie.options.httpOnly, true);
+    assert.equal(cookie.options.sameSite, "strict");
+    assert.equal(cookie.options.path, `/api/v1/overlay/renderers/${rendererId}`);
+    assert.doesNotMatch(cookie.name, /^__Host-|^__Secure-/);
+  }
+  for (const request of [{ protocol: "https" as const, hostname: "localhost" }, { protocol: "http" as const, hostname: "lab.example.org" }]) {
+    const cookie = overlayRendererCookie(request, rendererId);
+    assert.equal(cookie.options.secure, true);
+    assert.match(cookie.name, /^__Secure-/);
+  }
+});
+
+test("independent popup launches keep their scopes and reject missing or mismatched cookies", async (context) => {
+  const pool = new TicketPool();
+  const auth = await createAuth(pool);
+  const app = Fastify();
+  app.setValidatorCompiler(validatorCompiler);
+  app.setSerializerCompiler(serializerCompiler);
+  registerErrorHandling(app);
+  await app.register(cookie);
+  await app.register(websocket);
+  await registerRealtimeRoutes(app, pool as unknown as Pool, auth, {} as CoreApiConfig, {} as RealtimeHub);
+  context.after(() => app.close());
+
+  const scopes = [
+    { ...overlayScope, sessionId: null, instanceId: null },
+    { ...overlayScope, sessionId: null },
+  ];
+  const launches = [];
+  for (const scope of scopes) {
+    const grant = await auth.signOverlayBootstrapToken(scope);
+    const bootstrap = await app.inject({
+      method: "POST", url: "/api/v1/overlay/bootstrap",
+      headers: { host: "localhost:8088", authorization: `Bearer ${grant.token}` },
+      payload: { scoped: true },
+    });
+    assert.equal(bootstrap.statusCode, 200, bootstrap.body);
+    const { rendererId } = bootstrap.json().data;
+    const cookie = bootstrap.cookies[0]!;
+    assert.equal(cookie.httpOnly, true);
+    assert.equal(cookie.secure, undefined);
+    assert.equal(cookie.path, `/api/v1/overlay/renderers/${rendererId}`);
+    assert.equal(bootstrap.body.includes(cookie.value), false);
+    launches.push({ rendererId, cookie: `${cookie.name}=${cookie.value}`, scope });
+  }
+  assert.notEqual(launches[0]!.rendererId, launches[1]!.rendererId);
+  for (const launch of launches) {
+    const url = `/api/v1/overlay/renderers/${launch.rendererId}/websocket-ticket`;
+    const ticket = await app.inject({ method: "POST", url, headers: { host: "localhost:8088", cookie: launch.cookie }, payload: {} });
+    assert.equal(ticket.statusCode, 200, ticket.body);
+    assert.deepEqual(await auth.verifyOverlayWebSocketTicket(ticket.json().data.token), launch.scope);
+    const missing = await app.inject({ method: "POST", url, payload: {} });
+    assert.equal(missing.statusCode, 401);
+    const other = launches.find((entry) => entry !== launch)!;
+    const mismatched = await app.inject({ method: "POST", url, headers: { host: "localhost:8088", cookie: other.cookie }, payload: {} });
+    assert.equal(mismatched.statusCode, 401);
+  }
 });

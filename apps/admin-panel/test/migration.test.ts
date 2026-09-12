@@ -51,11 +51,12 @@ test('uses hardened cookie and WebSocket authentication paths', async () => {
       source('src/routes/user-studies/[id]/participant-view/+page.svelte')
     ]).then((files) => files.join('\n'))
   ]);
-  assert.match(auth, /httpOnly:\s*true/);
-  assert.match(auth, /sameSite:\s*'strict'/);
-  assert.match(auth, /secure:\s*true/);
-  assert.match(auth, /delete\(ACCESS_TOKEN_COOKIE_NAME, ACCESS_COOKIE_OPTIONS\)/);
-  assert.match(auth, /delete\(REFRESH_TOKEN_COOKIE_NAME, REFRESH_TOKEN_COOKIE_OPTIONS\)/);
+  const cookiePolicy = await source('src/lib/server/auth-cookies.ts');
+  assert.match(cookiePolicy, /httpOnly:\s*true/);
+  assert.match(cookiePolicy, /sameSite:\s*'strict'/);
+  assert.match(cookiePolicy, /secure:\s*true/);
+  assert.match(auth, /delete\(ACCESS_TOKEN_COOKIE_NAME, policy\.accessOptions\)/);
+  assert.match(auth, /delete\(policy\.refreshName, policy\.refreshOptions\)/);
   assert.match(realtime, /scarline\.user-ticket\./);
   assert.match(realtime, /requestRealtimeTicket\(\)/);
   assert.match(realtime, /void openSocket\(\)/);

@@ -106,6 +106,10 @@ export const ParticipantLayoutBulkSaveSchema = z
 export const ParticipantLayoutBulkSaveResultSchema = z
   .object({
     primaryLayoutId: UuidSchema,
+    widgets: z.array(z.object({
+      id: UuidSchema,
+      order: z.number().int().nonnegative(),
+    }).strict()),
     layouts: z.array(z.object({
       conditionId: UuidSchema,
       layoutId: UuidSchema,

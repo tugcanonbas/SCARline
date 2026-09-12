@@ -108,6 +108,7 @@ export async function persistAdminLayout(
   const layouts = Array.isArray(result.layouts) ? result.layouts as JsonRecord[] : [];
   return {
     id: String(result.primaryLayoutId ?? ''),
+    widgets: result.widgets,
     revision: Number(layouts[0]?.revision ?? 0),
     expectedRevisions: layouts.map((layout) => ({
       conditionId: String(layout.conditionId),
