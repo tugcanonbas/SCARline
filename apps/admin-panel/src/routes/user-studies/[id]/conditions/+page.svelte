@@ -491,25 +491,25 @@
               <div class="condition-kv">
                 <span class="condition-kv__label">Weather</span>
                 <span class="condition-kv__value"
-                  >{getCarlaOverrides(c).weather ?? "Default"}</span
+                  >{(c as any).carlaEffective?.weather ?? getCarlaOverrides(c).weather ?? "ClearNoon"}{(c as any).carlaEffective?.isWeatherOverridden ? " (Override)" : ""}</span
                 >
               </div>
               <div class="condition-kv">
                 <span class="condition-kv__label">Traffic Density</span>
                 <span class="condition-kv__value"
-                  >{getCarlaOverrides(c).trafficDensity ?? "Default"}</span
+                  >{(c as any).carlaEffective?.trafficDensity !== undefined ? (c as any).carlaEffective.trafficDensity : (getCarlaOverrides(c).trafficDensity ?? 0)}{(c as any).carlaEffective?.isTrafficOverridden ? " (Override)" : ""}</span
                 >
               </div>
               <div class="condition-kv">
                 <span class="condition-kv__label">Pedestrian Density</span>
                 <span class="condition-kv__value"
-                  >{getCarlaOverrides(c).pedestrianDensity ?? "Default"}</span
+                  >{(c as any).carlaEffective?.pedestrianDensity !== undefined ? (c as any).carlaEffective.pedestrianDensity : (getCarlaOverrides(c).pedestrianDensity ?? 0)}{(c as any).carlaEffective?.isPedestriansOverridden ? " (Override)" : ""}</span
                 >
               </div>
               <div class="condition-kv">
                 <span class="condition-kv__label">Speed Limit</span>
                 <span class="condition-kv__value"
-                  >{getCarlaOverrides(c).speedLimitOverride ?? "Default"}</span
+                  >{(c as any).carlaEffective?.speedLimitOverride ? `${(c as any).carlaEffective.speedLimitOverride} km/h` : (getCarlaOverrides(c).speedLimitOverride ? `${getCarlaOverrides(c).speedLimitOverride} km/h` : "None")}{(c as any).carlaEffective?.isSpeedLimitOverridden ? " (Override)" : ""}</span
                 >
               </div>
               <div class="condition-kv">

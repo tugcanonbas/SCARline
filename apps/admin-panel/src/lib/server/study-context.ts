@@ -18,15 +18,20 @@ export async function loadActiveStudyConditions(
   return conditions.filter((entry) => !entry.archivedAt && typeof entry.id === 'string');
 }
 
-export async function requirePrimaryCondition(
+export async function getPrimaryCondition(
   fetch: typeof globalThis.fetch,
   locals: App.Locals,
   studyId: string
 ) {
   const conditions = await loadActiveStudyConditions(fetch, locals, studyId);
-  const condition = conditions[0];
-  if (!condition || typeof condition.id !== 'string') {
-    throw error(409, 'Create a study condition before configuring simulator, sensors, or participant layouts.');
-  }
-  return condition;
+  return conditions[0] ?? null;
 }
+
+export async function requirePrimaryCondition(
+  fetch: typeof globalThis.fetch,
+  locals: App.Locals,
+  studyId: string
+) {
+  return await getPrimaryCondition(fetch, locals, studyId);
+}
+

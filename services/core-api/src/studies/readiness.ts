@@ -57,8 +57,8 @@ export async function loadStudyReadiness(
   realtime: RealtimeHub,
   studyId: string,
 ): Promise<StudyReadiness> {
-  const studyResult = await database.query<{ status: string }>(
-    "SELECT status FROM studies WHERE id=$1",
+  const studyResult = await database.query<{ status: string; metadata: Record<string, unknown> }>(
+    "SELECT status, metadata FROM studies WHERE id=$1",
     [studyId],
   );
   const study = studyResult.rows[0];
@@ -114,13 +114,16 @@ export async function loadStudyReadiness(
   const conditionRows = conditionsResult.rows;
   const conditionCount = conditionRows.length;
   const participantCount = participants.rows[0]?.count ?? 0;
+
+  const metadata = (study?.metadata && typeof study.metadata === "object" ? study.metadata : {}) as Record<string, unknown>;
+  const templates = (metadata.configurationTemplates && typeof metadata.configurationTemplates === "object" ? metadata.configurationTemplates : {}) as Record<string, unknown>;
+  const hasStudySimulator = templates.simulator && typeof templates.simulator === "object" && Object.keys(templates.simulator).length > 0;
+
   const missingSimulator = conditionRows.filter((row) => row.simulator_type === null);
-  const configuredSimulatorTypes = conditionRows.flatMap((row) =>
-    row.simulator_type === null ? [] : [row.simulator_type],
-  );
-  const missingCapabilities = missingSimulator.length === 0
-    ? realtime.missingSimulatorCapabilities(configuredSimulatorTypes)
-    : [];
+  const isSimulatorConfigured = Boolean(hasStudySimulator || (conditionCount > 0 && missingSimulator.length === 0));
+
+  const bridgeAvailable = realtime.isComponentAvailable("sim-bridge");
+  const missingCapabilities = isSimulatorConfigured && !bridgeAvailable ? ["sim-bridge"] : [];
 
   const unconfiguredDevices = requiredDevices.rows.filter(
     (row) => row.configured_sensor_count === 0,
@@ -199,20 +202,20 @@ export async function loadStudyReadiness(
     }),
     check({
       key: "simulator",
-      status: conditionCount > 0 && missingSimulator.length === 0 && missingCapabilities.length === 0
+      status: isSimulatorConfigured && bridgeAvailable
         ? "ready"
         : "not_ready",
       blocking: true,
-      blockingCode: conditionCount === 0 || missingSimulator.length > 0
+      blockingCode: !isSimulatorConfigured
         ? "SIMULATOR_CONFIGURATION_REQUIRED"
-        : missingCapabilities.length > 0
+        : !bridgeAvailable
           ? "SIMULATOR_UNAVAILABLE"
           : null,
-      message: conditionCount === 0 || missingSimulator.length > 0
-        ? "Set up the simulator for every active condition."
-        : missingCapabilities.length > 0
-          ? `The required simulator is unavailable: ${missingCapabilities.join(", ")}.`
-          : "The simulator is configured and available.",
+      message: !isSimulatorConfigured
+        ? "Set up the simulator in Simulator Setup."
+        : !bridgeAvailable
+          ? "The simulator bridge service is unavailable."
+          : "The simulator is configured and ready.",
       correctionRoute: `${base}/carla-config`,
       details: {
         missingConditionIds: missingSimulator.map(({ id }) => id),

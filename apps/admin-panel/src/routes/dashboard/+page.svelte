@@ -195,13 +195,7 @@
   eyebrow="Ready to dig into some user studies?"
   title="Dashboard"
   description="View quick actions, component status, and currently active user studies."
->
-  {#snippet actions()}
-    <div class="action-strip">
-      <a href={appPath("/startup")}>Startup view</a>
-    </div>
-  {/snippet}
-</PageHeader>
+/>
 
 <div class="metric-grid">
   <SurfaceCard
@@ -248,25 +242,52 @@
     </div>
     <div class="list-stack mt-4">
       {#each data.dashboard.activeStudyItems as study}
-        <a
-          class="entity-card entity-card--tight"
-          href={appPath(`/user-studies/${study.id}/overview`)}
-        >
-          <div class="min-w-0">
-            <p class="entity-card__title truncate">{study.name}</p>
-            <div class="pill-row mt-1">
-              <span class="status-badge status-badge--soft"
-                >{study.participantCount} participant{study.participantCount === 1 ? "" : "s"}</span
-              >
-              <span class="status-badge status-badge--soft"
-                >{study.sessionCount} session{study.sessionCount === 1 ? "" : "s"}</span
-              >
+        {@const studySessions = recentSessions.filter((s) => String(s.studyId) === String(study.id))}
+        <div class="entity-card">
+          <div class="entity-card__header">
+            <div class="min-w-0">
+              <a class="entity-card__title truncate hover:underline" href={appPath(`/user-studies/${study.id}/overview`)}>{study.name}</a>
+              {#if study.description}
+                <p class="entity-card__meta truncate mt-1">{study.description}</p>
+              {/if}
+              <div class="pill-row mt-2">
+                <span class="status-badge status-badge--soft"
+                  >{study.participantCount} participant{study.participantCount === 1 ? "" : "s"}</span
+                >
+                <span class="status-badge status-badge--soft"
+                  >{study.sessionCount} session{study.sessionCount === 1 ? "" : "s"}</span
+                >
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <StatusBadge status={study.status} />
             </div>
           </div>
-          <div class="flex items-center gap-2">
-            <StatusBadge status={study.status} />
-          </div>
-        </a>
+
+          {#if studySessions.length > 0}
+            <div class="list-stack border-t border-[var(--scarline-border)] pt-4 mt-2">
+              <p class="text-xs font-bold text-[var(--scarline-white-60)] uppercase tracking-wider mb-2">Recent Sessions</p>
+              {#each studySessions as session}
+                <a
+                  class="entity-card entity-card--tight bg-transparent"
+                  href={appPath(`/user-studies/${session.studyId}/active-study?sessionId=${session.id}`)}
+                >
+                  <div class="min-w-0">
+                    <p class="entity-card__title truncate">
+                      {session.name ?? `Session ${shortId(session.id)}`}
+                    </p>
+                    <p class="entity-card__meta truncate">
+                      Participant {session.participantId ? shortId(session.participantId) : "unassigned"} · Last update {formatDate(sessionTimestamp(session))}
+                    </p>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <StatusBadge status={session.status} />
+                  </div>
+                </a>
+              {/each}
+            </div>
+          {/if}
+        </div>
       {:else}
         <EmptyState message="No studies are currently active." />
       {/each}
@@ -279,16 +300,6 @@
 
 <div class="mt-4 section-grid">
   <SurfaceCard title="Component Health">
-    <div class="detail-grid-3">
-      <div class="detail-panel">
-        <p class="technical-label">Known components</p>
-        <p class="technical-value">{componentHealth.length}</p>
-      </div>
-      <div class="detail-panel">
-        <p class="technical-label">Ready components</p>
-        <p class="technical-value">{healthyComponents}</p>
-      </div>
-    </div>
     <div class="list-stack mt-4">
       {#each componentHealth as component}
         <div class="entity-card entity-card--tight">
@@ -324,7 +335,7 @@
             {latestSession.name ?? `Session ${shortId(latestSession.id)}`}
           </p>
           <p class="mt-2 text-sm text-slate-500">
-            Study {shortId(latestSession.studyId)} · Last update
+            {data.dashboard.activeStudyItems.find((s) => String(s.id) === String(latestSession.studyId))?.name ?? `Study ${shortId(latestSession.studyId)}`} · Last update
             {formatDate(sessionTimestamp(latestSession))}
           </p>
         {:else}

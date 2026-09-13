@@ -46,7 +46,7 @@ class CarlaRuntime:
     def connect(self) -> None:
         if carla is None: raise RuntimeError("The CARLA Python API is not installed")
         client = carla.Client(self.settings.carla_host, self.settings.carla_port)
-        client.set_timeout(10.0)
+        client.set_timeout(30.0)
         server_version = str(client.get_server_version())
         client_version = str(client.get_client_version())
         expected = self.settings.expected_carla_version
@@ -66,8 +66,20 @@ class CarlaRuntime:
             if previous_recording is not None: self.events.put(previous_recording)
             self._cleanup(restore_settings=True)
             configuration = session["configuration"]
+            target_map = configuration["map"]
             try:
-                self.world = self.client.load_world(configuration["map"])
+                cur_map = ""
+                try:
+                    if self.world is not None:
+                        cur_map = str(self.world.get_map().name)
+                except Exception:
+                    pass
+                if not (cur_map.endswith(target_map) or target_map.endswith(cur_map) or cur_map == target_map):
+                    self.client.set_timeout(90.0)
+                    self.world = self.client.load_world(target_map)
+                    self.client.set_timeout(30.0)
+                else:
+                    self.client.set_timeout(30.0)
                 self.original_settings = self.world.get_settings()
                 settings = self.world.get_settings()
                 settings.synchronous_mode = True

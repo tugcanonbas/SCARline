@@ -225,21 +225,62 @@ export async function loadConditionAuthoringViews(
   conditions: JsonRecord[],
   studyId: string
 ): Promise<JsonRecord[]> {
-  const catalogue = await apiRequest(fetch, locals.apiBase, '/widgets/catalogue', locals.accessToken) as JsonRecord[];
+  const [catalogue, study] = await Promise.all([
+    apiRequest(fetch, locals.apiBase, '/widgets/catalogue', locals.accessToken) as Promise<JsonRecord[]>,
+    apiRequest(fetch, locals.apiBase, `/studies/${studyId}`, locals.accessToken) as Promise<JsonRecord>
+  ]);
   const keyByDatabaseId = new Map(catalogue.map((widget) => [String(widget.databaseId), String(widget.id)]));
+  const studyMetadata = asRecord(study?.metadata);
+  const configurationTemplates = asRecord(studyMetadata.configurationTemplates);
+  const baseSimulator = asRecord(configurationTemplates.simulator);
+  const baseTraffic = asRecord(baseSimulator.trafficConfig);
+  const basePedestrians = asRecord(baseSimulator.pedestrianConfig);
+
+  const defaultWeather = typeof baseSimulator.weatherPreset === 'string' && baseSimulator.weatherPreset ? baseSimulator.weatherPreset : 'ClearNoon';
+  const defaultTraffic = finiteNumberOrNull(baseTraffic.npcVehicleCount) ?? 0;
+  const defaultPedestrians = finiteNumberOrNull(basePedestrians.pedestrianCount) ?? 0;
+  const defaultSpeedLimit = finiteNumberOrNull(baseTraffic.speedLimitOverride);
+
   return Promise.all(conditions.map(async (condition) => {
     const conditionId = String(condition.id);
-    const [layouts, triggers] = await Promise.all([
+    const [layouts, triggers, simulator] = await Promise.all([
       apiRequest(fetch, locals.apiBase, `/studies/${studyId}/conditions/${conditionId}/layouts`, locals.accessToken) as Promise<JsonRecord[]>,
-      apiRequest(fetch, locals.apiBase, `/studies/${studyId}/conditions/${conditionId}/triggers`, locals.accessToken) as Promise<JsonRecord[]>
+      apiRequest(fetch, locals.apiBase, `/studies/${studyId}/conditions/${conditionId}/triggers`, locals.accessToken) as Promise<JsonRecord[]>,
+      apiRequest(fetch, locals.apiBase, `/studies/${studyId}/conditions/${conditionId}/simulator`, locals.accessToken).catch(() => null) as Promise<JsonRecord | null>
     ]);
     const canonicalHidden = layouts.flatMap((layout) => (layout.widgets ?? []) as JsonRecord[])
       .filter((widget) => widget.enabled === false)
       .map((widget) => keyByDatabaseId.get(String(widget.widgetId)) ?? String(widget.widgetId));
     const hiddenWidgets = canonicalHidden.length > 0 ? [...new Set(canonicalHidden)] : readHiddenWidgets(condition);
+    const overrides = readCarlaOverrides(condition);
+
+    const simConfig = asRecord(simulator?.configuration);
+    const simTraffic = asRecord(simConfig.trafficConfig);
+    const simPedestrians = asRecord(simConfig.pedestrianConfig);
+
+    const weather = overrides.weather ?? (typeof simConfig.weatherPreset === 'string' && simConfig.weatherPreset ? simConfig.weatherPreset : defaultWeather);
+    const trafficDensity = overrides.trafficDensity ?? finiteNumberOrNull(simTraffic.npcVehicleCount) ?? defaultTraffic;
+    const pedestrianDensity = overrides.pedestrianDensity ?? finiteNumberOrNull(simPedestrians.pedestrianCount) ?? defaultPedestrians;
+    const speedLimitOverride = overrides.speedLimitOverride ?? finiteNumberOrNull(simTraffic.speedLimitOverride) ?? defaultSpeedLimit;
+
+    const isWeatherOverridden = Boolean(overrides.weather && overrides.weather !== defaultWeather);
+    const isTrafficOverridden = Boolean(overrides.trafficDensity !== null && overrides.trafficDensity !== defaultTraffic);
+    const isPedestriansOverridden = Boolean(overrides.pedestrianDensity !== null && overrides.pedestrianDensity !== defaultPedestrians);
+    const isSpeedLimitOverridden = Boolean(overrides.speedLimitOverride !== null && overrides.speedLimitOverride !== defaultSpeedLimit);
+
     return {
       ...condition,
-      carlaOverrides: readCarlaOverrides(condition),
+      carlaOverrides: overrides,
+      carlaEffective: {
+        weather,
+        isWeatherOverridden,
+        trafficDensity,
+        isTrafficOverridden,
+        pedestrianDensity,
+        isPedestriansOverridden,
+        speedLimitOverride,
+        isSpeedLimitOverridden
+      },
       widgetOverrides: {
         hidden_widgets: hiddenWidgets,
         triggerRules: triggers.map(triggerRuleFromApi)
