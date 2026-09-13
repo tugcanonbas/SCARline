@@ -57,10 +57,10 @@ export const STUDY_SECTIONS: Record<StudySectionKey, StudySection> = {
 export const STUDY_SECTION_ORDER: StudySectionKey[] = [
   "overview",
   "participants",
-  "conditions",
   "simulator",
   "sensors",
   "participant-view",
+  "conditions",
   "sessions",
   "active-study",
 ];

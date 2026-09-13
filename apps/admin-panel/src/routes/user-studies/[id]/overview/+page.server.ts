@@ -16,5 +16,15 @@ export const load = async ({ fetch, locals, params }) => {
 };
 
 export const actions = {
-  studyTransition: handleStudyTransition
+  studyTransition: handleStudyTransition,
+  updateDescription: async ({ request, fetch, locals, params }) => {
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);
+    const form = await request.formData();
+    const description = String(form.get('description') ?? '');
+    await apiRequest(fetch, locals.apiBase, `/studies/${params.id}`, locals.accessToken, {
+      method: 'PATCH',
+      body: JSON.stringify({ description })
+    });
+    return { success: true };
+  }
 };

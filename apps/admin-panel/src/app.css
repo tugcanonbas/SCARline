@@ -161,7 +161,7 @@ body {
     font: inherit;
   }
 
-  .required ::after {
+  .required>span::after {
     content: " *";
     color: var(--scarline-danger);
   }
@@ -1433,6 +1433,18 @@ body {
     gap: 16px;
   }
 
+  .list-stack--tight {
+    gap: 4px;
+  }
+
+  .condition-row {
+    padding: 6px 12px;
+    border: 1px solid var(--scarline-border);
+    border-radius: var(--scarline-radius-lg);
+    min-height: 52px;
+    align-items: center;
+  }
+
   .section-grid {
     display: grid;
     gap: 16px;
@@ -2463,8 +2475,7 @@ body {
     gap: 14px;
     padding: 18px;
     border: 1px solid var(--scarline-border);
-    border-radius: var(--scarline-radius-xl);
-    background: linear-gradient(180deg, #ffffff 0%, #f7f7f7 100%);
+    border-radius: var(--scarline-radius-lg);
   }
 
   .condition-card__header {
