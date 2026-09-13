@@ -24,6 +24,7 @@
     "build:overlays": "npm run build -w @scarline/contracts -w @scarline/overlay-web -w @scarline/desktop-overlay",
     "check": "npm run widgets:check-css && npm run typecheck --workspaces && npm test --workspaces",
     "test:e2e": "npm run build:core-api && node scripts/run-isolated-e2e.mjs",
+    "test:widgets": "npm run build -w @scarline/overlay-web && playwright test tests/e2e/widget-runtime.spec.ts",
     "dev:cli": "npm run dev -w @scarline/cli --",
     "dev:core-api": "npm run dev -w @scarline/core-api",
     "dev:sim-bridge": "npm run dev -w @scarline/sim-bridge",

@@ -35,6 +35,7 @@ const SCARline = Object.freeze({
     return () => stateListeners.delete(listener);
   },
   send(action: string, payload: Record<string, unknown> = {}): void {
+    if (state === "hidden") return;
     parent.postMessage({ channel: "scarline.widget.v1", type: "action", action, payload }, "*");
   },
 });
@@ -50,13 +51,20 @@ Object.defineProperty(window, "EventSource", { value: class BlockedEventSource {
 window.addEventListener("message", (event) => {
   if (event.source !== parent || !isRecord(event.data) || event.data.channel !== "scarline.host.v1") return;
   if (event.data.type === "bindings" && isRecord(event.data.bindings)) {
-    for (const [key, value] of Object.entries(event.data.bindings)) {
-      bindings.set(key, value);
-      for (const listener of bindingListeners.get(key) ?? []) listener(value);
-    }
+    updateBindings(event.data.bindings);
   } else if (event.data.type === "trigger" && isRecord(event.data.trigger)) {
-    for (const listener of triggerListeners) listener(event.data.trigger);
-  } else if (event.data.type === "state" && typeof event.data.state === "string") {
+    const trigger = event.data.trigger;
+    const payload = isRecord(trigger.payload) ? trigger.payload : {};
+    const values = trigger.bindingValues ?? payload.bindingValues;
+    const action = trigger.action ?? payload.action;
+    const nextState = trigger.state ?? payload.state
+      ?? (action === "hide" ? "hidden" : action === "highlight" ? "highlighted" : action === "show" ? "visible" : undefined);
+    if (isVisualState(nextState)) state = nextState;
+    updateBindings(isRecord(values) ? values : {}, action === "reset");
+    // Listeners must see the same complete binding/state snapshot as getBinding/getState.
+    for (const listener of triggerListeners) listener(trigger);
+    if (isVisualState(nextState)) for (const listener of stateListeners) listener(state);
+  } else if (event.data.type === "state" && isVisualState(event.data.state)) {
     state = event.data.state;
     for (const listener of stateListeners) listener(state);
   } else if (event.data.type === "metadata" && isRecord(event.data.metadata)) {
@@ -69,6 +77,22 @@ window.addEventListener("message", (event) => {
     }
   }
 });
+
+function updateBindings(values: Record<string, unknown>, replace = false): void {
+  const changed = new Set([...Object.keys(values), ...(replace ? bindings.keys() : [])]);
+  if (replace) bindings.clear();
+  for (const [key, value] of Object.entries(values)) {
+    if (value === undefined) bindings.delete(key);
+    else bindings.set(key, value);
+  }
+  for (const key of changed) {
+    for (const listener of bindingListeners.get(key) ?? []) listener(bindings.get(key));
+  }
+}
+
+function isVisualState(value: unknown): value is "visible" | "hidden" | "highlighted" {
+  return value === "visible" || value === "hidden" || value === "highlighted";
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);

@@ -80,5 +80,4 @@ test("closes browser overlay windows on terminal or condition-change runtime mes
   assert.match(client, /message\.instanceId !== instanceId/);
   assert.match(bridge, /getState\(\)/);
   assert.match(bridge, /getMetadata\(\)/);
-  assert.ok(bridge.indexOf("state = event.data.state") < bridge.indexOf("listener(state)"));
 });

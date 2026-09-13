@@ -132,6 +132,16 @@ function injectPreviewRuntime(
   const notifyBinding = (key, value) => {
     for (const listener of bindingListeners.get(key) ?? []) listener(value);
   };
+  const updateBindings = (values, replace = false) => {
+    const keys = new Set([...Object.keys(values), ...(replace ? Object.keys(bindings) : [])]);
+    if (replace) for (const key of Object.keys(bindings)) delete bindings[key];
+    for (const [key, value] of Object.entries(values)) {
+      if (value === undefined) delete bindings[key];
+      else bindings[key] = value;
+    }
+    for (const key of keys) notifyBinding(key, bindings[key]);
+  };
+  const isVisualState = (value) => ["visible", "hidden", "highlighted"].includes(value);
   const subscribe = (collection, listener) => {
     collection.add(listener);
     return () => collection.delete(listener);
@@ -149,6 +159,7 @@ function injectPreviewRuntime(
     getState() { return state; },
     getMetadata() { return configuration.metadata; },
     send(type, payload = {}) {
+      if (state === "hidden") return;
       window.parent.postMessage({
         type: "scarline.widget.action",
         widgetId: configuration.widgetId,
@@ -166,15 +177,19 @@ function injectPreviewRuntime(
   window.addEventListener("message", (event) => {
     if (event.source !== window.parent || !event.data || typeof event.data !== "object") return;
     if (event.data.type === "scarline.preview.bindings" && event.data.values) {
-      for (const [key, value] of Object.entries(event.data.values)) {
-        bindings[key] = value;
-        notifyBinding(key, value);
-      }
+      updateBindings(event.data.values);
     }
     if (event.data.type === "scarline.preview.trigger") {
-      for (const listener of triggerListeners) listener(event.data.event ?? {});
+      const trigger = event.data.event ?? {};
+      const action = trigger.action ?? trigger.payload?.action;
+      const nextState = trigger.state ?? trigger.payload?.state
+        ?? (action === "hide" ? "hidden" : action === "highlight" ? "highlighted" : action === "show" ? "visible" : undefined);
+      if (isVisualState(nextState)) state = nextState;
+      updateBindings(trigger.bindingValues ?? trigger.payload?.bindingValues ?? {}, action === "reset");
+      for (const listener of triggerListeners) listener(trigger);
+      if (isVisualState(nextState)) for (const listener of stateListeners) listener(state);
     }
-    if (event.data.type === "scarline.preview.state" && typeof event.data.state === "string") {
+    if (event.data.type === "scarline.preview.state" && isVisualState(event.data.state)) {
       state = event.data.state;
       for (const listener of stateListeners) listener(state);
     }

@@ -35,6 +35,7 @@ const metadata = {
 class RuntimeControlDatabase {
   sessionStatus = "running";
   runtimeMetadata: Record<string, unknown> = {};
+  conditionMetadata: Record<string, unknown> = {};
   committed = false;
   rolledBack = false;
   outboxMessage: Record<string, unknown> | undefined;
@@ -80,7 +81,7 @@ class RuntimeControlDatabase {
           layout_type: "participant",
           layout_name: "Participant",
           order: 0,
-          condition_metadata: {},
+          condition_metadata: this.conditionMetadata,
           metadata,
         }],
         rowCount: 1,
@@ -116,6 +117,30 @@ test("maps the existing manual trigger to a visible, audited active-condition up
   assert.equal(stored?.state, "visible");
   assert.deepEqual(stored?.bindingValues, { "vehicle.speed": 42 });
 });
+
+for (const configuredState of ["hidden", "highlighted"] as const) {
+  test(`reset removes manual overrides and restores the condition's ${configuredState} state and values`, async () => {
+    const database = new RuntimeControlDatabase();
+    database.conditionMetadata = {
+      widgetOverrides: {
+        [`${configuredState}_widgets`]: ["speedometer"],
+        binding_values: { speedometer: { "vehicle.speed": 17 } },
+      },
+    };
+    await applyManualWidgetRuntimeCommand(database.pool, sessionId, {
+      instanceId: sourceInstanceId, action: "show", bindingValues: { "vehicle.speed": 88 },
+    }, actorUserId);
+    const reset = await applyManualWidgetRuntimeCommand(database.pool, sessionId, {
+      instanceId: sourceInstanceId, action: "reset", bindingValues: {},
+    }, actorUserId);
+    assert.equal(reset.action, "reset");
+    assert.equal(reset.state, configuredState);
+    assert.deepEqual(reset.bindingValues, { "vehicle.speed": 17 });
+    assert.deepEqual(database.runtimeMetadata.widgetRuntime, {});
+    assert.equal(database.committed, true);
+    assert.equal((database.outboxMessage?.payload as Record<string, unknown>)?.action, "reset");
+  });
+}
 
 test("rejects undeclared binding updates and commands outside a live session", async () => {
   const invalidBinding = new RuntimeControlDatabase();
