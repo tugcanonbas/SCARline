@@ -33,7 +33,7 @@ const pool = new pg.Pool({
 });
 const origin = process.env.SCARLINE_SMOKE_ORIGIN ?? "http://localhost:5173";
 const baseUrl = process.env.SCARLINE_SMOKE_BASE_URL ?? "http://127.0.0.1:8088";
-const adminBaseUrl = process.env.SCARLINE_SMOKE_ADMIN_BASE_URL ?? "http://localhost:5173/admin";
+const adminBaseUrl = process.env.SCARLINE_SMOKE_ADMIN_BASE_URL ?? "http://localhost:5173";
 const websocketBaseUrl = baseUrl.replace(/^http/, "ws");
 const skipLifecycle = process.env.SCARLINE_SMOKE_SKIP_LIFECYCLE === "true";
 const verified = [];

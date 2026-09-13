@@ -9,19 +9,19 @@ const coreOrigin = process.env.SCARLINE_E2E_CORE_ORIGIN ?? "http://127.0.0.1:808
 const overlayOrigin = process.env.SCARLINE_E2E_OVERLAY_ORIGIN ?? "http://127.0.0.1:4000";
 
 async function login(page: Page, username: string, password: string) {
-  await page.goto("/admin/login");
+  await page.goto("/login");
   await page.getByLabel("Username").fill(username);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Login" }).click();
 }
 
 async function changePassword(page: Page, currentPassword: string, newPassword: string) {
-  await expect(page).toHaveURL(/\/admin\/change-password/);
+  await expect(page).toHaveURL((url) => url.pathname === "/change-password");
   await page.getByLabel("Current Password").fill(currentPassword);
   await page.locator('input[name="newPassword"]').fill(newPassword);
   await page.getByLabel("Confirm New Password").fill(newPassword);
   await page.getByRole("button", { name: "Change Password" }).click();
-  await expect(page).toHaveURL(/\/admin\/login/);
+  await expect(page).toHaveURL((url) => url.pathname === "/login");
 }
 
 async function accessToken(context: BrowserContext) {
@@ -56,21 +56,21 @@ test("production Admin Panel supports bootstrap, study creation, RBAC, and safe 
   await login(page, adminUsername, initialPassword);
   await changePassword(page, initialPassword, adminPassword);
   await login(page, adminUsername, adminPassword);
-  await expect(page).toHaveURL(/\/admin\/(dashboard)?$/);
+  await expect(page).toHaveURL((url) => url.pathname === "/" || url.pathname === "/dashboard");
   await expect(page.getByRole("heading", { name: /dashboard/i })).toBeVisible();
   await expectNoCriticalAccessibilityViolations(page);
 
-  await page.goto("/admin/user-studies/new");
+  await page.goto("/user-studies/new");
   await page.getByLabel("Study Name").fill("Isolated browser verification");
   await page.getByLabel("Description").fill("Temporary Playwright fixture");
   await page.getByRole("button", { name: "Create Study" }).click();
-  await expect(page).toHaveURL(/\/admin\/user-studies\/[0-9a-f-]+\/overview$/);
+  await expect(page).toHaveURL((url) => /^\/user-studies\/[0-9a-f-]+\/overview$/.test(url.pathname));
   const studyId = page.url().match(/user-studies\/([0-9a-f-]+)\/overview/)?.[1];
   if (!studyId) throw new Error("Created study URL did not contain a study ID");
   await expect(page.getByText("Quick Start")).toBeVisible();
   await expectNoCriticalAccessibilityViolations(page);
 
-  await page.goto("/admin/settings/system");
+  await page.goto("/settings/system");
   await expect(page.getByText("Platform Configuration")).toBeVisible();
   await expect(page.getByText("Secrets are never shown here.")).toBeVisible();
   await expect(page.getByRole("textbox", { name: /Inspect platform status/ })).toHaveValue("scarline status");
@@ -97,11 +97,11 @@ test("production Admin Panel supports bootstrap, study creation, RBAC, and safe 
   await login(observerPage, observerUsername, observerInitialPassword);
   await changePassword(observerPage, observerInitialPassword, observerPassword);
   await login(observerPage, observerUsername, observerPassword);
-  await observerPage.goto(`/admin/user-studies/${studyId}/conditions`);
+  await observerPage.goto(`/user-studies/${studyId}/conditions`);
   const designControls = observerPage.locator('fieldset[title="Researcher or administrator access is required."]');
   await expect(designControls).toHaveAttribute("disabled", "");
   await expect(designControls.getByRole("button", { name: "Save Condition" })).toBeDisabled();
-  const forbiddenSystemStatus = await observerPage.goto("/admin/settings/system");
+  const forbiddenSystemStatus = await observerPage.goto("/settings/system");
   expect(forbiddenSystemStatus?.status()).toBe(403);
   await observerContext.close();
 
