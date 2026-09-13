@@ -175,17 +175,11 @@ export class RealtimeHub {
     this.#renderers.add(connection);
     socket.send(JSON.stringify({ type: "overlay.runtime.ready", scope }));
     for (const widget of snapshot.widgets) {
-      if (Object.keys(widget.bindings).length > 0) {
-        socket.send(JSON.stringify({
-          type: "overlay.runtime.bindings",
-          instanceId: widget.instanceId,
-          bindings: widget.bindings,
-        }));
-      }
       socket.send(JSON.stringify({
-        type: "overlay.runtime.state",
+        type: "overlay.runtime.trigger",
         instanceId: widget.instanceId,
-        state: widget.state,
+        trigger: { action: "reset", snapshot: true, state: widget.state,
+          bindingValues: widget.bindings, revision: widget.revision },
       }));
     }
     socket.on("close", () => this.#renderers.delete(connection));
@@ -623,7 +617,7 @@ export class RealtimeHub {
       if (
         connection.socket.readyState !== 1
         || connection.scope.studyId !== studyId
-        || (connection.scope.sessionId !== null && connection.scope.sessionId !== sessionId)
+        || connection.scope.sessionId !== sessionId
       ) continue;
       if (channel === "session.lifecycle") {
         const lifecycle = readObject(data);
@@ -676,21 +670,15 @@ export class RealtimeHub {
       }
       if (channel === "widget.updates") {
         const update = readObject(data);
+        if (connection.scope.sessionId === null && connection.scope.previewId !== update.previewId) continue;
+        if (typeof update.conditionId === "string" && update.conditionId !== connection.scope.conditionId) continue;
         for (const widget of connection.snapshot.widgets) {
           if (!targetsWidget(update, widget.instanceId, widget.widgetKey)) continue;
-          const state = normalizeRuntimeState(update.state ?? update.action);
           connection.socket.send(JSON.stringify({
             type: "overlay.runtime.trigger",
             instanceId: widget.instanceId,
             trigger: update,
           }));
-          if (state !== null) {
-            connection.socket.send(JSON.stringify({
-              type: "overlay.runtime.state",
-              instanceId: widget.instanceId,
-              state,
-            }));
-          }
         }
       }
     }
@@ -814,11 +802,4 @@ function targetsWidget(update: Record<string, unknown>, instanceId: string, widg
     || (update.widgetId !== undefined && String(update.widgetId) === widgetKey)
     || (Array.isArray(update.instanceIds) && update.instanceIds.map(String).includes(instanceId))
     || (Array.isArray(update.widgetIds) && update.widgetIds.map(String).includes(widgetKey));
-}
-
-function normalizeRuntimeState(value: unknown): "visible" | "hidden" | "highlighted" | null {
-  if (value === "show" || value === "reset" || value === "visible") return "visible";
-  if (value === "hide" || value === "hidden") return "hidden";
-  if (value === "highlight" || value === "highlighted") return "highlighted";
-  return null;
 }

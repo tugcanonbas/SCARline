@@ -189,6 +189,7 @@ export const OverlayRuntimeScopeSchema = z
     conditionId: UuidSchema,
     layoutId: UuidSchema,
     instanceId: UuidSchema.nullable(),
+    previewId: UuidSchema.optional(),
   })
   .strict();
 
@@ -212,6 +213,7 @@ export const OverlayRuntimeWidgetSchema = z
     bindingsConfig: JsonObjectSchema,
     styleOverrides: JsonObjectSchema,
     bindings: JsonObjectSchema,
+    revision: z.number().int().nonnegative().default(0),
     state: z.enum(["visible", "hidden", "highlighted"]),
   })
   .strict();

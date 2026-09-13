@@ -5,7 +5,9 @@ const bindingListeners = new Map<string, Set<Listener<unknown>>>();
 const triggerListeners = new Set<Listener<Record<string, unknown>>>();
 const stateListeners = new Set<Listener<string>>();
 let state = "visible";
+let revision = -1;
 let metadata: Record<string, unknown> = {};
+let playbackTimer: number | undefined;
 
 const SCARline = Object.freeze({
   ready(): void {
@@ -54,13 +56,17 @@ window.addEventListener("message", (event) => {
     updateBindings(event.data.bindings);
   } else if (event.data.type === "trigger" && isRecord(event.data.trigger)) {
     const trigger = event.data.trigger;
+    if (typeof trigger.revision === "number") {
+      if (trigger.revision < revision) return;
+      revision = trigger.revision;
+    }
     const payload = isRecord(trigger.payload) ? trigger.payload : {};
     const values = trigger.bindingValues ?? payload.bindingValues;
     const action = trigger.action ?? payload.action;
     const nextState = trigger.state ?? payload.state
       ?? (action === "hide" ? "hidden" : action === "highlight" ? "highlighted" : action === "show" ? "visible" : undefined);
     if (isVisualState(nextState)) state = nextState;
-    updateBindings(isRecord(values) ? values : {}, action === "reset");
+    updateBindings(isRecord(values) ? values : {}, action === "reset" || trigger.replaceBindings === true);
     // Listeners must see the same complete binding/state snapshot as getBinding/getState.
     for (const listener of triggerListeners) listener(trigger);
     if (isVisualState(nextState)) for (const listener of stateListeners) listener(state);
@@ -87,6 +93,34 @@ function updateBindings(values: Record<string, unknown>, replace = false): void 
   }
   for (const key of changed) {
     for (const listener of bindingListeners.get(key) ?? []) listener(bindings.get(key));
+  }
+  if (playbackTimer !== undefined) window.clearInterval(playbackTimer);
+  playbackTimer = undefined;
+  if (bindings.get("media.is_playing") === true && Number(bindings.get("media.playback_started_at")) > 0) {
+    refreshPlayback();
+    if (bindings.get("media.is_playing") === true) playbackTimer = window.setInterval(refreshPlayback, 250);
+  }
+}
+
+function refreshPlayback(): void {
+  const base = bindings.get("media.position_seconds");
+  const duration = bindings.get("media.duration_seconds");
+  const startedAt = bindings.get("media.playback_started_at");
+  if (typeof base !== "number" || typeof duration !== "number" || typeof startedAt !== "number"
+    || !Number.isFinite(base) || !Number.isFinite(duration) || !Number.isFinite(startedAt) || duration < 0 || base < 0) return;
+  const position = Math.min(duration, base + Math.max(0, Date.now() - startedAt) / 1_000);
+  const whole = Math.floor(position);
+  const values = { "media.progress_ratio": duration > 0 ? position / duration * 100 : 0,
+    "media.progress_label": `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`,
+    "media.is_playing": position < duration };
+  for (const [key, value] of Object.entries(values)) {
+    if (bindings.get(key) === value) continue;
+    bindings.set(key, value);
+    for (const listener of bindingListeners.get(key) ?? []) listener(value);
+  }
+  if (position >= duration && playbackTimer !== undefined) {
+    window.clearInterval(playbackTimer);
+    playbackTimer = undefined;
   }
 }
 

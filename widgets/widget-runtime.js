@@ -78,6 +78,7 @@
       style: bindStyle ? element.style.getPropertyValue(bindStyle) : "",
       priority: bindStyle ? element.style.getPropertyPriority(bindStyle) : "",
       attribute: bindAttr ? element.getAttribute(bindAttr) : null,
+      label: element.getAttribute("aria-label"),
     });
   }
 
@@ -92,6 +93,10 @@
     if (element.dataset.bindAttr) {
       if (defaults.attribute === null) element.removeAttribute(element.dataset.bindAttr);
       else element.setAttribute(element.dataset.bindAttr, defaults.attribute);
+    }
+    if (element.dataset.bindLabelTrue) {
+      if (defaults.label === null) element.removeAttribute("aria-label");
+      else element.setAttribute("aria-label", defaults.label);
     }
   }
 
@@ -136,6 +141,9 @@
         }
       }
 
+      if (element.dataset.bindLabelTrue) {
+        element.setAttribute("aria-label", value ? element.dataset.bindLabelTrue : element.dataset.bindLabelFalse);
+      }
       if (bindsText(element)) {
         const formatted = formatValue(element, value);
         if (formatted !== null) {
@@ -212,18 +220,84 @@
   }
 
   function bindActions(scope, root, SCARline) {
-    for (const element of scope.querySelectorAll("[data-action]")) {
+    const elements = Array.from(scope.querySelectorAll("[data-action]"));
+    if (elements.length === 0) return;
+    let request = null;
+    let savedDisabled = null;
+    let timeout = null;
+    let feedback = null;
+
+    const showFeedback = (message, retryable = false) => {
+      if (!feedback) {
+        feedback = document.createElement("div");
+        feedback.dataset.interactionFeedback = "true";
+        feedback.setAttribute("role", "status");
+        feedback.setAttribute("aria-live", "polite");
+        feedback.style.cssText = "position:absolute;inset-inline:4px;bottom:4px;z-index:100;padding:5px 7px;border-radius:6px;background:#111827;color:#fff;font:11px/1.3 system-ui;text-align:center;box-shadow:0 1px 5px #0006";
+        (root || scope).append(feedback);
+      }
+      feedback.hidden = false;
+      feedback.replaceChildren(document.createTextNode(message));
+      if (retryable) {
+        const retry = document.createElement("button");
+        retry.type = "button";
+        retry.textContent = "Retry";
+        retry.style.cssText = "display:block;margin:4px auto 0;padding:3px 8px;border:1px solid currentColor;border-radius:4px;font:inherit";
+        retry.addEventListener("click", () => { if (request) dispatch(request); });
+        feedback.append(retry);
+      }
+    };
+    const release = () => {
+      if (savedDisabled) for (const [element, disabled] of savedDisabled) element.disabled = disabled;
+      savedDisabled = null;
+      root?.removeAttribute("aria-busy");
+    };
+    const finish = (result) => {
+      if (!request || result.requestId !== request.requestId) return;
+      if (result.status === "pending") return;
+      clearTimeout(timeout);
+      root?.removeAttribute("aria-busy");
+      if (result.status === "failed") showFeedback(result.message || "The action could not be completed.", result.retryable === true);
+      else if (feedback) feedback.hidden = true;
+      if (!result.retryable) {
+        release();
+        request = null;
+      }
+    };
+    const dispatch = (next) => {
+      request = next;
+      clearTimeout(timeout);
+      if (!savedDisabled) savedDisabled = elements.map((element) => [element, element.disabled]);
+      for (const element of elements) element.disabled = true;
+      root?.setAttribute("aria-busy", "true");
+      if (feedback) feedback.hidden = true;
+      timeout = setTimeout(() => finish({ requestId: next.requestId, status: "failed", retryable: true,
+        message: "Could not confirm the action." }), 12_000);
+      SCARline.send(next.action, next.payload);
+    };
+    SCARline.onTrigger((event) => { if (event?.interaction) finish(event.interaction); });
+
+    for (const element of elements) {
       element.addEventListener("click", () => {
         const action = element.dataset.action;
-        if (!action || root?.dataset.state === "hidden" || element.closest("[inert]")
+        if (request || !action || root?.dataset.state === "hidden" || element.closest("[inert]")
           || element.disabled || element.getAttribute("aria-disabled") === "true") {
           return;
         }
-
-        SCARline.send(action, {
-          action,
-          label: element.textContent?.trim() || null,
-        });
+        // Static editor thumbnails and older hosts do not acknowledge actions.
+        // Keep their existing event behaviour without leaving controls pending.
+        if (SCARline.getMetadata().interactionResults !== true) {
+          SCARline.send(action, { action, label: element.textContent?.trim() || null });
+          return;
+        }
+        const bytes = crypto.getRandomValues(new Uint8Array(16));
+        bytes[6] = (bytes[6] & 15) | 64;
+        bytes[8] = (bytes[8] & 63) | 128;
+        const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+        const requestId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+        dispatch({ requestId, action, payload: {
+          requestId, action, label: element.getAttribute("aria-label") || element.textContent?.trim() || null,
+        } });
       });
     }
   }

@@ -94,7 +94,9 @@
             </button>
 
             <!-- Play/Pause -->
-            <button type="button" data-action="media.play_pause"
+            <button type="button" data-action="media.play_pause" aria-label="Play music" aria-pressed="false"
+                data-bind="media.is_playing" data-bind-attr="aria-pressed"
+                data-bind-label-true="Pause music" data-bind-label-false="Play music"
                 class="bg-white rounded-full p-4 hover:scale-105 transition shadow-lg shadow-black/20">
                 <svg class="hidden w-8 h-8 fill-zinc-800" viewBox="0 0 24 24" data-bind="media.is_playing"
                     data-bind-class="inline-block" data-bind-class-false="hidden">

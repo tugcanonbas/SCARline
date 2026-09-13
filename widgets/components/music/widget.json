@@ -34,6 +34,18 @@
     "media.is_playing": {
       "type": "boolean",
       "description": "Whether playback is active."
+    },
+    "media.position_seconds": {
+      "type": "number",
+      "description": "Simulated playback position at the last state update, in seconds."
+    },
+    "media.duration_seconds": {
+      "type": "number",
+      "description": "Configured simulated track duration, in seconds."
+    },
+    "media.playback_started_at": {
+      "type": "number",
+      "description": "Playback clock anchor as Unix milliseconds; zero means paused."
     }
   },
   "actions": {

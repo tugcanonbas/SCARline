@@ -82,3 +82,15 @@ test("hidden renderer state blocks interactions until explicitly shown", async (
   assert.deepEqual(notified, ["hidden", "visible"]);
   assert.equal(sent.length, 2);
 });
+
+test("late interaction responses cannot undo a newer researcher reset", async () => {
+  const { api, send } = await createBridge();
+  send({ type: "trigger", trigger: { action: "update", bindingValues: { playing: true }, revision: 1 } });
+  send({ type: "trigger", trigger: { action: "reset", state: "hidden", bindingValues: {}, revision: 2 } });
+  send({ type: "trigger", trigger: { action: "update", state: "visible", bindingValues: { playing: true }, revision: 1 } });
+  assert.equal(api.getBinding("playing"), undefined);
+  assert.equal(api.getState(), "hidden");
+  send({ type: "trigger", trigger: { action: "update", replaceBindings: true, bindingValues: { title: "Restored" }, revision: 3 } });
+  assert.equal(api.getBinding("playing"), undefined);
+  assert.equal(api.getBinding("title"), "Restored");
+});

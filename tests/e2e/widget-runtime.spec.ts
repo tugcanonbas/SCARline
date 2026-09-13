@@ -75,6 +75,9 @@ async function loadWidget(page: Page, widgetId: string, mode: Mode = "overlay") 
       if (event.data.type === "action" || event.data.type === "scarline.widget.action") {
         const output = document.getElementById("actions")!;
         output.textContent = String(Number(output.textContent) + 1);
+        if (mode === "overlay") frame.contentWindow!.postMessage({ channel: "scarline.host.v1", type: "trigger", trigger: {
+          interaction: { requestId: event.data.payload?.requestId, status: "accepted", message: "Action sent" },
+        } }, "*");
       }
     });
     frame.srcdoc = html;

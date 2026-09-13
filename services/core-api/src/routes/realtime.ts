@@ -25,7 +25,7 @@ import {
   applyManualWidgetRuntimeCommand,
   studyIdForSession,
 } from "../overlay/runtime-control.js";
-import { createEnvelope, enqueueMessage } from "../infrastructure/outbox.js";
+import { applyOverlayWidgetInteraction } from "../overlay/interaction-control.js";
 import { OverlayCommandError, type RealtimeHub } from "../realtime/hub.js";
 import { AuthHeadersSchema, EmptyObjectSchema, UuidParamsSchema, success } from "./common.js";
 import { ensureStudyAccess } from "./studies.js";
@@ -42,6 +42,8 @@ const RenderGrantSchema = z.object({
   sessionId: z.string().uuid().nullable().optional(),
 }).strict();
 const InteractionSchema = z.object({
+  requestId: z.string().uuid().optional(),
+  observedRevision: z.number().int().nonnegative().optional(),
   instanceId: z.string().uuid(),
   action: z.string().min(1).max(100),
   payload: z.record(z.string(), z.unknown()).default({}),
@@ -238,43 +240,9 @@ export async function registerRealtimeRoutes(
     }, async (request, reply) => {
       const scope = await rendererScopeFromCookie(request, auth);
       const body = InteractionSchema.parse(request.body);
-      const snapshot = await loadOverlayRuntimeSnapshot(pool, scope);
-      const widget = snapshot.widgets.find((entry) => entry.instanceId === body.instanceId);
-      if (widget === undefined) throw new ApiProblem(403, "WIDGET_OUT_OF_SCOPE", "Widget instance is outside this overlay scope.");
-      const actions = Array.isArray(widget.metadata.triggers)
-        ? widget.metadata.triggers.map((value) => (value as Record<string, unknown>).action)
-        : [];
-      if (!actions.includes(body.action)) throw new ApiProblem(400, "UNDECLARED_WIDGET_ACTION", "Widget action is not declared in metadata.");
-      const interaction = {
-        instanceId: body.instanceId,
-        widgetId: widget.widgetId,
-        widgetKey: widget.widgetKey,
-        action: body.action,
-        payload: body.payload,
-        source: "overlay-widget",
-      };
-      if (scope.sessionId !== null) {
-        const client = await pool.connect();
-        try {
-          await client.query("BEGIN");
-          await enqueueMessage(client, createEnvelope({
-            routingKey: `events.${scope.studyId}.${scope.sessionId}.widget.interaction`,
-            studyId: scope.studyId,
-            sessionId: scope.sessionId,
-            payload: interaction,
-          }));
-          await client.query("COMMIT");
-        } catch (error) {
-          await client.query("ROLLBACK").catch(() => undefined);
-          throw error;
-        } finally {
-          client.release();
-        }
-      }
-      hub.broadcast("widget.updates", {
-        ...interaction,
-      }, scope.studyId, scope.sessionId);
-      return reply.status(202).send(success({ accepted: true }));
+      const result = await applyOverlayWidgetInteraction(pool, scope, { ...body, requestId: body.requestId ?? randomUUID() });
+      if (!result.duplicate) hub.broadcast("widget.updates", result.update, scope.studyId, scope.sessionId);
+      return reply.status(202).send(success(result));
     });
   }
 

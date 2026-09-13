@@ -17,6 +17,7 @@ interface RuntimeWidget {
   x: number;
   y: number;
   bindings: Record<string, unknown>;
+  revision: number;
   metadata: Record<string, unknown>;
   styleOverrides: Record<string, unknown>;
   state: "visible" | "hidden" | "highlighted";
@@ -153,7 +154,12 @@ async function renderWidget(config: RuntimeConfig, snapshot: RuntimeSnapshot, wi
 
   let frameReady = false;
   const queued: Array<Record<string, unknown>> = [];
+  let pendingRequestId: string | null = null;
+  let revision = Number.isSafeInteger(widget.revision) ? widget.revision : 0;
   const send = (message: Record<string, unknown>) => {
+    if (isRecord(message.trigger) && typeof message.trigger.revision === "number") {
+      revision = Math.max(revision, message.trigger.revision);
+    }
     if (!frameReady || frame.contentWindow === null) queued.push(message);
     else frame.contentWindow.postMessage({ channel: "scarline.host.v1", ...message }, "*");
   };
@@ -164,12 +170,21 @@ async function renderWidget(config: RuntimeConfig, snapshot: RuntimeSnapshot, wi
       frameReady = true;
       for (const message of queued.splice(0)) send(message);
     } else if (event.data.type === "action" && typeof event.data.action === "string") {
-      void postInteraction(config, widget.instanceId, event.data.action, isRecord(event.data.payload) ? event.data.payload : {});
+      if (pendingRequestId !== null) return;
+      const payload = isRecord(event.data.payload) ? { ...event.data.payload } : {};
+      const requestId = typeof payload.requestId === "string" && /^[0-9a-f-]{36}$/i.test(payload.requestId)
+        ? payload.requestId : crypto.randomUUID();
+      delete payload.requestId;
+      pendingRequestId = requestId;
+      const action = event.data.action;
+      send({ type: "trigger", trigger: { interaction: { requestId, action, status: "pending" } } });
+      void postInteraction(config, widget.instanceId, action, payload, requestId, revision, send)
+        .finally(() => { pendingRequestId = null; });
     }
   });
 
-  send({ type: "metadata", metadata: widget.metadata });
-  send({ type: "bindings", bindings: widget.bindings });
+  send({ type: "metadata", metadata: { ...widget.metadata, interactionResults: true } });
+  send({ type: "trigger", trigger: { action: "reset", bindingValues: widget.bindings, state: widget.state, revision: widget.revision } });
   send({ type: "styles", styles: safeStyles(widget.styleOverrides) });
   send({ type: "state", state: widget.state });
   startSystemBindings(send);
@@ -260,14 +275,36 @@ async function connectRuntime(
   await connect();
 }
 
-async function postInteraction(config: RuntimeConfig, instanceId: string, action: string, payload: Record<string, unknown>): Promise<void> {
-  const response = await fetch(`${rendererApi(config)}/interactions`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ instanceId, action, payload }),
-  });
-  if (!response.ok) console.error(`SCARline widget interaction rejected (${response.status}).`);
+async function postInteraction(config: RuntimeConfig, instanceId: string, action: string, payload: Record<string, unknown>,
+  requestId: string, observedRevision: number, send: (message: Record<string, unknown>) => void): Promise<void> {
+  const report = (status: string, message: string, retryable = false) => send({ type: "trigger", trigger: {
+    interaction: { requestId, action, status, message, retryable },
+  } });
+  try {
+    const response = await fetch(`${rendererApi(config)}/interactions`, {
+      method: "POST", credentials: "include", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ instanceId, action, payload, requestId, observedRevision }), signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) {
+      const message = response.status === 401
+        ? "Session expired. Relaunch this widget from Participant View."
+        : response.status === 409 ? "The widget is no longer available. Reopen the current widget."
+        : response.status >= 500 ? "Could not confirm the action. Retry to check its result."
+        : "This action was rejected.";
+      report("failed", message, response.status >= 500);
+      return;
+    }
+    const result = await response.json() as ApiEnvelope<{ accepted: boolean; applied: boolean; requestId: string; update: Record<string, unknown> }>;
+    if (result.data?.accepted !== true || result.data.requestId !== requestId || !isRecord(result.data.update)) {
+      throw new Error("Invalid interaction result");
+    }
+    send({ type: "trigger", trigger: result.data.update });
+    report(result.data.applied ? "applied" : "accepted", "");
+  } catch {
+    // The request might have committed before the connection failed. Retrying
+    // the same ID obtains its result without applying the toggle twice.
+    report("failed", "Could not confirm the action. Retry to check its result.", true);
+  }
 }
 
 function startSystemBindings(send: (message: Record<string, unknown>) => void): void {

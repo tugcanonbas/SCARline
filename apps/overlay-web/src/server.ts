@@ -38,6 +38,10 @@ export function buildOverlayWeb(options: OverlayWebOptions) {
       coreApiWebSocketOrigin: options.coreApiWebSocketOrigin,
     };
   });
+  app.get("/overlay-shell.css", async (_request, reply) => {
+    reply.type("text/css; charset=utf-8");
+    return shellStyles;
+  });
 
   app.get("/client.js", async (_request, reply) =>
     sendFile(reply, path.join(rendererAssetsDirectory, "client.js"), "text/javascript; charset=utf-8"));
@@ -214,10 +218,6 @@ const options: OverlayWebOptions = {
 };
 
 const app = buildOverlayWeb(options);
-app.get("/overlay-shell.css", async (_request, reply) => {
-  reply.type("text/css; charset=utf-8");
-  return shellStyles;
-});
 
 if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   const port = Number(process.env.PORT ?? "4000");

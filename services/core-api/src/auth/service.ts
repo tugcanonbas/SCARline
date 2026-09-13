@@ -405,9 +405,13 @@ export class AuthService {
         + this.#config.project.api.overlay_renderer_session_ttl_hours * 3_600_000,
     );
     const rendererId = randomUUID();
+    // Preview state belongs to this launch, including its child windows.
+    const scope = claims.scope.sessionId === null
+      ? { ...claims.scope, previewId: rendererId }
+      : claims.scope;
     const sessionToken = await new SignJWT({
       tokenType: "overlay-render-session",
-      scope: claims.scope,
+      scope,
     })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuer("scarline-core-api")
@@ -420,7 +424,7 @@ export class AuthService {
     return {
       token: sessionToken,
       expiresAt: expiresAt.toISOString(),
-      scope: claims.scope,
+      scope,
       rendererId,
     };
   }

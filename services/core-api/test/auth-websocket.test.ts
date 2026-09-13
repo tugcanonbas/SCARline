@@ -266,7 +266,7 @@ test("independent popup launches keep their scopes and reject missing or mismatc
     assert.equal(cookie.secure, undefined);
     assert.equal(cookie.path, `/api/v1/overlay/renderers/${rendererId}`);
     assert.equal(bootstrap.body.includes(cookie.value), false);
-    launches.push({ rendererId, cookie: `${cookie.name}=${cookie.value}`, scope });
+    launches.push({ rendererId, cookie: `${cookie.name}=${cookie.value}`, scope: { ...scope, previewId: rendererId } });
   }
   assert.notEqual(launches[0]!.rendererId, launches[1]!.rendererId);
   for (const launch of launches) {

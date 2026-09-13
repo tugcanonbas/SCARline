@@ -9,6 +9,8 @@ import {
 } from "@scarline/contracts";
 
 import { ApiProblem } from "../errors.js";
+import { previewRuntime, runtimeRevision } from "./preview-runtime.js";
+import { projectMusicBindings } from "./widget-interactions.js";
 import {
   configuredWidgetRuntime,
   filterStoredBindingValues,
@@ -101,9 +103,11 @@ export async function loadOverlayRuntimeSnapshot(
       ORDER BY wi."order",wi.id`,
     values,
   );
-  const runtimeOverrides = scope.sessionId === null
+  const runtimeMetadata = scope.sessionId === null
     ? {}
-    : await loadCurrentSessionWidgetOverrides(pool, scope.sessionId, scope.conditionId);
+    : await loadCurrentSessionRuntime(pool, scope.sessionId, scope.conditionId);
+  const runtimeOverrides = readStoredWidgetRuntimeOverrides(runtimeMetadata);
+  const preview = scope.sessionId === null && scope.previewId !== undefined ? previewRuntime(pool, scope.previewId) : undefined;
   const widgets = result.rows.map((row) => {
     const configured = configuredWidgetRuntime(
       row.metadata,
@@ -122,6 +126,7 @@ export async function loadOverlayRuntimeSnapshot(
       configured.metadata,
       runtimeOverride?.bindingValues ?? {},
     );
+    const bindings = { ...configured.bindings, ...manualBindings, ...preview?.bindings[row.instance_id] };
     return {
       instanceId: row.instance_id,
       widgetId: row.widget_id,
@@ -140,7 +145,8 @@ export async function loadOverlayRuntimeSnapshot(
       configuration: row.configuration,
       bindingsConfig: row.bindings_config,
       styleOverrides: row.style_overrides,
-      bindings: { ...configured.bindings, ...manualBindings },
+      bindings: row.widget_key === "music" ? projectMusicBindings(bindings) : bindings,
+      revision: preview?.revision ?? runtimeRevision(runtimeMetadata.widgetRuntimeRevision),
       state: runtimeOverride?.state ?? configured.state,
     };
   });
@@ -198,7 +204,7 @@ async function loadLayout(pool: Pool, layoutId: string): Promise<LayoutRow> {
   return result.rows[0];
 }
 
-async function loadCurrentSessionWidgetOverrides(
+async function loadCurrentSessionRuntime(
   pool: Pool,
   sessionId: string,
   conditionId: string,
@@ -209,5 +215,5 @@ async function loadCurrentSessionWidgetOverrides(
       ORDER BY sequence LIMIT 1`,
     [sessionId, conditionId],
   );
-  return readStoredWidgetRuntimeOverrides(result.rows[0]?.runtime_metadata);
+  return result.rows[0]?.runtime_metadata ?? {};
 }
