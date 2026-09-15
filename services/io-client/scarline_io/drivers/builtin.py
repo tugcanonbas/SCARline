@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import math
-import random
 import time
 from pathlib import Path
 from typing import Any
@@ -37,16 +36,38 @@ def normalized_gaze(points: Any) -> tuple[float | None, float | None]:
 
 class MockDriver(SensorDriver):
     key = "mock"
-    async def connect(self) -> None: self.connected = True
+    async def connect(self) -> None:
+        self._started_at = time.monotonic()
+        self.connected = True
     async def disconnect(self) -> None: self.connected = self.running = False
     async def read(self, channel: str) -> Reading | None:
         if not self.running: return None
-        t = time.monotonic()
+        t = time.monotonic() - self._started_at
+        # Repeatable test signals only. Physical drivers never use these values.
+        heart_rate = 76 + 12 * math.sin(t / 9)
+        common = {"connected": True, "simulated": True}
         if channel == "steering":
-            return Reading(channel, {"steer": round(math.sin(t) * .35, 4), "throttle": .4, "brake": 0.0, "clutch": 0.0, "gear": 3, "buttons": {}, "connected": True})
-        if channel == "heart_rate": return Reading(channel, {"heartRateBpm": 72 + round(math.sin(t / 4) * 4, 2), "rrIntervalMs": 833.0, "connected": True})
-        if channel == "ecg": return Reading(channel, {"value": round(math.sin(t * 2 * math.pi * 1.2) + random.uniform(-.02, .02), 5), "connected": True})
-        return Reading(channel, {"gaze": {"x": .5 + math.sin(t) * .1, "y": .5}, "pupilDiameter": .03, "blinkDetected": False, "connected": True})
+            return Reading(channel, {"steer": round(math.sin(t) * .35, 4), "throttle": .4, "brake": 0.0, "clutch": 0.0, "gear": 3, "buttons": {}, **common})
+        if channel == "heart_rate":
+            return Reading(channel, {"heartRateBpm": round(heart_rate, 2), "rrIntervalMs": round(60_000 / heart_rate, 2), **common})
+        if channel == "ecg":
+            # Integrated test heart rate gives continuous phase as the rate varies.
+            phase = (76 * t + 108 * (1 - math.cos(t / 9))) / 60 % 1
+            pulse = sum(amplitude * math.exp(-((phase - centre) / width) ** 2)
+                        for centre, width, amplitude in ((.18, .04, .12), (.38, .014, -.18),
+                                                         (.4, .012, 1.0), (.43, .018, -.3), (.68, .08, .25)))
+            value = pulse * (1 + .2 * math.sin(t / 7)) + .04 * math.sin(t * 1.5)
+            return Reading(channel, {"value": round(value, 5), "vitals.ecg_status": "Simulated ECG", **common})
+        if channel == "blood_pressure":
+            return Reading(channel, {"systolic": round(120 + 10 * math.sin(t / 11), 1),
+                                     "diastolic": round(78 + 6 * math.sin(t / 13), 1), **common})
+        if channel == "spo2":
+            return Reading(channel, {"spo2Percent": round(97 + 2 * math.sin(t / 8), 1), **common})
+        if channel == "respiration":
+            return Reading(channel, {"respirationRateRpm": round(16 + 4 * math.sin(t / 10), 1), **common})
+        if channel == "eye_tracking":
+            return Reading(channel, {"gaze": {"x": .5 + math.sin(t) * .1, "y": .5}, "pupilDiameter": .03, "blinkDetected": False, **common})
+        return None
 
 
 class G29Driver(SensorDriver):
@@ -129,11 +150,13 @@ class HeartRateDriver(SensorDriver):
         if not self.running: return None
         if self.serial is not None:
             line = (await asyncio.to_thread(self.serial.readline)).decode("ascii", "ignore").strip()
-            if line.startswith("BPM:"):
-                try: self.bpm = float(line.split(":", 1)[1])
-                except ValueError: pass
+            if not line.startswith("BPM:"): return None
+            try: self.bpm = float(line.split(":", 1)[1])
+            except ValueError: return None
+            if not math.isfinite(self.bpm): return None
         elif self.client is not None:
             data = await self.client.read_gatt_char("00002a37-0000-1000-8000-00805f9b34fb")
+            if not data: return None
             if data:
                 wide = bool(data[0] & 1); offset = 3 if wide else 2
                 self.bpm = float(int.from_bytes(data[1:3], "little")) if wide else float(data[1])
