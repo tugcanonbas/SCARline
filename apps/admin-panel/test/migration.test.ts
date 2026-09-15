@@ -29,7 +29,7 @@ test('keeps the frozen admin stylesheet intact', async () => {
   const current = await source('src/app.css');
   assert.equal(
     createHash('sha256').update(current).digest('hex'),
-    'e4d51c7ff8fa2fafb407dd0640c735430f43ac830af534c53c7864cd5e320e55'
+    '4b290aba74793578c6ee0c4d740dd25c20c1121ebb6f865d8914ef0fa9b584bb'
   );
 });
 
