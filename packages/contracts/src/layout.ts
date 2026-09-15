@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { WidgetBindingDataSchema } from "./widget.js";
 
 import {
   IsoDateTimeSchema,
@@ -213,6 +214,7 @@ export const OverlayRuntimeWidgetSchema = z
     bindingsConfig: JsonObjectSchema,
     styleOverrides: JsonObjectSchema,
     bindings: JsonObjectSchema,
+    bindingData: z.record(z.string(), WidgetBindingDataSchema).default({}),
     revision: z.number().int().nonnegative().default(0),
     state: z.enum(["visible", "hidden", "highlighted"]),
   })
@@ -221,6 +223,7 @@ export const OverlayRuntimeWidgetSchema = z
 export const OverlayRuntimeSnapshotSchema = z
   .object({
     scope: OverlayRuntimeScopeSchema,
+    sessionConditionId: UuidSchema.nullable().default(null),
     layout: z
       .object({
         id: UuidSchema,
@@ -371,6 +374,8 @@ export const OverlayRuntimeServerMessageSchema = z.discriminatedUnion("type", [
       type: z.literal("overlay.runtime.bindings"),
       instanceId: UuidSchema,
       bindings: JsonObjectSchema,
+      bindingData: z.record(z.string(), WidgetBindingDataSchema).optional(),
+      revision: z.number().int().nonnegative().optional(),
     })
     .strict(),
   z

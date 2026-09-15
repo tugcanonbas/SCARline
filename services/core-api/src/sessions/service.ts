@@ -492,6 +492,7 @@ export class SessionLifecycleService implements ManagedCoreApiService {
         await this.#evaluateTriggers(client, session.rows[0], message);
       }
       await client.query("COMMIT");
+      this.#hub.recordWidgetEvent(message);
       if (this.#shouldBroadcast(message, session.rows[0])) await this.#hub.broadcastEvent(message);
       if (overlayFinalization !== null) await this.#finalizeParticipantLayout(overlayFinalization);
       if (overlayCleanup !== null) await this.#cleanupParticipantLayout(overlayCleanup);

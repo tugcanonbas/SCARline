@@ -11,6 +11,7 @@ import {
 import { ApiProblem } from "../errors.js";
 import { previewRuntime, runtimeRevision } from "./preview-runtime.js";
 import { projectMusicBindings } from "./widget-interactions.js";
+import { projectWidgetData } from "./live-data.js";
 import {
   configuredWidgetRuntime,
   filterStoredBindingValues,
@@ -103,9 +104,10 @@ export async function loadOverlayRuntimeSnapshot(
       ORDER BY wi."order",wi.id`,
     values,
   );
-  const runtimeMetadata = scope.sessionId === null
-    ? {}
+  const sessionRuntime = scope.sessionId === null
+    ? undefined
     : await loadCurrentSessionRuntime(pool, scope.sessionId, scope.conditionId);
+  const runtimeMetadata = sessionRuntime?.runtime_metadata ?? {};
   const runtimeOverrides = readStoredWidgetRuntimeOverrides(runtimeMetadata);
   const preview = scope.sessionId === null && scope.previewId !== undefined ? previewRuntime(pool, scope.previewId) : undefined;
   const widgets = result.rows.map((row) => {
@@ -114,6 +116,7 @@ export async function loadOverlayRuntimeSnapshot(
       layout.condition_metadata,
       row.instance_id,
       row.widget_key,
+      scope.sessionId === null,
     );
     const runtimeOverride = findStoredWidgetRuntimeOverride(runtimeOverrides, {
       instanceId: row.instance_id,
@@ -127,6 +130,14 @@ export async function loadOverlayRuntimeSnapshot(
       runtimeOverride?.bindingValues ?? {},
     );
     const bindings = { ...configured.bindings, ...manualBindings, ...preview?.bindings[row.instance_id] };
+    for (const key of Object.keys(manualBindings)) {
+      const detail = configured.bindingData[key];
+      if (detail) configured.bindingData[key] = { ...detail, source: "study", status: "ready",
+        sourceKey: "Researcher / study override", timestamp: runtimeOverride?.updatedAt ? Date.parse(runtimeOverride.updatedAt) : null };
+    }
+    const projected = projectWidgetData(pool, { studyId: scope.studyId, sessionId: scope.sessionId,
+      sessionConditionId: sessionRuntime?.id ?? null, metadata: configured.metadata,
+      bindingsConfig: row.bindings_config, bindings, bindingData: configured.bindingData });
     return {
       instanceId: row.instance_id,
       widgetId: row.widget_id,
@@ -145,13 +156,15 @@ export async function loadOverlayRuntimeSnapshot(
       configuration: row.configuration,
       bindingsConfig: row.bindings_config,
       styleOverrides: row.style_overrides,
-      bindings: row.widget_key === "music" ? projectMusicBindings(bindings) : bindings,
+      bindings: row.widget_key === "music" ? projectMusicBindings(projected.bindings) : projected.bindings,
+      bindingData: projected.bindingData,
       revision: preview?.revision ?? runtimeRevision(runtimeMetadata.widgetRuntimeRevision),
       state: runtimeOverride?.state ?? configured.state,
     };
   });
   return OverlayRuntimeSnapshotSchema.parse({
     scope,
+    sessionConditionId: sessionRuntime?.id ?? null,
     layout: {
       id: layout.id,
       name: layout.name,
@@ -209,11 +222,11 @@ async function loadCurrentSessionRuntime(
   sessionId: string,
   conditionId: string,
 ) {
-  const result = await pool.query<{ runtime_metadata: Record<string, unknown> }>(
-    `SELECT runtime_metadata FROM session_conditions
+  const result = await pool.query<{ id: string; runtime_metadata: Record<string, unknown> }>(
+    `SELECT id,runtime_metadata FROM session_conditions
       WHERE session_id=$1 AND condition_id=$2 AND status IN ('pending','active','paused')
       ORDER BY sequence LIMIT 1`,
     [sessionId, conditionId],
   );
-  return result.rows[0]?.runtime_metadata ?? {};
+  return result.rows[0];
 }

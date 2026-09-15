@@ -17,6 +17,7 @@ interface RuntimeWidget {
   x: number;
   y: number;
   bindings: Record<string, unknown>;
+  bindingData: Record<string, unknown>;
   revision: number;
   metadata: Record<string, unknown>;
   styleOverrides: Record<string, unknown>;
@@ -24,7 +25,7 @@ interface RuntimeWidget {
 }
 
 interface RuntimeSnapshot {
-  scope: { rendererMode: "desktop" | "browser"; layoutId: string; instanceId: string | null };
+  scope: { rendererMode: "desktop" | "browser"; layoutId: string; instanceId: string | null; sessionId: string | null };
   layout: { name: string };
   displays: BrowserDisplay[];
   widgets: RuntimeWidget[];
@@ -39,8 +40,9 @@ void start().catch(showError);
 async function start(): Promise<void> {
   const config = await fetchJson<RuntimeConfig>("/runtime-config.json", false);
   await exchangeBootstrap(config);
-  const snapshot = await fetchJson<ApiEnvelope<RuntimeSnapshot>>(`${rendererApi(config)}/runtime`, true);
   const route = routeParts();
+  const query = route.kind === "widget" ? `?instanceId=${encodeURIComponent(route.id)}` : "";
+  const snapshot = await fetchJson<ApiEnvelope<RuntimeSnapshot>>(`${rendererApi(config)}/runtime${query}`, true);
   if (route.kind === "launcher") {
     await renderLauncher(config, snapshot.data);
   } else {
@@ -134,6 +136,7 @@ async function renderLauncher(config: RuntimeConfig, snapshot: RuntimeSnapshot):
 }
 
 async function renderWidget(config: RuntimeConfig, snapshot: RuntimeSnapshot, widget: RuntimeWidget): Promise<void> {
+  document.title = `${widget.name}${snapshot.scope.sessionId === null ? " · Preview" : ""} · SCARline`;
   app.className = "widget-shell";
   app.replaceChildren();
   const frame = document.createElement("iframe");
@@ -145,10 +148,10 @@ async function renderWidget(config: RuntimeConfig, snapshot: RuntimeSnapshot, wi
   frame.srcdoc = injectBridge(html, widget.widgetKey);
   app.append(frame);
 
-  if (snapshot.scope.rendererMode === "browser") {
+  if (snapshot.scope.rendererMode === "browser" && snapshot.scope.sessionId === null) {
     const toolbar = document.createElement("div");
     toolbar.className = "browser-toolbar";
-    toolbar.textContent = `SCARline · ${widget.name}`;
+    toolbar.textContent = `SCARline · ${widget.name}${snapshot.scope.sessionId === null ? " · Preview" : ""}`;
     app.append(toolbar);
   }
 
@@ -183,8 +186,10 @@ async function renderWidget(config: RuntimeConfig, snapshot: RuntimeSnapshot, wi
     }
   });
 
-  send({ type: "metadata", metadata: { ...widget.metadata, interactionResults: true } });
-  send({ type: "trigger", trigger: { action: "reset", bindingValues: widget.bindings, state: widget.state, revision: widget.revision } });
+  send({ type: "metadata", metadata: { ...widget.metadata, interactionResults: true,
+    dataMode: snapshot.scope.sessionId === null ? "preview" : "live", bindingData: widget.bindingData } });
+  send({ type: "trigger", trigger: { action: "reset", bindingValues: widget.bindings, bindingData: widget.bindingData,
+    state: widget.state, revision: widget.revision } });
   send({ type: "styles", styles: safeStyles(widget.styleOverrides) });
   send({ type: "state", state: widget.state });
   startSystemBindings(send);
@@ -235,10 +240,16 @@ async function connectRuntime(
       if (typeof ticket.data?.token !== "string" || ticket.data.token.length === 0) {
         throw new Error("Overlay WebSocket ticket is invalid.");
       }
-      const opened = new WebSocket(`${config.coreApiWebSocketOrigin}/overlay-runtime`, `scarline.overlay-ticket.${ticket.data.token}`);
+      const runtimeUrl = new URL("/overlay-runtime", config.coreApiWebSocketOrigin);
+      // A layout grant can authorize many popups, but each popup needs only its
+      // own data. The launcher watches closure without receiving chart histories.
+      if (instanceId === null) runtimeUrl.searchParams.set("lifecycleOnly", "true");
+      else runtimeUrl.searchParams.set("instanceId", instanceId);
+      const opened = new WebSocket(runtimeUrl, `scarline.overlay-ticket.${ticket.data.token}`);
       socket = opened;
       opened.addEventListener("open", () => {
         if (socket === opened) retryCount = 0;
+        send({ type: "connection", connected: true });
       });
       opened.addEventListener("message", (event) => {
         let message: unknown;
@@ -254,7 +265,7 @@ async function connectRuntime(
           return;
         }
         if (instanceId === null || message.instanceId !== instanceId) return;
-        if (message.type === "overlay.runtime.bindings" && isRecord(message.bindings)) send({ type: "bindings", bindings: message.bindings });
+        if (message.type === "overlay.runtime.bindings" && isRecord(message.bindings)) send({ type: "bindings", bindings: message.bindings, bindingData: message.bindingData, revision: message.revision });
         else if (message.type === "overlay.runtime.trigger" && isRecord(message.trigger)) send({ type: "trigger", trigger: message.trigger });
         else if (message.type === "overlay.runtime.state" && ["visible", "hidden", "highlighted"].includes(String(message.state))) {
           send({ type: "state", state: message.state });
@@ -266,9 +277,11 @@ async function connectRuntime(
       opened.addEventListener("close", () => {
         if (socket !== opened) return;
         socket = null;
+        send({ type: "connection", connected: false });
         scheduleReconnect();
       });
     } catch {
+      send({ type: "connection", connected: false });
       if (!stopped && version === connectionVersion) scheduleReconnect();
     }
   };

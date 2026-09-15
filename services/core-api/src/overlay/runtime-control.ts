@@ -5,6 +5,8 @@ import { ApiProblem } from "../errors.js";
 import { createEnvelope, enqueueMessage } from "../infrastructure/outbox.js";
 import { runtimeRevision } from "./preview-runtime.js";
 import { musicBindingUpdate, projectMusicBindings } from "./widget-interactions.js";
+import { projectWidgetData } from "./live-data.js";
+import type { WidgetBindingData } from "@scarline/contracts";
 import {
   configuredWidgetRuntime,
   readStoredWidgetRuntimeOverrides,
@@ -33,6 +35,7 @@ interface WidgetTargetRow {
   readonly order: number;
   readonly condition_metadata: Record<string, unknown>;
   readonly metadata: Record<string, unknown>;
+  readonly bindings_config: Record<string, unknown>;
 }
 
 export interface ManualWidgetRuntimeUpdate {
@@ -46,6 +49,7 @@ export interface ManualWidgetRuntimeUpdate {
   readonly requestedAction: WidgetRuntimeAction;
   readonly state: WidgetVisualState;
   readonly bindingValues: Record<string, unknown>;
+  readonly bindingData: Record<string, WidgetBindingData>;
   readonly triggerType: "manual";
   readonly source: "admin-panel";
   readonly triggeredBy: string;
@@ -113,6 +117,18 @@ export async function applyManualWidgetRuntimeCommand(
     } else {
       runtimeOverrides[target.instance_id] = next!;
     }
+    const bindingData = configured.bindingData;
+    for (const key of Object.keys(command.action === "reset" ? {} : next?.bindingValues ?? {})) {
+      const detail = bindingData[key];
+      if (detail) bindingData[key] = { ...detail, source: "study", status: "ready", sourceKey: "Researcher override" };
+    }
+    if (command.action === "reset") {
+      const projected = projectWidgetData(pool, { studyId: session.study_id, sessionId,
+        sessionConditionId: sessionCondition.id, metadata: configured.metadata,
+        bindingsConfig: target.bindings_config ?? {}, bindings: deliveredBindings, bindingData });
+      deliveredBindings = projected.bindings;
+      Object.assign(bindingData, projected.bindingData);
+    }
 
     await client.query(
       "UPDATE session_conditions SET runtime_metadata=$2::jsonb WHERE id=$1",
@@ -130,6 +146,8 @@ export async function applyManualWidgetRuntimeCommand(
       requestedAction: command.action,
       state,
       bindingValues: deliveredBindings,
+      bindingData: command.action === "reset" ? bindingData : Object.fromEntries(
+        Object.keys(deliveredBindings).flatMap((key) => bindingData[key] ? [[key, bindingData[key]]] : [])),
       triggerType: "manual",
       source: "admin-panel",
       triggeredBy: actorUserId,
@@ -207,7 +225,7 @@ export async function resolveActiveWidgetTarget(
   }
   const target = await client.query<WidgetTargetRow>(
     `SELECT wi.id AS instance_id,wi.widget_id,w.key AS widget_key,l.type AS layout_type,l.name AS layout_name,wi."order",
-            c.metadata AS condition_metadata,w.metadata
+            c.metadata AS condition_metadata,w.metadata,wi.bindings_config
        FROM widget_instances wi
        JOIN widgets w ON w.id=wi.widget_id
        JOIN layouts l ON l.id=wi.layout_id

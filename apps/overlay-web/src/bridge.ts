@@ -8,6 +8,7 @@ let state = "visible";
 let revision = -1;
 let metadata: Record<string, unknown> = {};
 let playbackTimer: number | undefined;
+let dataConnected = true;
 
 const SCARline = Object.freeze({
   ready(): void {
@@ -53,7 +54,11 @@ Object.defineProperty(window, "EventSource", { value: class BlockedEventSource {
 window.addEventListener("message", (event) => {
   if (event.source !== parent || !isRecord(event.data) || event.data.channel !== "scarline.host.v1") return;
   if (event.data.type === "bindings" && isRecord(event.data.bindings)) {
-    updateBindings(event.data.bindings);
+    if (typeof event.data.revision === "number") {
+      if (event.data.revision < revision) return;
+      revision = event.data.revision;
+    }
+    updateBindings(event.data.bindings, false, event.data.bindingData);
   } else if (event.data.type === "trigger" && isRecord(event.data.trigger)) {
     const trigger = event.data.trigger;
     if (typeof trigger.revision === "number") {
@@ -66,7 +71,7 @@ window.addEventListener("message", (event) => {
     const nextState = trigger.state ?? payload.state
       ?? (action === "hide" ? "hidden" : action === "highlight" ? "highlighted" : action === "show" ? "visible" : undefined);
     if (isVisualState(nextState)) state = nextState;
-    updateBindings(isRecord(values) ? values : {}, action === "reset" || trigger.replaceBindings === true);
+    updateBindings(isRecord(values) ? values : {}, action === "reset" || trigger.replaceBindings === true, trigger.bindingData);
     // Listeners must see the same complete binding/state snapshot as getBinding/getState.
     for (const listener of triggerListeners) listener(trigger);
     if (isVisualState(nextState)) for (const listener of stateListeners) listener(state);
@@ -75,6 +80,9 @@ window.addEventListener("message", (event) => {
     for (const listener of stateListeners) listener(state);
   } else if (event.data.type === "metadata" && isRecord(event.data.metadata)) {
     metadata = event.data.metadata;
+  } else if (event.data.type === "connection") {
+    dataConnected = event.data.connected === true;
+    refreshDataStatus();
   } else if (event.data.type === "styles" && isRecord(event.data.styles)) {
     for (const [key, value] of Object.entries(event.data.styles)) {
       if (key.startsWith("--") && (typeof value === "string" || typeof value === "number")) {
@@ -84,7 +92,14 @@ window.addEventListener("message", (event) => {
   }
 });
 
-function updateBindings(values: Record<string, unknown>, replace = false): void {
+function updateBindings(values: Record<string, unknown>, replace = false, details?: unknown): void {
+  if (isRecord(details)) {
+    const restored = Object.fromEntries(Object.entries(details).map(([key, detail]) => [key,
+      isRecord(detail) && detail.source === "live" && detail.status === "receiving"
+        && !Array.isArray(detail.history) && Array.isArray(values[key])
+        ? { ...detail, history: values[key] } : detail]));
+    metadata.bindingData = { ...(replace ? {} : isRecord(metadata.bindingData) ? metadata.bindingData : {}), ...restored };
+  }
   const changed = new Set([...Object.keys(values), ...(replace ? bindings.keys() : [])]);
   if (replace) bindings.clear();
   for (const [key, value] of Object.entries(values)) {
@@ -94,6 +109,7 @@ function updateBindings(values: Record<string, unknown>, replace = false): void 
   for (const key of changed) {
     for (const listener of bindingListeners.get(key) ?? []) listener(bindings.get(key));
   }
+  refreshDataStatus();
   if (playbackTimer !== undefined) window.clearInterval(playbackTimer);
   playbackTimer = undefined;
   if (bindings.get("media.is_playing") === true && Number(bindings.get("media.playback_started_at")) > 0) {
@@ -101,6 +117,24 @@ function updateBindings(values: Record<string, unknown>, replace = false): void 
     if (bindings.get("media.is_playing") === true) playbackTimer = window.setInterval(refreshPlayback, 250);
   }
 }
+
+function refreshDataStatus(): void {
+  const details = isRecord(metadata.bindingData) ? metadata.bindingData : {};
+  let changed = false;
+  for (const [key, input] of Object.entries(details)) {
+    if (!isRecord(input) || input.source !== "live" || input.status === "disconnected") continue;
+    const expired = typeof input.timestamp === "number" && typeof input.staleAfterMs === "number"
+      && Date.now() - input.timestamp > input.staleAfterMs;
+    if (!dataConnected || (input.status === "receiving" && expired)) {
+      details[key] = { ...input, status: dataConnected ? "stale" : "disconnected" };
+      bindings.set(key, null);
+      for (const listener of bindingListeners.get(key) ?? []) listener(null);
+      changed = true;
+    }
+  }
+  if (changed) for (const listener of triggerListeners) listener({ dataStatusChanged: true });
+}
+window.setInterval(refreshDataStatus, 500);
 
 function refreshPlayback(): void {
   const base = bindings.get("media.position_seconds");

@@ -281,3 +281,38 @@ test("independent popup launches keep their scopes and reject missing or mismatc
     assert.equal(mismatched.statusCode, 401);
   }
 });
+
+test("widget subscriptions narrow layout grants and cannot widen an individual widget grant", async (context) => {
+  const pool = new TicketPool();
+  const auth = await createAuth(pool);
+  const app = Fastify();
+  app.setValidatorCompiler(validatorCompiler);
+  app.setSerializerCompiler(serializerCompiler);
+  registerErrorHandling(app);
+  await app.register(cookie);
+  await app.register(websocket);
+  const attached: Array<{ scope: typeof overlayScope; lifecycleOnly: boolean }> = [];
+  await registerRealtimeRoutes(app, pool as unknown as Pool, auth, {} as CoreApiConfig, {
+    async attachRenderer(_socket: unknown, scope: typeof overlayScope, lifecycleOnly: boolean) {
+      attached.push({ scope, lifecycleOnly });
+    },
+  } as unknown as RealtimeHub);
+  await app.ready();
+  context.after(() => app.close());
+  for (const [query, expectedInstance, lifecycleOnly] of [
+    [`instanceId=${overlayScope.instanceId}`, overlayScope.instanceId, false],
+    ["lifecycleOnly=true", null, true],
+  ] as const) {
+    const ticket = await auth.signOverlayWebSocketTicket({ ...overlayScope, instanceId: null });
+    const socket = await app.injectWS(`/overlay-runtime?${query}`, {
+      headers: { "sec-websocket-protocol": `scarline.overlay-ticket.${ticket.token}` },
+    });
+    assert.deepEqual(attached.at(-1), { scope: { ...overlayScope, instanceId: expectedInstance }, lifecycleOnly });
+    socket.terminate();
+  }
+  const ticket = await auth.signOverlayWebSocketTicket(overlayScope);
+  await assert.rejects(app.injectWS(`/overlay-runtime?instanceId=${userId}`, {
+    headers: { "sec-websocket-protocol": `scarline.overlay-ticket.${ticket.token}` },
+  }), /403/);
+  assert.equal(attached.length, 2);
+});

@@ -153,6 +153,101 @@
     }
   }
 
+  function bindDataDisplays(scope, SCARline) {
+    const charts = Array.from(scope.querySelectorAll("[data-chart]"));
+    const labels = new Map(charts.map((chart) => {
+      const label = document.createElement("span");
+      label.dataset.chartLabel = "";
+      label.style.cssText = "position:absolute;top:2px;left:4px;right:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:7px/1.2 system-ui;pointer-events:none";
+      label.style.color = chart.querySelector("[data-chart-trace]")?.getAttribute("stroke") || "white";
+      chart.parentElement.append(label);
+      return [chart, label];
+    }));
+    const draw = () => {
+      const metadata = SCARline.getMetadata();
+      const details = metadata.bindingData || {};
+      for (const element of scope.querySelectorAll("[data-bind]")) {
+        const detail = details[element.dataset.bind];
+        if (!detail) continue;
+        element.dataset.dataSource = detail.source;
+        element.dataset.dataStatus = detail.status;
+        element.dataset.simulated = String(detail.simulated === true);
+        element.title = [detail.simulated ? "Simulated" : "", detail.sourceKey || detail.source, detail.status,
+          detail.timestamp ? new Date(detail.timestamp).toISOString() : ""].filter(Boolean).join(" · ");
+      }
+      for (const chart of charts) {
+        const keys = [chart.dataset.chart, chart.dataset.chartSecondary].filter(Boolean);
+        const states = keys.map((key) => details[key] || {});
+        const windowMs = Number(chart.dataset.chartWindow || 60) * 1000;
+        const series = keys.map((key, index) => {
+          const value = SCARline.getBinding(key);
+          const history = states[index].source === "live" && Array.isArray(states[index].history)
+            ? states[index].history : Array.isArray(value) ? value : [];
+          return history.filter((point) => point && Number.isFinite(point.timestamp)
+            && (point.value === null || Number.isFinite(point.value)));
+        });
+        const end = metadata.dataMode === "preview"
+          ? Math.max(Date.now(), ...series.flat().map((point) => point.timestamp)) : Date.now();
+        const visible = series.map((points) => points.filter((point) => point.timestamp >= end - windowMs && point.timestamp <= end));
+        const values = visible.flat().flatMap((point) => point.value === null ? [] : [point.value]);
+        let minimum = values.length ? Math.min(...values) : 0;
+        let maximum = values.length ? Math.max(...values) : 1;
+        const margin = Math.max((maximum - minimum) * 0.1, Math.abs(maximum) * 0.01, 0.01);
+        minimum -= margin; maximum += margin;
+        let paths = Array.from(chart.querySelectorAll("[data-chart-trace]"));
+        if (keys.length > 1 && paths.length === 1) {
+          const second = paths[0].cloneNode(false);
+          second.setAttribute("stroke-dasharray", "3 2");
+          chart.append(second); paths.push(second);
+        }
+        visible.forEach((points, index) => {
+          let previous = null;
+          let path = "";
+          const diffs = points.slice(1).map((point, i) => point.timestamp - points[i].timestamp).filter((diff) => diff > 0).sort((a, b) => a - b);
+          const maxGap = keys[index] === "vitals.ecg_samples" ? Math.max(20, Math.min(1000, (diffs[Math.floor(diffs.length / 2)] || 100) * 3))
+            : states[index].staleAfterMs || 5000;
+          for (const point of points) {
+            if (point.value === null) { previous = null; continue; }
+            const x = (point.timestamp - end + windowMs) / windowMs * 240;
+            const y = 57 - (point.value - minimum) / (maximum - minimum) * 43;
+            const move = !previous || point.timestamp - previous.timestamp > maxGap;
+            path += `${move ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)} `;
+            previous = point;
+          }
+          paths[index]?.setAttribute("d", path.trim());
+          paths[index]?.setAttribute("opacity", states[index].status === "receiving" || states[index].source === "preview" ? "1" : "0.35");
+        });
+        const status = metadata.dataMode === "preview" ? "preview" : states[0].status || "waiting";
+        chart.dataset.dataStatus = status;
+        chart.dataset.simulated = String(states[0].simulated === true);
+        chart.dataset.sampleCount = String(values.length);
+        chart.dataset.minimum = String(values.length ? minimum + margin : "");
+        chart.dataset.maximum = String(values.length ? maximum - margin : "");
+        const title = chart.querySelector("title");
+        if (title) title.textContent = `${chart.getAttribute("aria-label")} · ${states[0].sourceKey || "No source"} · ${status}`;
+        const label = labels.get(chart);
+        if (label) {
+          const compact = chart.clientWidth < 100;
+          label.style.fontSize = compact ? "6px" : "7px";
+          label.textContent = compact && states[0].simulated ? "Simulated"
+            : [states[0].simulated ? "Simulated" : "", chart.getAttribute("aria-label"),
+              status === "receiving" ? "" : status].filter(Boolean).join(" · ");
+        }
+      }
+    };
+    const keys = new Set([...charts.flatMap((chart) => [chart.dataset.chart, chart.dataset.chartSecondary]),
+      ...Array.from(scope.querySelectorAll("[data-bind]"), (element) => element.dataset.bind)].filter(Boolean));
+    let framePending = false;
+    const scheduleDraw = () => {
+      if (framePending) return;
+      framePending = true;
+      requestAnimationFrame(() => { framePending = false; draw(); });
+    };
+    for (const key of keys) SCARline.onBinding(key, scheduleDraw);
+    SCARline.onTrigger(scheduleDraw);
+    draw();
+  }
+
   function applyVisualState(root, nextState) {
     if (!root || !visualStates.has(nextState)) {
       return;
@@ -332,6 +427,7 @@
     }
 
     bindActions(host, root, SCARline);
+    bindDataDisplays(host, SCARline);
 
     SCARline.onTrigger((event) => {
       const bindingValues =

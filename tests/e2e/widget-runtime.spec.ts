@@ -193,12 +193,12 @@ test("reset restores SVG attributes and condition values without forcing visibil
   await expect(arc).toHaveAttribute("stroke-dashoffset", "0.0");
   await send(page, { type: "trigger", trigger: { action: "reset", state: "highlighted", bindingValues: { "vehicle.speed": 17 } } });
   await expect(speed).toHaveText("17");
-  await expect(arc).toHaveAttribute("stroke-dashoffset", "75.4");
+  await expect(arc).toHaveAttribute("stroke-dashoffset", "188.5");
   await expect(frame.locator("[data-widget-root]")).toHaveAttribute("data-state", "highlighted");
   expect(await binding(frame, "vehicle.speed")).toBe(17);
   expect(await binding(frame, "vehicle.speed_arc_offset")).toBeUndefined();
   await send(page, { type: "trigger", trigger: { action: "reset", state: "hidden", bindingValues: {} } });
-  await expect(speed).toHaveText("132");
+  await expect(speed).toHaveText("—");
   await expect(frame.locator("[data-widget-root]")).toHaveAttribute("data-state", "hidden");
 });
 

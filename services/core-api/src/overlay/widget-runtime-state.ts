@@ -1,6 +1,7 @@
 import {
   WidgetMetadataSchema,
   type WidgetMetadata,
+  type WidgetBindingData,
 } from "@scarline/contracts";
 
 import { ApiProblem } from "../errors.js";
@@ -23,7 +24,8 @@ export function configuredWidgetRuntime(
   conditionMetadataInput: unknown,
   instanceId: string,
   widgetKey: string,
-): { metadata: WidgetMetadata; bindings: Record<string, unknown>; state: WidgetVisualState } {
+  preview = false,
+): { metadata: WidgetMetadata; bindings: Record<string, unknown>; bindingData: Record<string, WidgetBindingData>; state: WidgetVisualState } {
   const metadata = WidgetMetadataSchema.parse(metadataInput);
   const widgetOverrides = readObject(readObject(conditionMetadataInput).widgetOverrides);
   const hidden = new Set(readStringArray(widgetOverrides.hidden_widgets));
@@ -32,10 +34,19 @@ export function configuredWidgetRuntime(
   const instanceBindings = readObject(
     bindingOverrides[instanceId] ?? bindingOverrides[widgetKey],
   );
+  const bindingData: Record<string, WidgetBindingData> = {};
   const bindings = Object.fromEntries(metadata.bindings.flatMap((binding) => {
+    const overridden = Object.hasOwn(instanceBindings, binding.key);
+    const example = preview && !overridden && binding.preview !== undefined;
+    const source = overridden ? "study" : example ? "preview" : binding.source ?? "study";
+    bindingData[binding.key] = { source, status: source === "live" ? "waiting" : "ready",
+      sourceKey: overridden ? "Condition configuration" : example ? "Preview example" : null,
+      path: binding.key, timestamp: null, receivedAt: null, staleAfterMs: binding.staleAfterMs ?? 5_000 };
     if (Object.hasOwn(instanceBindings, binding.key)) {
       return [[binding.key, instanceBindings[binding.key]]];
     }
+    if (example) return [[binding.key, binding.preview]];
+    if (source === "live") return [[binding.key, null]];
     return binding.default === undefined ? [] : [[binding.key, binding.default]];
   }));
   const state = hidden.has(instanceId) || hidden.has(widgetKey)
@@ -43,7 +54,7 @@ export function configuredWidgetRuntime(
     : highlighted.has(instanceId) || highlighted.has(widgetKey)
       ? "highlighted"
       : "visible";
-  return { metadata, bindings, state };
+  return { metadata, bindings, bindingData, state };
 }
 
 export function validateManualBindingValues(
@@ -118,6 +129,7 @@ export function findStoredWidgetRuntimeOverride(
 function matchesBindingType(value: unknown, type: WidgetMetadata["bindings"][number]["type"]): boolean {
   if (type === "array") return Array.isArray(value);
   if (type === "object") return value !== null && typeof value === "object" && !Array.isArray(value);
+  if (type === "number") return typeof value === "number" && Number.isFinite(value);
   return typeof value === type;
 }
 

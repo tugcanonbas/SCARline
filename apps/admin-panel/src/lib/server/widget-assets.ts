@@ -120,7 +120,7 @@ function injectPreviewRuntime(
   metadata: Record<string, unknown>
 ): string {
   const defaults = bindingDefaults(metadata.bindings);
-  const configuration = safeScriptJson({ widgetId, metadata, defaults });
+  const configuration = safeScriptJson({ widgetId, metadata: { ...metadata, dataMode: 'preview' }, defaults });
   const bootstrap = `<script data-scarline-preview-runtime>
 (() => {
   const configuration = ${configuration};
@@ -209,17 +209,17 @@ function bindingDefaults(bindings: unknown): Record<string, unknown> {
         binding !== null
         && typeof binding === 'object'
         && typeof (binding as Record<string, unknown>).key === 'string'
-        && 'default' in binding
+        && ('default' in binding || 'preview' in binding)
       ) {
-        return [[(binding as Record<string, unknown>).key, (binding as Record<string, unknown>).default]];
+        return [[(binding as Record<string, unknown>).key, (binding as Record<string, unknown>).preview ?? (binding as Record<string, unknown>).default]];
       }
       return [];
     }));
   }
   if (bindings === null || typeof bindings !== 'object') return {};
   return Object.fromEntries(Object.entries(bindings).flatMap(([key, binding]) => {
-    if (binding !== null && typeof binding === 'object' && 'default' in binding) {
-      return [[key, (binding as Record<string, unknown>).default]];
+    if (binding !== null && typeof binding === 'object' && ('default' in binding || 'preview' in binding)) {
+      return [[key, (binding as Record<string, unknown>).preview ?? (binding as Record<string, unknown>).default]];
     }
     return [];
   }));

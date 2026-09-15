@@ -13,6 +13,7 @@ import {
   UserWebSocketTicketHeadersSchema,
   WebSocketAuthHeadersSchema,
   WidgetRuntimeCommandSchema,
+  type OverlayRuntimeScope,
 } from "@scarline/contracts";
 
 import { authenticate, requireAnyRole, requirePasswordReady } from "../auth/guards.js";
@@ -35,6 +36,11 @@ const BootstrapHeadersSchema = z.object({ authorization: z.string().regex(/^Bear
 const CookieHeadersSchema = z.object({ cookie: z.string().optional() }).passthrough();
 const OverlayBootstrapBodySchema = z.object({ scoped: z.boolean().optional() }).strict();
 const RendererParamsSchema = z.object({ rendererId: z.string().uuid() }).strict();
+const RuntimeWidgetQuerySchema = z.object({ instanceId: z.string().uuid().optional() }).strict();
+const RuntimeSubscriptionSchema = z.object({
+  instanceId: z.string().uuid().optional(),
+  lifecycleOnly: z.literal("true").optional(),
+}).strict();
 const RenderGrantSchema = z.object({
   rendererMode: OverlayRendererModeSchema,
   layoutId: z.string().uuid(),
@@ -110,15 +116,18 @@ export async function registerRealtimeRoutes(
 
   app.get("/overlay-runtime", {
     websocket: true,
-    schema: { params: EmptyObjectSchema, querystring: EmptyObjectSchema, headers: WebSocketAuthHeadersSchema },
+    schema: { params: EmptyObjectSchema, querystring: RuntimeSubscriptionSchema, headers: WebSocketAuthHeadersSchema },
     preValidation: async (request) => {
       const token = bearerFromHeaders(request, "scarline.overlay-ticket.");
       if (token === undefined) throw new ApiProblem(401, "AUTHENTICATION_REQUIRED", "Overlay ticket required.");
-      (request as FastifyRequest & { overlayScope?: unknown }).overlayScope = await auth.verifyOverlayWebSocketTicket(token);
+      const scope = await auth.verifyOverlayWebSocketTicket(token);
+      const { instanceId } = RuntimeSubscriptionSchema.parse(request.query);
+      (request as FastifyRequest & { overlayScope?: unknown }).overlayScope = restrictRendererInstance(scope, instanceId);
     },
   }, (socket, request) => {
     const scope = OverlayRuntimeScopeSchema.parse((request as FastifyRequest & { overlayScope?: unknown }).overlayScope);
-    void hub.attachRenderer(socket, scope).catch((error) => {
+    const { lifecycleOnly } = RuntimeSubscriptionSchema.parse(request.query);
+    void hub.attachRenderer(socket, scope, lifecycleOnly === "true").catch((error) => {
       request.log.warn({ err: error, scope }, "Overlay renderer registration failed");
       socket.close(1011, "Overlay renderer registration failed");
     });
@@ -127,6 +136,28 @@ export async function registerRealtimeRoutes(
   const readers = [authenticate(auth), requirePasswordReady, requireAnyRole("admin", "researcher", "operator", "observer")];
   const controllers = [authenticate(auth), requirePasswordReady, requireAnyRole("admin", "researcher", "operator")];
   const administrators = [authenticate(auth), requirePasswordReady, requireAnyRole("admin")];
+
+  app.get("/api/v1/sessions/:id/widgets/data", {
+    preHandler: readers,
+    schema: { params: UuidParamsSchema, querystring: EmptyObjectSchema, headers: AuthHeadersSchema },
+  }, async (request) => {
+    const { id } = UuidParamsSchema.parse(request.params);
+    const studyId = await studyIdForSession(pool, id);
+    await ensureStudyAccess(request, pool, studyId);
+    const layouts = await pool.query<{ id: string; condition_id: string }>(
+      `SELECT l.id,l.condition_id FROM layouts l JOIN session_conditions sc ON sc.condition_id=l.condition_id
+        WHERE sc.session_id=$1 AND sc.status IN ('active','paused') ORDER BY l.name,l.id`, [id]);
+    const snapshots = await Promise.all(layouts.rows.map((layout) => loadOverlayRuntimeSnapshot(pool, {
+      studyId, sessionId: id, conditionId: layout.condition_id, layoutId: layout.id, instanceId: null, rendererMode: "browser",
+    })));
+    return success(snapshots.flatMap((snapshot) => snapshot.widgets.map((widget) => ({
+      instanceId: widget.instanceId, name: widget.name, layout: snapshot.layout.name,
+      bindings: Object.fromEntries(Object.entries(widget.bindingData).map(([key, detail]) => {
+        const { history: _history, ...status } = detail;
+        return [key, { ...status, value: Array.isArray(widget.bindings[key]) ? `${widget.bindings[key].length} samples` : widget.bindings[key] }];
+      })),
+    }))));
+  });
 
   app.get("/api/v1/overlay/status", {
     preHandler: readers,
@@ -224,10 +255,10 @@ export async function registerRealtimeRoutes(
   for (const prefix of ["/api/v1/overlay", "/api/v1/overlay/renderers/:rendererId"]) {
     const params = prefix.includes(":rendererId") ? RendererParamsSchema : EmptyObjectSchema;
     app.get(`${prefix}/runtime`, {
-      schema: { params, querystring: EmptyObjectSchema, headers: CookieHeadersSchema },
+      schema: { params, querystring: RuntimeWidgetQuerySchema, headers: CookieHeadersSchema },
     }, async (request) => success(await loadOverlayRuntimeSnapshot(
       pool,
-      await rendererScopeFromCookie(request, auth),
+      restrictRendererInstance(await rendererScopeFromCookie(request, auth), RuntimeWidgetQuerySchema.parse(request.query).instanceId),
       selectedOverlayDisplays(hub),
     )));
 
@@ -310,6 +341,13 @@ export async function registerRealtimeRoutes(
 function selectedOverlayDisplays(hub: RealtimeHub) {
   const status = hub.overlayStatus as { displays?: unknown };
   return OverlayDisplaySchema.array().parse(Array.isArray(status.displays) ? status.displays : []);
+}
+
+function restrictRendererInstance(scope: OverlayRuntimeScope, instanceId?: string): OverlayRuntimeScope {
+  if (instanceId !== undefined && scope.instanceId !== null && scope.instanceId !== instanceId) {
+    throw new ApiProblem(403, "OVERLAY_SCOPE_MISMATCH", "The requested widget is outside this renderer's scope.");
+  }
+  return { ...scope, ...(instanceId === undefined ? {} : { instanceId }) };
 }
 
 function overlayCommandProblem(error: unknown): ApiProblem {
