@@ -373,7 +373,7 @@ test('keeps System Settings read-only and exposes safe CLI guidance', async () =
 
 test('retains zero telemetry samples and caps chart history', () => {
   assert.equal(telemetryNumber(0), 0);
-  assert.equal(telemetryNumber(undefined), 0);
+  assert.equal(telemetryNumber(undefined), null);
   assert.deepEqual(appendTelemetrySample([4, 2], 0, 3), [4, 2, 0]);
   assert.deepEqual(appendTelemetrySample([4, 2, 0], 1, 3), [2, 0, 1]);
 });
