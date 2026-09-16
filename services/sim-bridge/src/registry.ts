@@ -99,7 +99,7 @@ export class AdapterRegistry {
       .filter((adapter) =>
         adapter.simulatorType === simulatorType
         && adapter.socket !== null
-        && adapter.status === "ready"
+        && adapter.status !== "busy"
         && adapter.activeConfiguration === null,
       )
       .sort((left, right) =>
@@ -168,7 +168,7 @@ export class AdapterRegistry {
   adapterTypes(): SimulatorType[] {
     return [...new Set(
       [...this.#adapters.values()]
-        .filter((adapter) => adapter.socket !== null && adapter.status !== "degraded")
+        .filter((adapter) => adapter.socket !== null)
         .map((adapter) => adapter.simulatorType),
     )].sort();
   }

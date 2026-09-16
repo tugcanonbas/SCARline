@@ -40,7 +40,7 @@ export async function loadAdminLayouts(fetch: typeof globalThis.fetch, locals: A
       condition: null,
       conditions: [],
       catalogue,
-      layouts: [layout],
+      layouts: normalizeLayouts([layout], catalogue),
       expectedRevisions: [],
       participantLayoutsByCondition: {}
     };
@@ -199,4 +199,18 @@ function normalizeLayouts(layouts: JsonRecord[], catalogue: JsonRecord[]): JsonR
 
 function asRecord(value: unknown): JsonRecord {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as JsonRecord : {};
+}
+
+export async function applyStudyLayoutTemplateToCondition(
+  fetch: typeof globalThis.fetch,
+  locals: App.Locals,
+  studyId: string
+): Promise<void> {
+  const study = await apiRequest(fetch, locals.apiBase, `/studies/${studyId}`, locals.accessToken) as JsonRecord;
+  const metadata = asRecord(study?.metadata);
+  const templates = asRecord(metadata.configurationTemplates);
+  const layoutTemplate = asRecord(templates.layout);
+  if (Object.keys(layoutTemplate).length > 0) {
+    await persistAdminLayout(fetch, locals, studyId, layoutTemplate);
+  }
 }

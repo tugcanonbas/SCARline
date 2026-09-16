@@ -92,7 +92,10 @@ class CarlaAdapter:
 
     async def _recover(self) -> None:
         if self.active_configuration is None:
-            await asyncio.to_thread(self.runtime.connect)
+            try:
+                await asyncio.to_thread(self.runtime.connect)
+            except Exception as error:
+                LOGGER.info("CARLA server connection deferred (will connect on session bind): %s", error)
             return
         try:
             configuration = validate_session_configuration({
@@ -105,7 +108,10 @@ class CarlaAdapter:
             LOGGER.exception("Recorded CARLA session could not be recovered")
             self.active_configuration = None; self.paused = False
             self.journal.set_state(None, False)
-            await asyncio.to_thread(self.runtime.connect)
+            try:
+                await asyncio.to_thread(self.runtime.connect)
+            except Exception as error:
+                LOGGER.info("CARLA server connection deferred: %s", error)
 
     async def _handle_message(self, message: Any) -> None:
         if not isinstance(message, dict) or message.get("version") != 1 or not isinstance(message.get("type"), str):
@@ -212,6 +218,11 @@ class CarlaAdapter:
             if self.registered: await self._heartbeat()
 
     async def _heartbeat(self) -> None:
+        if not self.runtime.connected and self.active_configuration is None:
+            try:
+                await asyncio.to_thread(self.runtime.connect, 2.0)
+            except Exception as error:
+                LOGGER.debug("CARLA heartbeat connection check: %s", error)
         await self._send(protocol_message(
             "adapter.heartbeat",
             status="busy" if self.active_configuration else "ready",
@@ -221,17 +232,26 @@ class CarlaAdapter:
     async def _tick_loop(self) -> None:
         while True:
             if not self.registered or self.active_configuration is None or self.paused:
-                await asyncio.sleep(0.05); continue
+                await asyncio.sleep(0.05)
+                continue
             try:
-                messages = await asyncio.to_thread(self.runtime.tick)
-                for message in messages: await self._send_event(message)
-            except asyncio.CancelledError: raise
+                messages = self.runtime.tick()
+                if not messages:
+                    await asyncio.sleep(0.01)
+                    continue
+                for message in messages:
+                    if message.get("type") == "adapter.error" and message.get("fatal"):
+                        await self._send_event(message)
+                        await asyncio.to_thread(self.runtime.unbind)
+                        self.active_configuration = None
+                        self.paused = False
+                        self.journal.set_state(None, False)
+                        break
+                    await self._send_event(message)
+            except asyncio.CancelledError:
+                raise
             except Exception as error:
-                LOGGER.exception("CARLA simulation tick failed")
-                await self._send_event({"type":"adapter.error","code":"CARLA_TICK_FAILED","message":str(error)[:2000],"fatal":True,"details":{}})
-                await asyncio.to_thread(self.runtime.unbind)
-                self.active_configuration = None; self.paused = False
-                self.journal.set_state(None, False)
+                LOGGER.exception("CARLA event forwarding failed")
 
     async def _send_event(self, value: dict[str, Any]) -> None:
         fields = dict(value); message_type = str(fields.pop("type"))

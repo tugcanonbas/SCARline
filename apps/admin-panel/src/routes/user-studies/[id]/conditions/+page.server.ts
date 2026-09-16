@@ -12,6 +12,7 @@ import {
 import { requireRole } from '$lib/server/rbac';
 import { loadActiveStudyConditions } from '$lib/server/study-context';
 import { handleStudyTransition } from '$lib/server/study-lifecycle';
+import { applyStudyLayoutTemplateToCondition } from '$lib/server/layouts';
 
 export const load = async ({ fetch, locals, params }) => {
   const user = await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator', 'observer']);
@@ -87,6 +88,9 @@ export const actions = {
       applyConditionWidgetVisibility(fetch, locals, params.id, conditionId, hiddenWidgets, template ? readHiddenWidgets(template) : []),
       replaceConditionTriggers(fetch, locals, params.id, conditionId, rules)
     ]);
+    if (!template) {
+      await applyStudyLayoutTemplateToCondition(fetch, locals, params.id);
+    }
     return undefined;
   },
 
