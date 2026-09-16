@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>1st SCARline Workshop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Bitter:ital,wght@0,100..900;1,100..900&amp;family=Source+Code+Pro:ital,wght@0,200..900;1,200..900&amp;family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&amp;display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <nav class="top-nav" aria-label="Main navigation">
+        <div class="nav-inner">
+            <a class="nav-brand" href="index.html">SCARline</a>
+            <div class="nav-links">
+                <a class="active" href="about-workshop.html">About</a>
+                <a href="index.html">Part A: SCARline</a>
+                <a href="your-task.html">Part B: Your task</a>
+            </div>
+        </div>
+    </nav>
+    <div class="page">
+        <main>
+            <header>
+                <div class="eyebrow-row">
+                    <p class="eyebrow">Workshop &nbsp;•&nbsp; Auto UI 2026 &nbsp;•&nbsp; Gothenburg, Sweden</p>
+                    <div class="eyebrow-links">
+                        <a class="publication-link"
+                            href="https://camps.aptaracorp.com/ACM_PMS/PMS/ACM/AUTOMOTIVEUIADJUNCT26/20/2303e427-8b5b-11f1-b513-16ffd757ba29/OUT/automotiveuiadjunct26-20.html"
+                            aria-label="Read the SCARline workshop paper" title="Workshop paper">
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+                                <path d="M14 2v6h6M8 13h8M8 17h5" />
+                            </svg>
+                        </a>
+                        <a class="github-link" href="https://github.com/tugcanonbas/SCARline"
+                            aria-label="SCARline on GitHub" title="SCARline on GitHub">
+                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                <path
+                                    d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.65 7.65 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+                <h1>1st SCARline Workshop</h1>
+                <p class="subtitle">On Operationalization of Driving Simulator Studies for Accessible In-Vehicle HMI
+                    Prototyping and Evaluation</p>
+            </header>
+
+            <section class="abstract" aria-labelledby="abstract-title">
+                <h3 id="abstract-title">Abstract</h3>
+                    <p>Designing and evaluating in-vehicle Human-Machine Interfaces (HMI) requires researchers and UX
+                        designers to simultaneously navigate driving simulation software, interaction design, and user
+                        study
+                        methodology, a steep learning curve for those without a deep technical background. This workshop
+                        introduces SCARline, an open platform built atop a driving simulator that abstracts away
+                        technical
+                        complexity, letting researchers and designers focus on their research question, study design,
+                        and
+                        the in-cabin interaction they want to evaluate. A preliminary evaluation with participants from
+                        mixed disciplinary backgrounds provided initial validation and surfaced key areas for
+                        improvement,
+                        motivating this workshop as the next step in an iterative development process. Participants will
+                        be
+                        introduced to the platform architecture, guided through designing their own HMI widget, and
+                        supported in configuring a fully functional user study scenario within the simulator. The
+                        workshop
+                        invites the broader AutomotiveUI community to engage hands-on with SCARline and collectively
+                        inform
+                        its future development.</p>
+            </section>
+
+            <section class="workshop-goal" aria-labelledby="goal-title">
+                <h2 id="goal-title">Workshop goals</h2>
+                <p>The primary goal of this workshop is to introduce SCARline to the automotive HMI research community
+                    and to collectively explore the challenges and opportunities of accessible simulator-based research
+                    tooling.</p>
+
+                <p>Participants will first gain a conceptual understanding of the problem SCARline addresses, namely the
+                    technical overhead that prevents researchers and designers from focusing on their core research
+                    questions when working with driving simulators. They will be walked through the physical and
+                    software architecture of the platform at a level sufficient to evaluate its applicability to their
+                    own research contexts, without requiring prior knowledge of simulator internals.</p>
+
+                <p>Participants will then gain hands-on experience designing and implementing an HMI widget, working in
+                    small groups to produce a functional interface element and observe it running live within the
+                    platform. Building on this, they will configure a simple but fully functional user study scenario
+                    directly within the simulator, experiencing the complete research pipeline that SCARline enables,
+                    from interface design through to study deployment and data collection.</p>
+
+                <p>Finally, the workshop will provide a structured space for discussion around the broader question of
+                    accessible and open HMI research tooling: what researchers need from such platforms, what current
+                    tools still leave unaddressed, and how platforms like SCARline could evolve to better serve the
+                    community. Feedback collected during this session will directly inform the continued development of
+                    SCARline.</p>
+
+                <section class="expected-outcomes" aria-labelledby="outcomes-title">
+                    <h4 id="outcomes-title">What you will get out of it:</h4>
+                    <ul>
+                        <li>Gather first-hand experience of the SCARline research pipeline, including HMI widget design
+                            and study configuration and deployment.</li>
+                        <li>Acquire a concrete mental model of how an abstraction layer over a driving simulator can
+                            lower technical barriers to Automotive UX research.</li>
+                        <li>Create widgets and study scenarios that will serve as a small, diverse corpus of worked
+                            examples to stress-test SCARline against research interests beyond those of its original
+                            developers.</li>
+                        <li>Surface usability issues, missing capabilities, and unmet researcher needs to directly
+                            inform
+                            continued development of our open-source tool.</li>
+                        <li>Participate in a discussion that is intended to advance a shared community understanding of
+                            what accessible and open HMI research tooling should provide, current gaps, and how the
+                            field
+                            might move toward greater standardization and reproducibility.</li>
+                    </ul>
+                </section>
+            </section>
+
+            <section class="workshop-schedule" aria-labelledby="schedule-title">
+                <h2 id="schedule-title">Workshop Schedule</h2>
+                <p class="participant-note">For the successful delivery of this workshop, <b>we recommend bringing
+                        laptops</b> for the session to fully engage with the hands-on widget creation activities, as the interactive
+                    components are optimized for laptop-based work.</p>
+                <ol class="schedule-grid" role="list">
+                    <li class="schedule-item">
+                        <div class="schedule-slot">
+                            <div>
+                                <p class="schedule-session">Session 1</p>
+                                <time class="schedule-duration" datetime="PT30M">30 min</time>
+                            </div>
+                        </div>
+                        <h3>Introduction</h3>
+                        <div class="schedule-description">
+                            <p>We will introduce you to SCARline and you will hear two interesting presentations.</p>
+                        </div>
+                    </li>
+
+                    <li class="schedule-item">
+                        <div class="schedule-slot">
+                            <div>
+                                <p class="schedule-session">Session 2</p>
+                                <time class="schedule-duration" datetime="PT10M">10 min</time>
+                            </div>
+                        </div>
+                        <h3>Platform Walkthrough</h3>
+                        <div class="schedule-description">
+                            <p>We will show you the platform capabilities and answer any questions you may have.</p>
+                        </div>
+                    </li>
+
+                    <li class="schedule-item">
+                        <div class="schedule-slot">
+                            <div>
+                                <p class="schedule-session">Session 3</p>
+                                <time class="schedule-duration" datetime="PT80M">80 min</time>
+                            </div>
+                        </div>
+                        <h3>Widget Creation</h3>
+                        <div class="schedule-description">
+                            <p>We will explain how widgets can be created. As groups, you then get to design your own widgets.</p>
+                        </div>
+                    </li>
+
+                    <li class="schedule-item">
+                        <div class="schedule-slot">
+                            <div>
+                                <p class="schedule-session">Official coffee break</p>
+                                <time class="schedule-duration" datetime="PT30M">30 min</time>
+                            </div>
+                        </div>
+                        <h3>Recharge break</h3>
+                    </li>
+
+                    <li class="schedule-item">
+                        <div class="schedule-slot">
+                            <div>
+                                <p class="schedule-session">Session 4</p>
+                                <time class="schedule-duration" datetime="PT50M">50 min</time>
+                            </div>
+                        </div>
+                        <h3>Live Deployment</h3>
+                        <div class="schedule-description">
+                            <p>You will have the opportunity to explore SCARline and deploy the widgets you created and see them live.
+                            </p>
+                        </div>
+                    </li>
+
+                    <li class="schedule-item">
+                        <div class="schedule-slot">
+                            <div>
+                                <p class="schedule-session">Session 5</p>
+                                <time class="schedule-duration" datetime="PT10M">10 min</time>
+                            </div>
+                        </div>
+                        <h3>Feedback</h3>
+                        <div class="schedule-description">
+                            <p>We'd love to hear your feedback in the form of a discussion and a few questions.</p>
+                        </div>
+                    </li>
+                </ol>
+            </section>
+
+            <section class="platform-showcase" aria-labelledby="platform-title">
+                <figure class="platform-figure">
+                    <a class="platform-preview" href="images/admin-panel-user-study.png" target="_blank" rel="noopener"
+                        aria-label="View the SCARline admin panel screenshot at full size in a new tab">
+                        <img src="images/admin-panel-user-study.png" width="2556" height="1405" loading="lazy"
+                            decoding="async"
+                            alt="Overview of a user study called Auto UI Study inside the SCARline platform. It shows a tab navigation for navigation to the overview, participants, conditions, simulator setup, sensors, participant view, sessions, and active study. Additionally, it shows four boxes with the participant amount, conditions, sessions, and the status. Below it are quick start tips.">
+                    </a>
+                    <figcaption>Overview of a user study called "Auto UI Study" inside the SCARline platform. From here, users can navigate through the different tabs to set up their study, manage the study, or use the quick start tips to quickly get going.</figcaption>
+                </figure>
+            </section>
+
+            <section class="organizers" aria-labelledby="organizers-title">
+                <h2 id="organizers-title">Organizers</h2>
+                <p><b>We're looking forward to seeing you at the 1st SCARline Workshop at AutoUI 2026!</b></p>
+
+                <p><a href="mailto:mos6318@thi.de">Monika Szuban</a> is a Master’s student in User Experience Design at
+                    the Technische Hochschule Ingolstadt. Her research interests lie in gamification and user
+                    engagement, exploring how playful design approaches can shape automotive and in-vehicle experiences.
+                    Her current research addresses the accessibility of simulator-based user studies, with the aim of
+                    supporting designers and researchers across varying levels of technical expertise.</p>
+
+                <p><a href="mailto:lar3406@thi.de">Laura Radetzky</a> is a Master’s student in User Experience Design at
+                    the Technische Hochschule Ingolstadt. Her work focuses on accessibility, neurodiversity, and
+                    gamification in human-computer interaction, including prior research on inclusive gamified
+                    questionnaires for neurodivergent participants and automotive gamification. Currently, she
+                    contributes to the development of tools that facilitate driving simulator studies and support
+                    user-centered automotive research for students and researchers.</p>
+
+                <p><a href="mailto:tuo8203@thi.de">Tuğcan Önbaş</a> is a Master’s student in User Experience Design at
+                    Technische Hochschule Ingolstadt. His work sits at the intersection of UX research, interaction
+                    design and software engineering, with interests in adaptive interfaces, human-centered AI and
+                    mobility-related user experiences. Currently, he designs and develops interactive prototypes and
+                    research tools for human-centered technology research.</p>
+
+                <p><a href="mailto:ignacio.alvarez@thi.de">Dr. Ignacio Alvarez</a> holds the Bavarian Top Professorship
+                    for Human-Centered Intelligent Systems at Technische Hochschule Ingolstadt. His research interests
+                    are at the intersection of agentic AI, systems engineering and human-computer interaction.</p>
+
+                <p><a href="mailto:D.Dey@tue.nl">Dr. Debargha (Dave) Dey</a> is Assistant Professor for Industrial
+                    Design at Eindhoven University of Technology. His research interests are on the human factors of
+                    automated driving and intelligent transportation systems, multimodal interaction, and natural user
+                    interfaces.</p>
+
+                <p><a href="mailto:wendy.ju@cornell.edu">Dr. Wendy Ju</a> is Professor of Information Science and Design
+                    Tech at Cornell Tech University. Her research interests are primarily focused on the design of
+                    interactive systems, particularly human-robot interaction and autonomous car interfaces. She
+                    received her Ph.D. in mechanical engineering from Stanford University and her master’s degree in
+                    media arts and sciences from the Massachusetts Institute of Technology.</p>
+            </section>
+        </main>
+
+        <footer>
+            <p><b>Questions?</b> Email us!</p>
+            <p class="authors"><a href="mailto:mos6318@thi.de">Monika Szuban</a> • <a
+                    href="mailto:tuo8203@thi.de">Tuğcan Önbaş</a> • <a href="mailto:lar3406@thi.de">Laura Radetzky</a> •
+                <a href="mailto:ignacio.alvarez@thi.de">Ignacio Alvarez</a> • <a
+                    href="mailto:wendy.ju@cornell.edu">Wendy Ju</a> • <a href="mailto:D.Dey@tue.nl">Debargha Dey</a>
+            </p>
+        </footer>
+    </div>
+</body>
+
+</html>
