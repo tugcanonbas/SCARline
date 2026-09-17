@@ -32,6 +32,32 @@ type DesktopEvent =
       error: string | null;
     };
 
+import { readFileSync, existsSync } from "node:fs";
+import { resolve } from "node:path";
+
+if (!process.env.OVERLAY_CONTROL_SECRET) {
+  for (const candidate of [
+    resolve(process.cwd(), ".env"),
+    resolve(process.cwd(), "..", ".env"),
+    resolve(process.cwd(), "..", "..", ".env"),
+  ]) {
+    if (existsSync(candidate)) {
+      const lines = readFileSync(candidate, "utf-8").split("\n");
+      for (const line of lines) {
+        const match = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.*)$/);
+        if (match) {
+          const key = match[1];
+          const val = match[2];
+          if (key && val !== undefined && !process.env[key]) {
+            process.env[key] = val.trim().replace(/^["']|["']$/g, "");
+          }
+        }
+      }
+      break;
+    }
+  }
+}
+
 const coreApiOrigin = new URL(
   process.env.SCARLINE_CORE_API_ORIGIN ?? "http://localhost:8088",
 );
@@ -244,7 +270,9 @@ function createBrowserWindow(
     "will-attach-webview",
     (event) => event.preventDefault(),
   );
-  browserWindow.once("ready-to-show", () => browserWindow.showInactive());
+  browserWindow.once("ready-to-show", () => {
+    browserWindow.show();
+  });
   return browserWindow;
 }
 

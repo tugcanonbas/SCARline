@@ -338,6 +338,7 @@ build/
 ### SCARline runtime ###
 .scarline.yaml
 .scarline-runtime/
+/scarline.ps1
 /exports/
 
 ### Analysis / planning docs (not part of the project) ###

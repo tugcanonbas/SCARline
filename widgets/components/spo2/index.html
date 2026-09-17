@@ -19,29 +19,6 @@
                 linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
         }
 
-        @keyframes wave-scroll {
-            from {
-                transform: translateX(0);
-            }
-
-            to {
-                transform: translateX(-50%);
-            }
-        }
-
-        .wave-marquee {
-            --wave-duration: 1.3s;
-            animation: wave-scroll var(--wave-duration) linear infinite;
-            will-change: transform;
-        }
-
-        .wave-trace {
-            --wave-scale: 1;
-            transform-box: fill-box;
-            transform-origin: center;
-            transform: scaleY(var(--wave-scale));
-            transition: transform 0.3s ease-out;
-        }
     </style>
 </head>
 
@@ -49,29 +26,19 @@
 
     <!-- Card Container: 95x65 -->
     <div data-scarline-widget-root
-        class="bg-transparent w-full h-full rounded-lg overflow-hidden shadow-md relative text-white flex p-1.5 isolate">
+        class="bg-[#686d76] w-full h-full rounded-lg overflow-hidden shadow-md relative text-white flex p-1.5 isolate">
         <!-- Added isolate for z-index context -->
 
-
+        <!-- Grid Background Overlay -->
+        <div class="absolute inset-0 bg-grid pointer-events-none opacity-50 z-0"></div>
 
         <!-- Waveform (Left, larger and centered vertically) -->
         <div
-            class="absolute left-0 top-0 bottom-0 w-[70%] text-sky-400 opacity-80 z-0 flex items-center overflow-hidden">
-            <div class="flex h-full w-[200%] wave-marquee" data-bind="vitals.spo2_wave_duration"
-                data-bind-style="--wave-duration" data-style-unit="s" data-bind-text="false">
-                <svg class="w-1/2 h-full shrink-0" preserveAspectRatio="none" data-bind="vitals.spo2_wave_scale"
-                    data-bind-style="--wave-scale" data-bind-text="false">
-                    <path class="wave-trace"
-                        d="M0,45 Q5,45 8,25 L12,10 L15,15 Q20,35 25,45 T35,45 Q40,45 43,25 L47,10 L50,15 Q55,35 60,45 T70,45 Q75,45 78,25 L82,10 L85,15 Q90,35 95,45"
-                        stroke="currentColor" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke" />
+            class="absolute left-0 top-0 bottom-0 w-[40%] text-sky-400 opacity-80 z-0 flex items-center overflow-hidden">
+            <svg data-chart="vitals.spo2" data-chart-window="60" viewBox="0 0 240 60" preserveAspectRatio="none" role="img" aria-label="SpO2 trend" style="width:100%;height:100%;overflow:hidden">
+                    <title>SpO2 trend</title>
+                    <path data-chart-trace fill="none" stroke="#38bdf8" stroke-width="1.5" vector-effect="non-scaling-stroke" />
                 </svg>
-                <svg class="w-1/2 h-full shrink-0" preserveAspectRatio="none" data-bind="vitals.spo2_wave_scale"
-                    data-bind-style="--wave-scale" data-bind-text="false">
-                    <path class="wave-trace"
-                        d="M0,45 Q5,45 8,25 L12,10 L15,15 Q20,35 25,45 T35,45 Q40,45 43,25 L47,10 L50,15 Q55,35 60,45 T70,45 Q75,45 78,25 L82,10 L85,15 Q90,35 95,45"
-                        stroke="currentColor" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke" />
-                </svg>
-            </div>
         </div>
 
         <!-- Main Value (Right, with background to 'cut off' the wave) -->
@@ -89,7 +56,7 @@
 
             <div
                 class="text-xl font-bold text-white tracking-tight leading-[0.8] text-right flex items-center justify-end gap-1">
-                <span data-bind="vitals.spo2" data-format="number" data-decimals="0">98</span>
+                <span data-bind="vitals.spo2" data-format="number" data-decimals="0">—</span>
             </div>
         </div>
 

@@ -9,31 +9,50 @@
     "vehicle.speed": {
       "type": "number",
       "unit": "km/h",
-      "description": "Current vehicle speed."
+      "description": "Current vehicle speed.",
+      "source": "live",
+      "staleAfterMs": 5000,
+      "preview": 132
     },
     "vehicle.speed_limit": {
       "type": "number",
       "unit": "km/h",
-      "description": "Current road speed limit."
+      "description": "Current road speed limit.",
+      "source": "live",
+      "staleAfterMs": 5000,
+      "preview": 220
     },
     "vehicle.speed_ratio": {
       "type": "number",
       "unit": "%",
-      "description": "Current speed as a percentage of the speed limit."
+      "description": "Current speed as a percentage of the speed limit.",
+      "source": "live",
+      "staleAfterMs": 5000,
+      "preview": 60
     },
     "vehicle.speed_arc_offset": {
       "type": "number",
-      "description": "Stroke offset for the animated gauge arc."
+      "description": "Stroke offset for the animated gauge arc.",
+      "source": "live",
+      "staleAfterMs": 5000,
+      "preview": 75.4
     },
     "vehicle.speed_unit": {
       "type": "string",
       "description": "Display unit for speed.",
-      "default": "km/h"
+      "default": "km/h",
+      "source": "presentation"
     }
   },
   "ui": {
-    "preferredSize": { "w": 150, "h": 129 },
-    "minSize": { "w": 150, "h": 129 }
+    "preferredSize": {
+      "w": 150,
+      "h": 129
+    },
+    "minSize": {
+      "w": 150,
+      "h": 129
+    }
   },
   "window": {
     "frame": "none",

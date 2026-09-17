@@ -60,6 +60,7 @@ class CarlaRuntime:
             LOGGER.warning("CARLA server version (%s) differs from expected (%s)", server_version, expected)
         self.client = client
         self.world = client.get_world()
+        self._cleanup(restore_settings=False)
 
     def recover(self, configuration: dict[str, Any], paused: bool) -> None:
         self.bind(configuration)
@@ -90,11 +91,14 @@ class CarlaRuntime:
                 self.traffic_manager = self.client.get_trafficmanager()
                 self.traffic_manager.set_synchronous_mode(False)
                 self.traffic_manager.set_random_device_seed(configuration["randomSeed"])
-                self.traffic_manager.global_percentage_speed_difference(float(configuration["trafficConfig"]["speedDifference"]))
+                speed_diff = float(configuration["trafficConfig"].get("speedDifference", 0.0))
+                if speed_diff == 0.0:
+                    speed_diff = -35.0
+                self.traffic_manager.global_percentage_speed_difference(speed_diff)
                 try:
                     self.traffic_manager.set_global_distance_to_leading_vehicle(2.5)
                     self.traffic_manager.set_hybrid_physics_mode(True)
-                    self.traffic_manager.set_hybrid_physics_radius(50.0)
+                    self.traffic_manager.set_hybrid_physics_radius(70.0)
                     self.traffic_manager.set_respawn_dormant_vehicles(True)
                     self.traffic_manager.set_boundaries_respawn_dormant_vehicles(25.0, 150.0)
                 except Exception as error:
@@ -111,7 +115,7 @@ class CarlaRuntime:
                 spawn_points = list(self.world.get_map().get_spawn_points())
                 random.Random(configuration["randomSeed"]).shuffle(spawn_points)
                 if not spawn_points: raise RuntimeError("The selected CARLA map has no vehicle spawn points")
-                self.ego_vehicle = self._spawn_vehicle(configuration["egoVehicleBlueprint"], spawn_points.pop(0), "hero")
+                self.ego_vehicle = self._spawn_ego_vehicle(configuration["egoVehicleBlueprint"], spawn_points, "hero")
                 self.vehicles.append(self.ego_vehicle)
                 self._spawn_traffic(configuration, spawn_points)
                 self._spawn_pedestrians(configuration)
@@ -280,6 +284,18 @@ class CarlaRuntime:
         weather.sun_altitude_angle = float(configuration["sunConfig"]["sunAltitudeAngle"])
         self.world.set_weather(weather)
 
+    def _spawn_ego_vehicle(self, blueprint_id: str, spawn_points: list[Any], role_name: str) -> Any:
+        library = self.world.get_blueprint_library()
+        try: blueprint = library.find(blueprint_id)
+        except Exception as error: raise RuntimeError(f"Unknown CARLA vehicle blueprint: {blueprint_id}") from error
+        if blueprint.has_attribute("role_name"): blueprint.set_attribute("role_name", role_name)
+        for i in range(len(spawn_points)):
+            actor = self.world.try_spawn_actor(blueprint, spawn_points[i])
+            if actor is not None:
+                spawn_points.pop(i)
+                return actor
+        raise RuntimeError(f"Could not spawn {blueprint_id} (all {len(spawn_points)} spawn points occupied/obstructed)")
+
     def _spawn_vehicle(self, blueprint_id: str, transform: Any, role_name: str) -> Any:
         library = self.world.get_blueprint_library()
         try: blueprint = library.find(blueprint_id)
@@ -291,10 +307,7 @@ class CarlaRuntime:
 
     def _spawn_traffic(self, configuration: dict[str, Any], spawn_points: list[Any]) -> None:
         count = min(configuration["trafficConfig"]["npcVehicleCount"], len(spawn_points))
-        skip_blueprints = {"vehicle.mitsubishi.fusorosa", "vehicle.carlamotors.firetruck", "vehicle.carlamotors.carlacola", "vehicle.mercedes.sprinter"}
-        blueprints = [bp for bp in self.world.get_blueprint_library().filter("vehicle.*") if bp.id not in skip_blueprints]
-        if not blueprints:
-            blueprints = list(self.world.get_blueprint_library().filter("vehicle.*"))
+        blueprints = list(self.world.get_blueprint_library().filter("vehicle.*"))
         randomizer = random.Random(configuration["randomSeed"])
         for index in range(count):
             blueprint = randomizer.choice(blueprints)
@@ -455,6 +468,13 @@ class CarlaRuntime:
             try:
                 if actor.is_alive:
                     actor.destroy()
+            except Exception: pass
+        if self.world is not None:
+            try:
+                for actor in self.world.get_actors().filter("vehicle.*"):
+                    role = actor.attributes.get("role_name", "")
+                    if role in ("hero", "autopilot") and actor.is_alive:
+                        actor.destroy()
             except Exception: pass
         if self.traffic_manager is not None:
             try: self.traffic_manager.set_synchronous_mode(False)

@@ -29,8 +29,9 @@ class CarlaAdapter:
         self.settings = settings
         self.runtime = runtime or CarlaRuntime(settings)
         self.journal = CommandJournal(settings.command_journal)
-        self.active_configuration = self.journal.active_configuration
-        self.paused = self.journal.paused
+        self.active_configuration = None
+        self.paused = False
+        self.journal.set_state(None, False)
         self.socket: Any = None
         self.registered = False
         self.heartbeat_interval = 5.0
@@ -65,7 +66,7 @@ class CarlaAdapter:
                         simulatorVersion=self.settings.expected_carla_version,
                         capabilities=CAPABILITIES,
                         priority=self.settings.priority,
-                        activeSessionId=self.active_configuration["sessionId"] if self.active_configuration else None,
+                        activeSessionId=None,
                     ))
                     heartbeat_task = asyncio.create_task(self._heartbeat_loop())
                     tick_task = asyncio.create_task(self._tick_loop())
@@ -91,27 +92,13 @@ class CarlaAdapter:
         await asyncio.to_thread(self.runtime.close)
 
     async def _recover(self) -> None:
-        if self.active_configuration is None:
-            try:
-                await asyncio.to_thread(self.runtime.connect)
-            except Exception as error:
-                LOGGER.info("CARLA server connection deferred (will connect on session bind): %s", error)
-            return
+        self.active_configuration = None
+        self.paused = False
+        self.journal.set_state(None, False)
         try:
-            configuration = validate_session_configuration({
-                **self.active_configuration,
-                "deadlineAt": timestamp(),
-            })
-            await asyncio.to_thread(self.runtime.recover, configuration, self.paused)
-            self.active_configuration = configuration
-        except Exception:
-            LOGGER.exception("Recorded CARLA session could not be recovered")
-            self.active_configuration = None; self.paused = False
-            self.journal.set_state(None, False)
-            try:
-                await asyncio.to_thread(self.runtime.connect)
-            except Exception as error:
-                LOGGER.info("CARLA server connection deferred: %s", error)
+            await asyncio.to_thread(self.runtime.connect)
+        except Exception as error:
+            LOGGER.info("CARLA server connection deferred (will connect on session bind): %s", error)
 
     async def _handle_message(self, message: Any) -> None:
         if not isinstance(message, dict) or message.get("version") != 1 or not isinstance(message.get("type"), str):
@@ -159,28 +146,40 @@ class CarlaAdapter:
         if message_type == "adapter.bind_session":
             configuration = validate_session_configuration(message)
             if self.active_configuration and self.active_configuration["sessionId"] != configuration["sessionId"]:
-                raise CommandFailure("SESSION_CONFLICT", "CARLA is already bound to another session")
+                await asyncio.to_thread(self.runtime.unbind)
             await asyncio.to_thread(self.runtime.bind, configuration)
-            self.active_configuration = configuration; self.paused = False
+            self.active_configuration = configuration
+            self.paused = False
+            self.journal.set_state(configuration, False)
             return "CARLA session configured and started"
         session_id = require_uuid(message.get("sessionId"), "sessionId")
         if self.active_configuration is None or self.active_configuration["sessionId"] != session_id:
             if message_type == "adapter.unbind_session":
-                self.active_configuration = None; self.paused = False
+                await asyncio.to_thread(self.runtime.unbind)
+                self.active_configuration = None
+                self.paused = False
+                self.journal.set_state(None, False)
                 return "No matching CARLA session required cleanup"
             raise CommandFailure("SESSION_NOT_BOUND", "CARLA is not bound to this session")
         if message_type == "adapter.advance_session":
             configuration = validate_session_configuration(message)
             await asyncio.to_thread(self.runtime.advance, configuration)
             self.active_configuration = configuration; self.paused = False
+            self.journal.set_state(configuration, False)
             return "CARLA advanced to the next condition"
         if message_type == "adapter.pause_session":
-            await asyncio.to_thread(self.runtime.pause); self.paused = True; return "CARLA session paused"
+            await asyncio.to_thread(self.runtime.pause); self.paused = True
+            self.journal.set_state(self.active_configuration, True)
+            return "CARLA session paused"
         if message_type == "adapter.resume_session":
-            await asyncio.to_thread(self.runtime.resume); self.paused = False; return "CARLA session resumed"
+            await asyncio.to_thread(self.runtime.resume); self.paused = False
+            self.journal.set_state(self.active_configuration, False)
+            return "CARLA session resumed"
         if message_type == "adapter.unbind_session":
             artifact = await asyncio.to_thread(self.runtime.unbind)
-            self.active_configuration = None; self.paused = False
+            self.active_configuration = None
+            self.paused = False
+            self.journal.set_state(None, False)
             if artifact is not None: await self._send_event(artifact)
             return "CARLA session released"
         if message_type == "adapter.simulator_command":

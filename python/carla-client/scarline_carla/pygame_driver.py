@@ -55,7 +55,8 @@ except ImportError:  # pragma: no cover
 CARLA_HOST = os.environ.get("CARLA_SERVER_HOST", "localhost")
 CARLA_PORT = int(os.environ.get("CARLA_SERVER_PORT", "2000"))
 
-WIN_W, WIN_H = 800, 600
+WIN_W = int(os.environ.get("CARLA_DRIVER_WIDTH", "1280"))
+WIN_H = int(os.environ.get("CARLA_DRIVER_HEIGHT", "720"))
 FPS = 30
 POLL_INTERVAL = 2.0  # seconds between hero-vehicle polls when idle
 
@@ -76,10 +77,12 @@ WARNING   = (255, 80, 60)
 # ---------------------------------------------------------------------------
 
 def _find_hero(world) -> object | None:
-    """Return the first actor with role_name == 'hero', or None."""
+    """Return the first alive actor with role_name == 'hero', or None."""
     try:
         vehicles = world.get_actors().filter("vehicle.*")
         for actor in vehicles:
+            if not getattr(actor, "is_alive", True):
+                continue
             role = None
             with suppress(Exception):
                 role = actor.attributes.get("role_name", "")
@@ -173,6 +176,20 @@ def _draw_hud(screen, font, vehicle, ctrl, connected: bool) -> None:
 # Main loop
 # ---------------------------------------------------------------------------
 
+import ctypes
+
+
+def _focus_window() -> None:
+    """Bring the PyGame window to the foreground on Windows."""
+    try:
+        hwnd = pygame.display.get_wm_info().get("window")
+        if hwnd:
+            ctypes.windll.user32.ShowWindow(hwnd, 5)  # SW_SHOW
+            ctypes.windll.user32.SetForegroundWindow(hwnd)
+    except Exception:
+        pass
+
+
 def run() -> None:
     if pygame is None:
         print("pygame_driver: pygame is not installed. Run: pip install pygame>=2.5", flush=True)
@@ -185,23 +202,24 @@ def run() -> None:
         sys.exit(1)
 
     pygame.init()
-    screen = pygame.display.set_mode((WIN_W, WIN_H))
-    pygame.display.set_caption("SCARline -- Keyboard Driver  |  Waiting for session...")
-    clock  = pygame.time.Clock()
-    font   = pygame.font.SysFont("monospace", 14)
+    clock = pygame.time.Clock()
+    font = None
+    screen = None
 
     # Shared camera frame buffer (written by CARLA sensor callback thread)
-    frame_lock   = threading.Lock()
+    frame_lock = threading.Lock()
     latest_frame = [None]  # latest_frame[0] = pygame.Surface | None
 
     # State
-    client        = None
-    world         = None
-    vehicle       = None
+    client = None
+    world = None
+    vehicle = None
     camera_sensor = None
-    reverse       = False
+    reverse = False
 
     def attach_camera(veh):
+        nonlocal world
+        world = client.get_world()
         bp = world.get_blueprint_library().find("sensor.camera.rgb")
         bp.set_attribute("image_size_x", str(WIN_W))
         bp.set_attribute("image_size_y", str(WIN_H))
@@ -221,149 +239,161 @@ def run() -> None:
         return sensor
 
     def cleanup_session():
-        nonlocal vehicle, camera_sensor
+        nonlocal vehicle, camera_sensor, world
         if camera_sensor is not None:
             with suppress(Exception):
                 camera_sensor.stop()
                 camera_sensor.destroy()
             camera_sensor = None
         vehicle = None
+        if client is not None:
+            with suppress(Exception):
+                world = client.get_world()
         with frame_lock:
             latest_frame[0] = None
-        pygame.display.set_caption("SCARline -- Keyboard Driver  |  Waiting for session...")
+        if screen is not None and pygame.display.get_init():
+            screen.fill((15, 15, 25))
+            if font is not None:
+                msg = font.render("Waiting for session...", True, (160, 160, 180))
+                screen.blit(msg, (WIN_W // 2 - msg.get_width() // 2, WIN_H // 2))
+            pygame.display.flip()
+            print("pygame_driver: session ended -- waiting for next session...", flush=True)
 
     last_poll = 0.0
-    running   = True
+    running = True
 
     try:
+        print("pygame_driver: running in background listener mode, waiting for session to start in CARLA...", flush=True)
         while running:
-            # ----------------------------------------------------------------
-            # Process pygame events
-            # ----------------------------------------------------------------
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    running = False
-                    break
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_r and vehicle is not None:
-                        reverse = not reverse
-
-            if not running:
-                break
-
-            # ----------------------------------------------------------------
-            # (Re-)connect to CARLA when needed
-            # ----------------------------------------------------------------
-            if client is None or world is None:
-                try:
-                    client = carla.Client(CARLA_HOST, CARLA_PORT)
-                    client.set_timeout(3.0)
-                    world  = client.get_world()
-                    print(f"pygame_driver: connected to CARLA at {CARLA_HOST}:{CARLA_PORT}", flush=True)
-                except Exception as err:
-                    client = None
-                    world  = None
-                    screen.fill((20, 20, 20))
-                    msg = font.render(
-                        f"Connecting to CARLA ({CARLA_HOST}:{CARLA_PORT})...",
-                        True, WARNING
-                    )
-                    screen.blit(msg, (WIN_W // 2 - msg.get_width() // 2, WIN_H // 2))
-                    pygame.display.flip()
-                    clock.tick(5)
-                    continue
-
-            # ----------------------------------------------------------------
-            # Poll for hero vehicle when no active session
-            # ----------------------------------------------------------------
-            if vehicle is None:
-                now = time.monotonic()
-                if now - last_poll >= POLL_INTERVAL:
-                    last_poll = now
+            try:
+                # ------------------------------------------------------------
+                # (Re-)connect to CARLA when needed
+                # ------------------------------------------------------------
+                if client is None or world is None:
                     try:
-                        hero = _find_hero(world)
+                        client = carla.Client(CARLA_HOST, CARLA_PORT)
+                        client.set_timeout(3.0)
+                        world = client.get_world()
+                        print(f"pygame_driver: connected to CARLA at {CARLA_HOST}:{CARLA_PORT}", flush=True)
                     except Exception:
                         client = None
-                        world  = None
+                        world = None
+                        time.sleep(1.0)
                         continue
-                    if hero is not None:
-                        vehicle = hero
+
+                # ------------------------------------------------------------
+                # Poll for hero vehicle when no active session
+                # ------------------------------------------------------------
+                if vehicle is None:
+                    now = time.monotonic()
+                    if now - last_poll >= 1.0:
+                        last_poll = now
                         try:
-                            camera_sensor = attach_camera(vehicle)
-                            pygame.display.set_caption(
-                                f"SCARline -- Keyboard Driver  |  Session active  [{vehicle.type_id}]"
-                            )
-                            print("pygame_driver: hero vehicle found -- keyboard control active", flush=True)
-                        except Exception as err:
-                            print(f"pygame_driver: failed to attach camera: {err}", flush=True)
-                            vehicle = None
+                            if client is not None:
+                                world = client.get_world()
+                            hero = _find_hero(world)
+                        except Exception:
+                            client = None
+                            world = None
+                            continue
+                        if hero is not None:
+                            vehicle = hero
+                            try:
+                                if not pygame.display.get_init():
+                                    pygame.display.init()
+                                screen = pygame.display.set_mode((WIN_W, WIN_H))
+                                pygame.display.set_caption(f"SCARline -- Keyboard Driver  |  Session Active [{vehicle.type_id}]")
+                                font = pygame.font.SysFont("monospace", 14)
+                                _focus_window()
 
-                screen.fill((15, 15, 25))
-                dot_count = int(time.monotonic() * 2) % 4
-                waiting   = font.render(
-                    "Waiting for session" + "." * dot_count + " " * (3 - dot_count),
-                    True, (160, 160, 180)
+                                camera_sensor = attach_camera(vehicle)
+                                print(f"pygame_driver: hero vehicle found ({vehicle.type_id}) -- window popped up & keyboard control active", flush=True)
+                            except Exception as err:
+                                print(f"pygame_driver: failed to attach camera / display: {err}", flush=True)
+                                cleanup_session()
+
+                    if vehicle is None:
+                        time.sleep(0.3)
+                        continue
+
+                # ------------------------------------------------------------
+                # Verify vehicle liveness
+                # ------------------------------------------------------------
+                if not getattr(vehicle, "is_alive", True):
+                    print("pygame_driver: hero vehicle destroyed / disconnected -- session ended", flush=True)
+                    cleanup_session()
+                    continue
+
+                # ------------------------------------------------------------
+                # Process pygame events for active window
+                # ------------------------------------------------------------
+                if screen is not None and pygame.display.get_init():
+                    for event in pygame.event.get():
+                        if event.type == pygame.QUIT:
+                            print("pygame_driver: window closed by user", flush=True)
+                            cleanup_session()
+                            break
+                        if event.type == pygame.KEYDOWN:
+                            if event.key == pygame.K_r and vehicle is not None:
+                                reverse = not reverse
+
+                if vehicle is None:
+                    continue
+
+                # ------------------------------------------------------------
+                # Apply controls to hero vehicle
+                # ------------------------------------------------------------
+                keys = pygame.key.get_pressed()
+                throttle_val = THROTTLE if (keys[pygame.K_w] or keys[pygame.K_UP]) else 0.0
+                brake_val = BRAKE if (keys[pygame.K_s] or keys[pygame.K_DOWN]) else 0.0
+                steer_val = 0.0
+                if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+                    steer_val -= STEER
+                if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+                    steer_val += STEER
+                handbrake = bool(keys[pygame.K_SPACE])
+
+                ctrl = carla.VehicleControl(
+                    throttle=throttle_val,
+                    brake=brake_val,
+                    steer=max(-1.0, min(1.0, steer_val)),
+                    hand_brake=handbrake,
+                    reverse=reverse,
                 )
-                screen.blit(waiting, (WIN_W // 2 - waiting.get_width() // 2, WIN_H // 2 - 10))
-                hint = font.render("Start a session in the Admin Panel", True, (80, 80, 100))
-                screen.blit(hint, (WIN_W // 2 - hint.get_width() // 2, WIN_H // 2 + 20))
-                pygame.display.flip()
+                try:
+                    vehicle.apply_control(ctrl)
+                except Exception:
+                    print("pygame_driver: hero vehicle destroyed / disconnected -- session ended", flush=True)
+                    cleanup_session()
+                    continue
+
+                # ------------------------------------------------------------
+                # Render
+                # ------------------------------------------------------------
+                with frame_lock:
+                    frame = latest_frame[0]
+
+                if screen is not None and pygame.display.get_init():
+                    if frame is not None:
+                        screen.blit(frame, (0, 0))
+                    else:
+                        screen.fill((30, 30, 30))
+                        if font is not None:
+                            placeholder = font.render("Camera initialising...", True, (120, 120, 120))
+                            screen.blit(placeholder, (WIN_W // 2 - placeholder.get_width() // 2, WIN_H // 2))
+
+                    if font is not None:
+                        _draw_hud(screen, font, vehicle, ctrl, connected=True)
+                    pygame.display.flip()
+
                 clock.tick(FPS)
-                continue
 
-            # ----------------------------------------------------------------
-            # Active session -- check vehicle is still alive
-            # ----------------------------------------------------------------
-            try:
-                alive = vehicle.is_alive
-            except Exception:
-                alive = False
-
-            if not alive:
-                print("pygame_driver: hero vehicle destroyed -- session ended", flush=True)
+            except Exception as loop_err:
+                print(f"pygame_driver: loop warning: {loop_err}", flush=True)
                 cleanup_session()
-                clock.tick(FPS)
-                continue
-
-            # ----------------------------------------------------------------
-            # Build control from held keys
-            # ----------------------------------------------------------------
-            keys = pygame.key.get_pressed()
-            throttle_val = THROTTLE if (keys[pygame.K_w] or keys[pygame.K_UP])    else 0.0
-            brake_val    = BRAKE    if (keys[pygame.K_s] or keys[pygame.K_DOWN])   else 0.0
-            steer_val    = 0.0
-            if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-                steer_val -= STEER
-            if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-                steer_val += STEER
-            handbrake = bool(keys[pygame.K_SPACE])
-
-            ctrl = carla.VehicleControl(
-                throttle   = throttle_val,
-                brake      = brake_val,
-                steer      = max(-1.0, min(1.0, steer_val)),
-                hand_brake = handbrake,
-                reverse    = reverse,
-            )
-            with suppress(Exception):
-                vehicle.apply_control(ctrl)
-
-            # ----------------------------------------------------------------
-            # Render
-            # ----------------------------------------------------------------
-            with frame_lock:
-                frame = latest_frame[0]
-
-            if frame is not None:
-                screen.blit(frame, (0, 0))
-            else:
-                screen.fill((30, 30, 30))
-                placeholder = font.render("Camera initialising...", True, (120, 120, 120))
-                screen.blit(placeholder, (WIN_W // 2 - placeholder.get_width() // 2, WIN_H // 2))
-
-            _draw_hud(screen, font, vehicle, ctrl, connected=True)
-            pygame.display.flip()
-            clock.tick(FPS)
+                client = None
+                world = None
+                time.sleep(1.0)
 
     finally:
         cleanup_session()
