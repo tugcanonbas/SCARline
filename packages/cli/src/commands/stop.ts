@@ -15,12 +15,14 @@ import {
 } from "../processes/desktop-overlay.js";
 import { ioClientProcessManager, type IoClientProcessManager } from "../processes/io-client.js";
 import { carlaServerProcessManager, type CarlaServerProcessManager } from "../processes/carla-server.js";
+import { carlaDriverProcessManager, type CarlaDriverProcessManager } from "../processes/carla-driver.js";
 
 export function createStopCommand(
   runner: ComposeRunner = defaultComposeRunner,
   desktopOverlay: DesktopOverlayProcessManager = desktopOverlayProcessManager,
   ioClient: IoClientProcessManager = ioClientProcessManager,
   carlaServer: CarlaServerProcessManager = carlaServerProcessManager,
+  carlaDriver: CarlaDriverProcessManager = carlaDriverProcessManager,
 ): Command {
   return {
     name: "stop",
@@ -40,6 +42,7 @@ export function createStopCommand(
 
         await desktopOverlay.stop(infrastructure);
         await ioClient.stop(infrastructure);
+        await carlaDriver.stop(infrastructure);
 
         if (currentStatus.phase === "stopped") {
           await carlaServer.stop(infrastructure);

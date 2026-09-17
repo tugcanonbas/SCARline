@@ -14,3 +14,38 @@ export const load = async ({ fetch, locals }) => {
   }));
   return { system, readiness };
 };
+
+export const actions = {
+  update: async ({ fetch, locals, request }) => {
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin']);
+    const formData = await request.formData();
+    await apiRequest(fetch, locals.apiBase, '/system/configuration', locals.accessToken, {
+      method: 'PUT',
+      body: JSON.stringify({
+        carlaServerPath: formData.get('carlaServerPath') || null,
+        dataDirectory: formData.get('dataDirectory'),
+        platformPort: Number(formData.get('platformPort')),
+        carlaServerPort: Number(formData.get('carlaServerPort')),
+        transparentOverlayEnabled: formData.get('transparentOverlayEnabled') === 'on'
+      })
+    });
+  },
+  carla: async ({ fetch, locals, request }) => {
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin']);
+    const formData = await request.formData();
+    const action = String(formData.get('action'));
+    const configuration = await apiRequest(fetch, locals.apiBase, '/system/configuration', locals.accessToken);
+    await apiRequest(fetch, locals.apiBase, `/system/carla/${action}`, locals.accessToken, {
+      method: 'POST',
+      body: JSON.stringify({
+        carlaServerPath: configuration.carlaServerPath ?? null
+      })
+    });
+  },
+  overlayReload: async ({ fetch, locals }) => {
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin']);
+    await apiRequest(fetch, locals.apiBase, '/system/overlay/reload', locals.accessToken, {
+      method: 'POST'
+    });
+  }
+};

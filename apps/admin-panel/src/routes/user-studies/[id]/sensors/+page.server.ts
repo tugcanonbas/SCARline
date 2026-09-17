@@ -1,3 +1,4 @@
+import type { PageServerLoad, Actions } from './$types';
 import { error } from '@sveltejs/kit';
 import { apiAction, apiRequest } from '$lib/server/api';
 import { requireRole } from '$lib/server/rbac';
@@ -21,7 +22,9 @@ async function context(fetch: typeof globalThis.fetch, locals: App.Locals, study
   const condition = await requirePrimaryCondition(fetch, locals, studyId);
   const [devices, attached, catalogue] = await Promise.all([
     apiRequest(fetch, locals.apiBase, '/devices', locals.accessToken) as Promise<Array<Record<string, unknown>>>,
-    apiRequest(fetch, locals.apiBase, `/studies/${studyId}/conditions/${condition.id}/devices`, locals.accessToken) as Promise<Array<Record<string, unknown>>>,
+    condition?.id
+      ? apiRequest(fetch, locals.apiBase, `/studies/${studyId}/conditions/${condition.id}/devices`, locals.accessToken) as Promise<Array<Record<string, unknown>>>
+      : Promise.resolve([]),
     apiRequest(fetch, locals.apiBase, '/sensors/catalogue', locals.accessToken) as Promise<Array<Record<string, unknown>>>
   ]);
   const channels = new Map<string, Array<Record<string, unknown>>>();
@@ -29,20 +32,28 @@ async function context(fetch: typeof globalThis.fetch, locals: App.Locals, study
   return { condition, devices, attached, catalogue, channels };
 }
 
-export const load = async ({ fetch, locals, params }) => {
+export const load: PageServerLoad = async ({ fetch, locals, params }) => {
   const user = await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator', 'observer']);
   const current = await context(fetch, locals, params.id);
   const [study, readiness] = await Promise.all([
     apiRequest(fetch, locals.apiBase, `/studies/${params.id}`, locals.accessToken),
     apiRequest(fetch, locals.apiBase, `/studies/${params.id}/readiness`, locals.accessToken)
   ]);
+  const studyRecord = study as Record<string, unknown>;
+  const metadata = (studyRecord.metadata && typeof studyRecord.metadata === 'object' ? studyRecord.metadata : {}) as Record<string, unknown>;
+  const templates = (metadata.configurationTemplates && typeof metadata.configurationTemplates === 'object' ? metadata.configurationTemplates : {}) as Record<string, unknown>;
+  const savedSensors = Array.isArray(templates.sensors) ? templates.sensors as Array<Record<string, unknown>> : [];
+
+  const attachedSensors = current.attached.filter((entry) => entry.enabled).map((entry) => ({
+    ...(entry.configuration as Record<string, unknown> ?? {}),
+    driver: entry.deviceId, driverId: entry.deviceId, type: entry.type
+  }));
+  const effectiveSensors = attachedSensors.length > 0 ? attachedSensors : savedSensors;
+
   return {
     study,
     readiness,
-    config: { sensors: current.attached.filter((entry) => entry.enabled).map((entry) => ({
-      ...(entry.configuration as Record<string, unknown> ?? {}),
-      driver: entry.deviceId, driverId: entry.deviceId, type: entry.type
-    })) } as Record<string, any>,
+    config: { sensors: effectiveSensors } as Record<string, any>,
     drivers: current.catalogue.flatMap((manifest) => {
       const device = current.devices.find((candidate) => (candidate.metadata as Record<string, unknown> | undefined)?.driverKey === manifest.key || candidate.sourceKey === `driver:${manifest.key}`);
       return device ? [{
@@ -61,8 +72,25 @@ export const load = async ({ fetch, locals, params }) => {
 async function saveDevices(fetch: typeof globalThis.fetch, locals: App.Locals, studyId: string, sensors: Array<Record<string, unknown>>) {
   const current = await context(fetch, locals, studyId);
   const conditions = await loadActiveStudyConditions(fetch, locals, studyId);
+
+  // Persist to study metadata configuration templates
+  const study = await apiRequest(fetch, locals.apiBase, `/studies/${studyId}`, locals.accessToken) as Record<string, unknown>;
+  const metadata = (study?.metadata && typeof study.metadata === 'object' ? study.metadata : {}) as Record<string, unknown>;
+  await apiRequest(fetch, locals.apiBase, `/studies/${studyId}`, locals.accessToken, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      metadata: {
+        ...metadata,
+        configurationTemplates: {
+          ...((metadata.configurationTemplates && typeof metadata.configurationTemplates === 'object' ? metadata.configurationTemplates : {}) as Record<string, unknown>),
+          sensors
+        }
+      }
+    })
+  });
+
   for (const condition of conditions) {
-    const attached = condition.id === current.condition.id
+    const attached = current.condition && condition.id === current.condition.id
       ? current.attached
       : await apiRequest(fetch, locals.apiBase, `/studies/${studyId}/conditions/${condition.id}/devices`, locals.accessToken) as Array<Record<string, unknown>>;
     const failure = await saveConditionDevices(fetch, locals, studyId, String(condition.id), attached, current, sensors);
@@ -108,7 +136,7 @@ async function saveConditionDevices(
   return undefined;
 }
 
-export const actions = {
+export const actions: Actions = {
   studyTransition: handleStudyTransition,
   refresh: async ({ fetch, locals }) => {
     await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);

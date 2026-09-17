@@ -20,6 +20,10 @@ import {
   carlaServerProcessManager,
   type CarlaServerProcessManager,
 } from "../processes/carla-server.js";
+import {
+  carlaDriverProcessManager,
+  type CarlaDriverProcessManager,
+} from "../processes/carla-driver.js";
 
 type SimulatorSelection = "carla" | "mock" | null;
 
@@ -52,6 +56,7 @@ export function createStartCommand(
   ioClient: IoClientProcessManager = ioClientProcessManager,
   platform: NodeJS.Platform = process.platform,
   carlaServer: CarlaServerProcessManager = carlaServerProcessManager,
+  carlaDriver: CarlaDriverProcessManager = carlaDriverProcessManager,
 ): Command {
   return {
     name: "start",
@@ -98,8 +103,14 @@ export function createStartCommand(
         let carlaHost = carlaHostBeforeStart;
         if (simulator === "carla") {
           carlaHost = await carlaServer.start(infrastructure);
-          startedCarlaHere = !carlaHostBeforeStart.running;
-          commandContext.stdout(`CARLA host server: healthy, PID ${carlaHost.pid}`);
+          startedCarlaHere = !carlaHostBeforeStart.running && carlaHost.pid !== null;
+          if (carlaHost.pid !== null) {
+            commandContext.stdout(`CARLA host server: healthy, PID ${carlaHost.pid}`);
+          } else if (carlaHost.running) {
+            commandContext.stdout("CARLA host server: healthy (connected to running instance)");
+          } else {
+            commandContext.stdout("CARLA host server: external (autostart disabled)");
+          }
         }
         if (currentStatus.phase === "running" && missingServices.length === 0 && (simulator !== "mock" || mockRunning) && (simulator !== "carla" || (carlaRunning && carlaHost.healthy))) {
           if (infrastructure.config.services.desktop_overlay.enabled) {
@@ -187,6 +198,12 @@ export function createStartCommand(
         }
         if (infrastructure.config.services.io_client.enabled && !dockerIo) { const io=await ioClient.start(infrastructure,mockIo); commandContext.stdout(`IO Client: running (PID ${io.pid}${io.mockEnabled?", mock sensors enabled":""})`); }
         if (dockerIo) commandContext.stdout("IO Client: running in Docker");
+        if (simulator === "carla") {
+          const driver = await carlaDriver.start(infrastructure);
+          if (driver.running && driver.pid !== null) {
+            commandContext.stdout(`CARLA keyboard driver: running (PID ${driver.pid})`);
+          }
+        }
 
         commandContext.stdout("SCARline infrastructure started.");
         if (simulator === "mock") {

@@ -46,10 +46,17 @@ class IoHost:
     async def run(self) -> None:
         password = os.environ.get("RABBITMQ_DEFAULT_PASS")
         if not password: raise RuntimeError("RABBITMQ_DEFAULT_PASS is required")
-        self.connection = await aio_pika.connect_robust(
-            host=self.options.rabbit_host, port=self.options.rabbit_port,
-            login=self.options.rabbit_user, password=password,
-        )
+        for attempt in range(30):
+            try:
+                self.connection = await aio_pika.connect_robust(
+                    host=self.options.rabbit_host, port=self.options.rabbit_port,
+                    login=self.options.rabbit_user, password=password,
+                )
+                break
+            except Exception as error:
+                if attempt == 29: raise
+                LOGGER.info("Waiting for RabbitMQ broker on %s:%s (%s)...", self.options.rabbit_host, self.options.rabbit_port, error)
+                await asyncio.sleep(1)
         self.channel = await self.connection.channel(publisher_confirms=True); await self.channel.set_qos(prefetch_count=10)
         self.realtime_channel = await self.connection.channel(publisher_confirms=False)
         commands = await self.channel.declare_exchange("scarline.commands", aio_pika.ExchangeType.TOPIC, durable=True)

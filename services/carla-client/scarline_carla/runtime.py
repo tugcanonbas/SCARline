@@ -1,5 +1,5 @@
-from __future__ import annotations
-
+import concurrent.futures
+import logging
 import math
 import queue
 import random
@@ -10,6 +10,8 @@ from typing import Any
 
 from .config import Settings
 from .models import safe_relative_directory
+
+LOGGER = logging.getLogger("scarline.carla-runtime")
 
 try:  # The module is intentionally optional for unit tests and diagnostics.
     import carla  # type: ignore
@@ -34,26 +36,31 @@ class CarlaRuntime:
         self.recording_path: Path | None = None
         self.recording_active = False
         self.events: queue.SimpleQueue[dict[str, Any]] = queue.SimpleQueue()
+        self.outbound_messages: queue.SimpleQueue[dict[str, Any]] = queue.SimpleQueue()
         self.lock = threading.RLock()
         self.last_control_at = 0.0
         self.last_control_timestamp = ""
         self.control_safe = False
+        self._tick_thread: threading.Thread | None = None
+        self._stop_tick_event = threading.Event()
+        self._io_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="carla-io")
 
     @property
     def connected(self) -> bool:
         return self.client is not None and self.world is not None
 
-    def connect(self) -> None:
+    def connect(self, timeout: float = 30.0) -> None:
         if carla is None: raise RuntimeError("The CARLA Python API is not installed")
         client = carla.Client(self.settings.carla_host, self.settings.carla_port)
-        client.set_timeout(10.0)
+        client.set_timeout(timeout)
         server_version = str(client.get_server_version())
         client_version = str(client.get_client_version())
         expected = self.settings.expected_carla_version
-        if server_version != expected or client_version != expected:
-            raise RuntimeError(f"CARLA version mismatch: expected {expected}, client {client_version}, server {server_version}")
+        if server_version != expected and not server_version.startswith("0.9."):
+            LOGGER.warning("CARLA server version (%s) differs from expected (%s)", server_version, expected)
         self.client = client
         self.world = client.get_world()
+        self._cleanup(restore_settings=False)
 
     def recover(self, configuration: dict[str, Any], paused: bool) -> None:
         self.bind(configuration)
@@ -66,39 +73,65 @@ class CarlaRuntime:
             if previous_recording is not None: self.events.put(previous_recording)
             self._cleanup(restore_settings=True)
             configuration = session["configuration"]
+            target_map = configuration["map"]
             try:
-                self.world = self.client.load_world(configuration["map"])
+                cur_map = ""
+                try:
+                    if self.world is not None:
+                        cur_map = str(self.world.get_map().name)
+                except Exception:
+                    pass
+                if not (cur_map.endswith(target_map) or target_map.endswith(cur_map) or cur_map == target_map):
+                    self.client.set_timeout(90.0)
+                    self.world = self.client.load_world(target_map)
+                    self.client.set_timeout(30.0)
+                else:
+                    self.client.set_timeout(30.0)
                 self.original_settings = self.world.get_settings()
-                settings = self.world.get_settings()
-                settings.synchronous_mode = True
-                settings.fixed_delta_seconds = 0.05
-                self.world.apply_settings(settings)
                 self.traffic_manager = self.client.get_trafficmanager()
-                self.traffic_manager.set_synchronous_mode(True)
+                self.traffic_manager.set_synchronous_mode(False)
                 self.traffic_manager.set_random_device_seed(configuration["randomSeed"])
-                self.traffic_manager.global_percentage_speed_difference(float(configuration["trafficConfig"]["speedDifference"]))
+                speed_diff = float(configuration["trafficConfig"].get("speedDifference", 0.0))
+                if speed_diff == 0.0:
+                    speed_diff = -35.0
+                self.traffic_manager.global_percentage_speed_difference(speed_diff)
+                try:
+                    self.traffic_manager.set_global_distance_to_leading_vehicle(2.5)
+                    self.traffic_manager.set_hybrid_physics_mode(True)
+                    self.traffic_manager.set_hybrid_physics_radius(70.0)
+                    self.traffic_manager.set_respawn_dormant_vehicles(True)
+                    self.traffic_manager.set_boundaries_respawn_dormant_vehicles(25.0, 150.0)
+                except Exception as error:
+                    LOGGER.debug("Could not set TM performance settings: %s", error)
+
+                settings = self.world.get_settings()
+                settings.synchronous_mode = False
+                settings.fixed_delta_seconds = None
+                settings.substepping = True
+                settings.max_substep_delta_time = 0.01
+                settings.max_substeps = 10
+                self.world.apply_settings(settings)
                 self._apply_weather(configuration)
                 spawn_points = list(self.world.get_map().get_spawn_points())
                 random.Random(configuration["randomSeed"]).shuffle(spawn_points)
                 if not spawn_points: raise RuntimeError("The selected CARLA map has no vehicle spawn points")
-                self.ego_vehicle = self._spawn_vehicle(configuration["egoVehicleBlueprint"], spawn_points.pop(0), "hero")
+                self.ego_vehicle = self._spawn_ego_vehicle(configuration["egoVehicleBlueprint"], spawn_points, "hero")
                 self.vehicles.append(self.ego_vehicle)
                 self._spawn_traffic(configuration, spawn_points)
                 self._spawn_pedestrians(configuration)
                 self.active_configuration = session
                 self._configure_sensors(configuration["sensors"])
-                self._configure_spectator(configuration["spectatorConfig"])
                 if configuration["controlMode"] == "autopilot":
                     self.ego_vehicle.set_autopilot(True, self.traffic_manager.get_port())
                     self._apply_speed_limit_override(self.ego_vehicle, configuration["trafficConfig"].get("speedLimitOverride"))
                 else:
                     self.ego_vehicle.set_autopilot(False, self.traffic_manager.get_port())
                     self._apply_vehicle_control(0.0, 0.0, 1.0)
-                self.paused = False
                 self.last_control_at = time.monotonic()
                 self.last_control_timestamp = ""
                 self.control_safe = configuration["controlMode"] == "io"
                 if configuration["recordingConfig"]["enabled"]: self._start_recording(configuration["recordingConfig"])
+                self._start_tick_thread()
             except Exception:
                 self._cleanup(restore_settings=True)
                 raise
@@ -115,42 +148,90 @@ class CarlaRuntime:
 
     def unbind(self) -> dict[str, Any] | None:
         with self.lock:
-            artifact = self._stop_recording()
+            try:
+                artifact = self._stop_recording()
+            except Exception:
+                artifact = None
             self._cleanup(restore_settings=True)
             return artifact
 
     def close(self) -> None:
         with self.lock:
-            self._stop_recording()
+            try:
+                self._stop_recording()
+            except Exception:
+                pass
             self._cleanup(restore_settings=True)
             self.client = None
             self.world = None
 
+    def _start_tick_thread(self) -> None:
+        self._stop_tick_event.clear()
+        if self._tick_thread is None or not self._tick_thread.is_alive():
+            self._tick_thread = threading.Thread(target=self._tick_worker, name="carla-tick-worker", daemon=True)
+            self._tick_thread.start()
+
+    def _stop_tick_thread(self) -> None:
+        self._stop_tick_event.set()
+        if self._tick_thread is not None and self._tick_thread.is_alive():
+            self._tick_thread.join(timeout=1.0)
+            self._tick_thread = None
+
+    def _tick_worker(self) -> None:
+        tick_count = 0
+        while not self._stop_tick_event.is_set():
+            active = self.active_configuration
+            world = self.world
+            ego = self.ego_vehicle
+
+            if active is not None and not self.paused and world is not None and ego is not None:
+                try:
+                    configuration = active["configuration"]
+                    if configuration["controlMode"] == "io":
+                        self._enforce_control_timeout()
+
+                    snapshot = world.wait_for_tick(2.0)
+                    tick_count += 1
+
+                    # Emit telemetry every 3 ticks (~20 Hz) for lightweight network bandwidth at 60 FPS
+                    if tick_count % 3 == 0:
+                        try:
+                            if ego.is_alive:
+                                velocity = ego.get_velocity()
+                                control = ego.get_control()
+                                speed = math.sqrt(velocity.x ** 2 + velocity.y ** 2 + velocity.z ** 2) * 3.6
+                                configured_speed_limit = configuration["trafficConfig"].get("speedLimitOverride")
+                                speed_limit = float(configured_speed_limit) if configured_speed_limit is not None else float(ego.get_speed_limit())
+                                self.outbound_messages.put({
+                                    "type": "vehicle.telemetry",
+                                    "speed": max(0.0, speed),
+                                    "speedLimit": max(0.0, speed_limit),
+                                    "throttle": max(0.0, min(1.0, float(control.throttle))),
+                                    "steer": max(-1.0, min(1.0, float(control.steer))),
+                                    "brake": max(0.0, min(1.0, float(control.brake))),
+                                })
+                        except Exception:
+                            pass
+
+                    while True:
+                        try:
+                            self.outbound_messages.put(self.events.get_nowait())
+                        except queue.Empty:
+                            break
+                except Exception as error:
+                    if not self._stop_tick_event.is_set() and self.active_configuration is not None:
+                        LOGGER.warning("CARLA simulation tick warning: %s", error)
+            else:
+                time.sleep(0.02)
+
     def tick(self) -> list[dict[str, Any]]:
-        with self.lock:
-            if self.active_configuration is None or self.paused: return []
-            if self.world is None or self.ego_vehicle is None: raise RuntimeError("CARLA world or ego vehicle disappeared")
-            configuration = self.active_configuration["configuration"]
-            if configuration["controlMode"] == "io": self._enforce_control_timeout()
-            frame = int(self.world.tick(10.0))
-            velocity = self.ego_vehicle.get_velocity()
-            control = self.ego_vehicle.get_control()
-            speed = math.sqrt(velocity.x ** 2 + velocity.y ** 2 + velocity.z ** 2) * 3.6
-            configured_speed_limit = configuration["trafficConfig"].get("speedLimitOverride")
-            speed_limit = float(configured_speed_limit) if configured_speed_limit is not None else float(self.ego_vehicle.get_speed_limit())
-            messages = [{
-                "type": "vehicle.telemetry",
-                "speed": max(0.0, speed),
-                "speedLimit": max(0.0, speed_limit),
-                "throttle": max(0.0, min(1.0, float(control.throttle))),
-                "steer": max(-1.0, min(1.0, float(control.steer))),
-                "brake": max(0.0, min(1.0, float(control.brake))),
-            }]
-            while len(messages) < 101:
-                try: messages.append(self.events.get_nowait())
-                except queue.Empty: break
-            if frame < 0: raise RuntimeError("CARLA returned an invalid frame")
-            return messages
+        messages = []
+        while len(messages) < 100:
+            try:
+                messages.append(self.outbound_messages.get_nowait())
+            except queue.Empty:
+                break
+        return messages
 
     def apply_realtime_control(self, message: dict[str, Any]) -> None:
         with self.lock:
@@ -202,6 +283,18 @@ class CarlaRuntime:
             weather.wind_intensity = float(custom["windIntensity"])
         weather.sun_altitude_angle = float(configuration["sunConfig"]["sunAltitudeAngle"])
         self.world.set_weather(weather)
+
+    def _spawn_ego_vehicle(self, blueprint_id: str, spawn_points: list[Any], role_name: str) -> Any:
+        library = self.world.get_blueprint_library()
+        try: blueprint = library.find(blueprint_id)
+        except Exception as error: raise RuntimeError(f"Unknown CARLA vehicle blueprint: {blueprint_id}") from error
+        if blueprint.has_attribute("role_name"): blueprint.set_attribute("role_name", role_name)
+        for i in range(len(spawn_points)):
+            actor = self.world.try_spawn_actor(blueprint, spawn_points[i])
+            if actor is not None:
+                spawn_points.pop(i)
+                return actor
+        raise RuntimeError(f"Could not spawn {blueprint_id} (all {len(spawn_points)} spawn points occupied/obstructed)")
 
     def _spawn_vehicle(self, blueprint_id: str, transform: Any, role_name: str) -> Any:
         library = self.world.get_blueprint_library()
@@ -286,30 +379,48 @@ class CarlaRuntime:
         return callback
 
     def _store_sensor_artifact(self, sensor_id: str, sensor_type: str, data: Any) -> None:
-        if self.active_configuration is None: return
+        if self.active_configuration is None or not self.recording_active: return
         session_id = self.active_configuration["sessionId"]
         suffix = "png" if sensor_type.startswith("sensor.camera.") else "ply"
         relative = Path(session_id) / sensor_id / f"{int(data.frame):010d}.{suffix}"
         target = self.settings.media_directory / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        data.save_to_disk(str(target))
-        self.events.put({
-            "type":"simulator.sensor_artifact",
-            "sensorId":sensor_id,
-            "kind":"camera" if suffix == "png" else "lidar",
-            "frame":int(data.frame),
-            "reference":f"carla://{relative.as_posix()}",
-            "metadata":{},
-        })
+        frame_num = int(data.frame)
+        
+        def save_task() -> None:
+            try:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                data.save_to_disk(str(target))
+                self.events.put({
+                    "type":"simulator.sensor_artifact",
+                    "sensorId":sensor_id,
+                    "kind":"camera" if suffix == "png" else "lidar",
+                    "frame":frame_num,
+                    "reference":f"carla://{relative.as_posix()}",
+                    "metadata":{},
+                })
+            except Exception as error:
+                self.events.put({
+                    "type":"adapter.error",
+                    "code":"SENSOR_PROCESSING_FAILED",
+                    "message":str(error)[:2000],
+                    "fatal":False,
+                    "details":{"sensorId":sensor_id},
+                })
+
+        self._io_executor.submit(save_task)
 
     def _configure_spectator(self, configuration: dict[str, Any]) -> None:
         if not configuration.get("enabled", True) or self.ego_vehicle is None: return
-        vehicle = self.ego_vehicle.get_transform()
-        transform = carla.Transform(
-            carla.Location(x=vehicle.location.x + float(configuration.get("x", -6)), y=vehicle.location.y + float(configuration.get("y", 0)), z=vehicle.location.z + float(configuration.get("z", 4))),
-            carla.Rotation(pitch=float(configuration.get("pitch", -15)), yaw=vehicle.rotation.yaw + float(configuration.get("yaw", 0)), roll=float(configuration.get("roll", 0))),
-        )
-        self.world.get_spectator().set_transform(transform)
+        try:
+            if not self.ego_vehicle.is_alive: return
+            vehicle = self.ego_vehicle.get_transform()
+            transform = carla.Transform(
+                carla.Location(x=vehicle.location.x + float(configuration.get("x", -6)), y=vehicle.location.y + float(configuration.get("y", 0)), z=vehicle.location.z + float(configuration.get("z", 4))),
+                carla.Rotation(pitch=float(configuration.get("pitch", -15)), yaw=vehicle.rotation.yaw + float(configuration.get("yaw", 0)), roll=float(configuration.get("roll", 0))),
+            )
+            self.world.get_spectator().set_transform(transform)
+        except Exception:
+            pass
 
     def _start_recording(self, configuration: dict[str, Any]) -> None:
         if self.active_configuration is None: raise RuntimeError("No CARLA session is bound")
@@ -331,8 +442,12 @@ class CarlaRuntime:
         return {"type":"simulator.sensor_artifact","sensorId":"carla-recorder","kind":"recorder","frame":None,"reference":f"carla://{relative.as_posix()}","metadata":{}}
 
     def _apply_vehicle_control(self, throttle: float, steer: float, brake: float) -> None:
-        if self.ego_vehicle is None: raise RuntimeError("The ego vehicle is unavailable")
-        self.ego_vehicle.apply_control(carla.VehicleControl(throttle=float(throttle), steer=float(steer), brake=float(brake)))
+        if self.ego_vehicle is None: return
+        try:
+            if self.ego_vehicle.is_alive:
+                self.ego_vehicle.apply_control(carla.VehicleControl(throttle=float(throttle), steer=float(steer), brake=float(brake)))
+        except Exception:
+            pass
 
     def _enforce_control_timeout(self) -> None:
         elapsed = (time.monotonic() - self.last_control_at) * 1_000
@@ -342,14 +457,24 @@ class CarlaRuntime:
         self.events.put({"type":"adapter.error","code":"CONTROL_INPUT_STALE","message":"Real-time vehicle control timed out; the safety brake was applied.","fatal":False,"details":{}})
 
     def _cleanup(self, restore_settings: bool) -> None:
-        for controller in self.walker_controllers:
-            try: controller.stop()
-            except Exception: pass
+        self._stop_tick_thread()
         for sensor in self.sensors:
             try: sensor.stop()
             except Exception: pass
+        for controller in self.walker_controllers:
+            try: controller.stop()
+            except Exception: pass
         for actor in [*self.sensors, *self.walker_controllers, *self.walkers, *reversed(self.vehicles)]:
-            try: actor.destroy()
+            try:
+                if actor.is_alive:
+                    actor.destroy()
+            except Exception: pass
+        if self.world is not None:
+            try:
+                for actor in self.world.get_actors().filter("vehicle.*"):
+                    role = actor.attributes.get("role_name", "")
+                    if role in ("hero", "autopilot") and actor.is_alive:
+                        actor.destroy()
             except Exception: pass
         if self.traffic_manager is not None:
             try: self.traffic_manager.set_synchronous_mode(False)

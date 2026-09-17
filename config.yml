@@ -14,7 +14,7 @@ api:
   allowed_origins:
     - http://localhost:5173
     - http://localhost:4000
-  command_timeout_seconds: 30
+  command_timeout_seconds: 120
   access_token_ttl_minutes: 15
   refresh_token_ttl_days: 30
   overlay_token_ttl_minutes: 5
@@ -59,7 +59,7 @@ sim_bridge:
   public_host: 127.0.0.1
   port: 9000
   adapter_path: /adapter
-  adapter_command_timeout_seconds: 20
+  adapter_command_timeout_seconds: 120
   adapter_heartbeat_interval_seconds: 5
   adapter_stale_timeout_seconds: 15
   adapter_reconnect_grace_seconds: 10
@@ -70,15 +70,15 @@ sim_bridge:
 simulator:
   # May be overridden with `scarline start --simulator carla|mock`.
   # `scarline start --no-sim` uses the Mock Simulator on unsupported systems.
-  default: mock
-  autostart: true
+  default: carla
+  autostart: false
 
   carla:
     # CARLA itself runs on the host OS and is owned by the CLI. The Python
     # adapter runs through the `carla` Compose profile and connects back to it.
     # Set this to the local CarlaUE4 launcher (absolute or repository-relative).
     version: 0.9.16
-    executable: null
+    executable: C:\Users\zirae\WorkSpace\CARLA 0.9.16\CarlaUE4.exe
     public_host: 127.0.0.1
     host: host.docker.internal
     port: 2000
@@ -118,8 +118,8 @@ services:
     enabled: true
   io_client:
     enabled: true
-    runtime: host
-    python_executable: python3
+    runtime: docker
+    python_executable: python
     heartbeat_interval_seconds: 5
     stale_timeout_seconds: 15
     health_port: 8081

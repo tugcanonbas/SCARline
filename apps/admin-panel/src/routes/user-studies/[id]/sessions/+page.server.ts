@@ -25,6 +25,13 @@ export const load = async ({ fetch, locals, params }) => {
   };
 };
 
+async function postSessionAction(fetch: typeof globalThis.fetch, locals: App.Locals, studyId: string, sessionId: string, action: string) {
+  const result = await apiAction(fetch, locals.apiBase, `/studies/${studyId}/sessions/${sessionId}/${action}`, locals.accessToken, {
+    method: 'POST'
+  }, `Failed to ${action} session`);
+  return result.ok ? undefined : result.failure;
+}
+
 export const actions = {
   create: async ({ fetch, locals, params, request }) => {
     await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator']);
@@ -44,5 +51,42 @@ export const actions = {
       })
     }, 'Failed to create session');
     return result.ok ? undefined : result.failure;
+  },
+  start: async ({ fetch, locals, params, request }) => {
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator']);
+    return postSessionAction(fetch, locals, params.id, String((await request.formData()).get('sessionId')), 'start');
+  },
+  pause: async ({ fetch, locals, params, request }) => {
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator']);
+    return postSessionAction(fetch, locals, params.id, String((await request.formData()).get('sessionId')), 'pause');
+  },
+  resume: async ({ fetch, locals, params, request }) => {
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator']);
+    return postSessionAction(fetch, locals, params.id, String((await request.formData()).get('sessionId')), 'resume');
+  },
+  complete: async ({ fetch, locals, params, request }) => {
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator']);
+    return postSessionAction(fetch, locals, params.id, String((await request.formData()).get('sessionId')), 'complete');
+  },
+  cancel: async ({ fetch, locals, params, request }) => {
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator']);
+    const formData = await request.formData();
+    const result = await apiAction(fetch, locals.apiBase, `/studies/${params.id}/sessions/${String(formData.get('sessionId'))}/cancel`, locals.accessToken, {
+      method: 'POST',
+      body: JSON.stringify({
+        reason: formData.get('reason') || null
+      })
+    }, 'Failed to cancel session');
+    return result.ok ? undefined : result.failure;
+  },
+  // carla connection - 2026-08-24: delete action for force-removing sessions from the queue
+  delete: async ({ fetch, locals, params, request }) => {
+    await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator']);
+    const formData = await request.formData();
+    const result = await apiAction(fetch, locals.apiBase, `/studies/${params.id}/sessions/${String(formData.get('sessionId'))}`, locals.accessToken, {
+      method: 'DELETE'
+    }, 'Failed to delete session');
+    return result.ok ? undefined : result.failure;
   }
 };
+

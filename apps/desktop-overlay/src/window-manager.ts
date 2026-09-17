@@ -17,6 +17,7 @@ export interface ManagedBrowserWindowLike {
   reload(): void;
   setBounds(bounds: RectangleLike): void;
   setIgnoreMouseEvents(ignore: boolean, options?: { forward: boolean }): void;
+  show(): void;
   on(event: "move" | "resize" | "closed", listener: () => void): void;
 }
 
@@ -93,6 +94,9 @@ export class OverlayWindowManager {
     });
     try {
       await browserWindow.loadURL(spec.rendererUrl);
+      if (!browserWindow.isDestroyed()) {
+        browserWindow.show();
+      }
     } catch (error) {
       if (this.#windows.get(spec.instanceId)?.browserWindow === browserWindow) {
         this.#windows.delete(spec.instanceId);
@@ -192,7 +196,7 @@ export class OverlayWindowManager {
     if (targetDisplay === "primary") return primary;
     const selected = displays.find(({ id }) => String(id) === targetDisplay);
     if (selected === undefined) {
-      throw new Error(`Assigned display ${targetDisplay} is unavailable.`);
+      return primary;
     }
     return selected;
   }

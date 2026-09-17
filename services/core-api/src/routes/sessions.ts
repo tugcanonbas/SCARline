@@ -188,9 +188,7 @@ export async function registerSessionRoutes(
     const row = session.rows[0];
     if (row === undefined) throw new ApiProblem(404, "SESSION_NOT_FOUND", "Session not found.");
     await ensureStudyAccess(request, pool, row.study_id);
-    if (["ready", "running", "paused"].includes(row.status)) {
-      throw new ApiProblem(409, "SESSION_ACTIVE", "Abort or complete the session before deleting it.");
-    }
+    // Allow deleting sessions even if stuck in ready/running/paused state
     const client = await pool.connect();
     try {
       await client.query("BEGIN");

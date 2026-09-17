@@ -324,6 +324,27 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+### Node / Monorepo ###
+node_modules/
+.pnpm-store/
+.turbo/
+.svelte-kit/
+.vite/
+coverage/
+dist/
+build/
+*.tsbuildinfo
+
+### SCARline runtime ###
+.scarline.yaml
+.scarline-runtime/
+/scarline.ps1
+/exports/
+
+### Analysis / planning docs (not part of the project) ###
+PROTECTION_MAP.md
+SCARline_Merge_Execution_Plan.md
+
 # pytype static type analyzer
 .pytype/
 

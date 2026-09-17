@@ -16,18 +16,43 @@ export class LayoutPersistenceError extends Error {
 }
 
 export async function loadAdminLayouts(fetch: typeof globalThis.fetch, locals: App.Locals, studyId: string) {
-  const conditions = await loadActiveStudyConditions(fetch, locals, studyId);
-  const primary = conditions[0];
-  if (!primary) throw new LayoutPersistenceError(409, 'CONDITION_REQUIRED', 'Create a study condition before configuring participant layouts.');
-  const [catalogue, layoutsByCondition] = await Promise.all([
+  const [conditions, catalogue, study] = await Promise.all([
+    loadActiveStudyConditions(fetch, locals, studyId),
     apiRequest(fetch, locals.apiBase, '/widgets/catalogue', locals.accessToken) as Promise<JsonRecord[]>,
-    Promise.all(conditions.map((condition) => apiRequest(
-      fetch,
-      locals.apiBase,
-      `/studies/${studyId}/conditions/${String(condition.id)}/layouts`,
-      locals.accessToken
-    ) as Promise<JsonRecord[]>))
+    apiRequest(fetch, locals.apiBase, `/studies/${studyId}`, locals.accessToken) as Promise<JsonRecord>
   ]);
+  const primary = conditions[0] ?? null;
+  const metadata = asRecord(study?.metadata);
+  const templates = asRecord(metadata.configurationTemplates);
+  const savedTemplateLayout = asRecord(templates.layout);
+
+  if (conditions.length === 0) {
+    const layout = Object.keys(savedTemplateLayout).length > 0 ? savedTemplateLayout : {
+      id: 'template',
+      name: 'Primary Participant Layout',
+      type: 'participant',
+      targetDisplay: 'primary',
+      layoutConfig: {},
+      widgets: [],
+      revision: 0
+    };
+    return {
+      condition: null,
+      conditions: [],
+      catalogue,
+      layouts: normalizeLayouts([layout], catalogue),
+      expectedRevisions: [],
+      participantLayoutsByCondition: {}
+    };
+  }
+
+  const layoutsByCondition = await Promise.all(conditions.map((condition) => apiRequest(
+    fetch,
+    locals.apiBase,
+    `/studies/${studyId}/conditions/${String(condition.id)}/layouts`,
+    locals.accessToken
+  ) as Promise<JsonRecord[]>));
+
   const normalizedLayoutsByCondition = layoutsByCondition.map((layouts) => normalizeLayouts(layouts, catalogue));
   const expectedRevisions = conditions.map((condition, index) => {
     const layout = layoutsByCondition[index]?.find((entry) => entry.type === 'participant');
@@ -88,6 +113,29 @@ export async function persistAdminLayout(
       };
     })
   };
+
+  if (context.conditions.length === 0) {
+    const study = await apiRequest(fetch, locals.apiBase, `/studies/${studyId}`, locals.accessToken) as JsonRecord;
+    const metadata = asRecord(study?.metadata);
+    await apiRequest(fetch, locals.apiBase, `/studies/${studyId}`, locals.accessToken, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        metadata: {
+          ...metadata,
+          configurationTemplates: {
+            ...asRecord(metadata.configurationTemplates),
+            layout: body
+          }
+        }
+      })
+    });
+    return {
+      id: 'template',
+      revision: 1,
+      expectedRevisions: []
+    };
+  }
+
   const headers = new Headers({ 'content-type': 'application/json' });
   if (locals.accessToken) headers.set('authorization', `Bearer ${locals.accessToken}`);
   const response = await fetch(`${locals.apiBase}/studies/${studyId}/layouts/participant`, {
@@ -152,4 +200,18 @@ function normalizeLayouts(layouts: JsonRecord[], catalogue: JsonRecord[]): JsonR
 
 function asRecord(value: unknown): JsonRecord {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as JsonRecord : {};
+}
+
+export async function applyStudyLayoutTemplateToCondition(
+  fetch: typeof globalThis.fetch,
+  locals: App.Locals,
+  studyId: string
+): Promise<void> {
+  const study = await apiRequest(fetch, locals.apiBase, `/studies/${studyId}`, locals.accessToken) as JsonRecord;
+  const metadata = asRecord(study?.metadata);
+  const templates = asRecord(metadata.configurationTemplates);
+  const layoutTemplate = asRecord(templates.layout);
+  if (Object.keys(layoutTemplate).length > 0) {
+    await persistAdminLayout(fetch, locals, studyId, layoutTemplate);
+  }
 }

@@ -321,7 +321,11 @@ export class SimBridgeController {
     const adapter = this.#registry.get(assignedId);
     if (adapter === undefined) throw new Error("Unknown simulator adapter.");
     if (message.type === "adapter.heartbeat") {
+      const previousStatus = adapter.status;
       this.#registry.heartbeat(assignedId, message.status, message.activeSessionId);
+      if (previousStatus !== message.status) {
+        await this.publishHeartbeat().catch(() => undefined);
+      }
       return;
     }
     if (message.type === "adapter.command_result") {

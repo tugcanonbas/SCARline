@@ -77,6 +77,7 @@ services:
       - ./.runtime/exports:/app/.runtime/exports
       - ./widgets:/app/widgets:ro
       - ./services/io-client/drivers:/app/services/io-client/drivers:ro
+      - ./config.yml:/app/config.yml:ro
     networks:
       - scarline
 
@@ -111,6 +112,7 @@ services:
       - "127.0.0.1:5173:5173"
     volumes:
       - ./widgets:/app/widgets:ro
+      - ./config.yml:/app/config.yml:ro
     networks:
       - scarline
 
@@ -167,6 +169,7 @@ services:
       - "127.0.0.1:9000:9000"
     volumes:
       - ./.runtime/sim-bridge:/app/.runtime/sim-bridge
+      - ./config.yml:/app/config.yml:ro
     networks:
       - scarline
 

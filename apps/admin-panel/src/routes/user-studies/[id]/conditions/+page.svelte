@@ -9,6 +9,7 @@
   import { enhance } from "$app/forms";
   import { formatStatusLabel } from "$lib/format";
   import { STUDY_DESIGN_ACCESS_REQUIRED } from "$lib/permissions";
+  import { Trash2 } from "lucide-svelte";
 
   let { data } = $props();
 
@@ -335,19 +336,8 @@
                     type="button">Cancel</button
                   >
                 {/if}
-                <form method="POST" action="?/delete" use:enhance>
-                  <input type="hidden" name="conditionId" value={c.id} />
-                  <button
-                    class="condition-action-btn condition-action-btn--danger"
-                    type="submit"
-                    onclick={(e) =>
-                      !confirm("Delete this condition?") && e.preventDefault()}
-                    >Delete</button
-                  >
-                </form>
               {:else}
                 <button class="condition-action-btn" type="button" disabled title={STUDY_DESIGN_ACCESS_REQUIRED}>Edit</button>
-                <button class="condition-action-btn condition-action-btn--danger" type="button" disabled title={STUDY_DESIGN_ACCESS_REQUIRED}>Delete</button>
               {/if}
             </div>
           </div>
@@ -491,25 +481,25 @@
               <div class="condition-kv">
                 <span class="condition-kv__label">Weather</span>
                 <span class="condition-kv__value"
-                  >{getCarlaOverrides(c).weather ?? "Default"}</span
+                  >{(c as any).carlaEffective?.weather ?? getCarlaOverrides(c).weather ?? "ClearNoon"}{(c as any).carlaEffective?.isWeatherOverridden ? " (Override)" : ""}</span
                 >
               </div>
               <div class="condition-kv">
                 <span class="condition-kv__label">Traffic Density</span>
                 <span class="condition-kv__value"
-                  >{getCarlaOverrides(c).trafficDensity ?? "Default"}</span
+                  >{(c as any).carlaEffective?.trafficDensity !== undefined ? (c as any).carlaEffective.trafficDensity : (getCarlaOverrides(c).trafficDensity ?? 0)}{(c as any).carlaEffective?.isTrafficOverridden ? " (Override)" : ""}</span
                 >
               </div>
               <div class="condition-kv">
                 <span class="condition-kv__label">Pedestrian Density</span>
                 <span class="condition-kv__value"
-                  >{getCarlaOverrides(c).pedestrianDensity ?? "Default"}</span
+                  >{(c as any).carlaEffective?.pedestrianDensity !== undefined ? (c as any).carlaEffective.pedestrianDensity : (getCarlaOverrides(c).pedestrianDensity ?? 0)}{(c as any).carlaEffective?.isPedestriansOverridden ? " (Override)" : ""}</span
                 >
               </div>
               <div class="condition-kv">
                 <span class="condition-kv__label">Speed Limit</span>
                 <span class="condition-kv__value"
-                  >{getCarlaOverrides(c).speedLimitOverride ?? "Default"}</span
+                  >{(c as any).carlaEffective?.speedLimitOverride ? `${(c as any).carlaEffective.speedLimitOverride} km/h` : (getCarlaOverrides(c).speedLimitOverride ? `${getCarlaOverrides(c).speedLimitOverride} km/h` : "None")}{(c as any).carlaEffective?.isSpeedLimitOverridden ? " (Override)" : ""}</span
                 >
               </div>
               <div class="condition-kv">
@@ -539,6 +529,32 @@
               </div>
             {/if}
           {/if}
+
+          {#if data.canManage}
+            <div class="condition-card__footer">
+              <form
+                method="POST"
+                action="?/delete"
+                use:enhance
+                onsubmit={(e) => {
+                  if (
+                    !confirm(
+                      `Delete condition "${c.name ?? c.id}"? This cannot be undone.`,
+                    )
+                  )
+                    e.preventDefault();
+                }}
+              >
+                <input type="hidden" name="conditionId" value={c.id} />
+                <button
+                  class="button-icon-danger"
+                  type="submit"
+                  title="Delete condition"
+                  aria-label="Delete condition"
+                ><Trash2 size={16} /></button>
+              </form>
+            </div>
+          {/if}
         </div>
       {:else}
         <EmptyState message="No conditions have been defined yet." />
@@ -546,3 +562,33 @@
     </div>
   </SurfaceCard>
 </div>
+
+<style>
+  .condition-card__footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: 0.5rem;
+    gap: 0.5rem;
+  }
+
+  .button-icon-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.375rem;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--color-danger, #ef4444);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    flex-shrink: 0;
+  }
+
+  .button-icon-danger:hover {
+    background: color-mix(in srgb, var(--color-danger, #ef4444) 12%, transparent);
+    border-color: color-mix(in srgb, var(--color-danger, #ef4444) 40%, transparent);
+  }
+</style>

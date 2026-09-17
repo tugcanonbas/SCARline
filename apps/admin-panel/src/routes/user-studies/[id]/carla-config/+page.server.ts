@@ -1,3 +1,4 @@
+import type { PageServerLoad, Actions } from './$types';
 import { apiRequest } from '$lib/server/api';
 import { saveAndApplySimulatorTemplate } from '$lib/server/condition-configuration';
 import { requireRole } from '$lib/server/rbac';
@@ -5,10 +6,12 @@ import { requirePrimaryCondition } from '$lib/server/study-context';
 import { handleStudyTransition } from '$lib/server/study-lifecycle';
 import { fail, isHttpError } from '@sveltejs/kit';
 
-export const load = async ({ fetch, locals, params }) => {
+export const load: PageServerLoad = async ({ fetch, locals, params }) => {
   const user = await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher', 'operator', 'observer']);
   const condition = await requirePrimaryCondition(fetch, locals, params.id);
-  const simulator = await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/conditions/${condition.id}/simulator`, locals.accessToken) as Record<string, unknown> | null;
+  const simulator = condition?.id
+    ? await apiRequest(fetch, locals.apiBase, `/studies/${params.id}/conditions/${condition.id}/simulator`, locals.accessToken) as Record<string, unknown> | null
+    : null;
   const [study, readiness] = await Promise.all([
     apiRequest(fetch, locals.apiBase, `/studies/${params.id}`, locals.accessToken),
     apiRequest(fetch, locals.apiBase, `/studies/${params.id}/readiness`, locals.accessToken)
@@ -26,10 +29,13 @@ export const load = async ({ fetch, locals, params }) => {
   const simulatorConfiguration = simulator?.configuration && typeof simulator.configuration === 'object'
     ? simulator.configuration as Record<string, unknown>
     : {};
+  const effectiveConfig = (simulator?.simulatorType === 'mock' || Object.keys(savedTemplate).length > 0)
+    ? savedTemplate
+    : (Object.keys(simulatorConfiguration).length > 0 ? simulatorConfiguration : savedTemplate);
   return {
     study,
     readiness,
-    config: (simulator?.simulatorType === 'mock' ? savedTemplate : simulatorConfiguration) as Record<string, any>,
+    config: effectiveConfig as Record<string, any>,
     maps: ['Town01', 'Town02', 'Town03', 'Town04', 'Town05', 'Town10HD'],
     weather: ['ClearNoon', 'CloudyNoon', 'WetNoon', 'HardRainNoon', 'ClearSunset'],
     vehicles: ['vehicle.tesla.model3', 'vehicle.audi.tt', 'vehicle.lincoln.mkz_2020'],
@@ -49,7 +55,7 @@ function sensorEnabled(formData: FormData, key: string) {
   return formData.get(key) === 'on';
 }
 
-export const actions = {
+export const actions: Actions = {
   studyTransition: handleStudyTransition,
   saveSimulator: async ({ fetch, locals, params, request }) => {
     await requireRole(fetch, locals.apiBase, locals.accessToken, ['admin', 'researcher']);

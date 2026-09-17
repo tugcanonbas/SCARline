@@ -25,6 +25,7 @@ import { ExportWorker } from "./exports/service.js";
 import { registerExportRoutes } from "./routes/exports.js";
 import { registerEventRoutes } from "./routes/events.js";
 import { registerActivityRoutes } from "./routes/activity.js";
+import { registerSystemRoutes } from "./routes/system.js";
 import { registerDashboardRoute } from "./routes/dashboard.js";
 import path from "node:path";
 import { SessionOverlayService } from "./overlay/session-layout.js";
@@ -148,6 +149,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     await registerExportRoutes(app, runtime.pool, auth, exportsDirectory);
     await registerEventRoutes(app, runtime.pool, auth);
     await registerActivityRoutes(app, runtime.pool, auth);
+    await registerSystemRoutes(app, runtime.pool, auth);
   }
   app.addHook("onReady", async () => runtime.start());
   app.addHook("onClose", async () => runtime.stop());

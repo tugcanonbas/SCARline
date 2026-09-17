@@ -9,7 +9,7 @@
   import { formatDate, shortId } from "$lib/format";
   import { appPath } from "$lib/paths";
   import { SESSION_OPERATION_ACCESS_REQUIRED } from "$lib/permissions";
-  import { ChevronUp, ChevronDown } from "lucide-svelte";
+  import { ChevronUp, ChevronDown, Trash2 } from "lucide-svelte";
 
   let { data, form } = $props();
 
@@ -118,7 +118,7 @@
             {/each}
           </select>
         </label>
-
+        
         <!-- Conditions field: select and order in one list -->
         <div class="form-field required">
           <span>Conditions</span>
@@ -219,13 +219,50 @@
             </div>
           </div>
 
-          <div class="form-actions">
-            <a
-              class="button-secondary"
-              href={appPath(
-                `/user-studies/${data.studyId}/active-study?sessionId=${session.id}`,
-              )}>Open Active Study</a
-            >
+          <div class="session-card-footer">
+            <div class="form-actions">
+              <a
+                class="button-secondary"
+                href={appPath(
+                  `/user-studies/${data.studyId}/active-study?sessionId=${session.id}`,
+                )}>Open Active Study</a
+              >
+            </div>
+            {#if data.canOperate}
+              <form
+                method="POST"
+                action="?/delete"
+                onsubmit={(e) => {
+                  if (
+                    !confirm(
+                      `Delete session "${session.name ?? session.id}"? This cannot be undone.`,
+                    )
+                  )
+                    e.preventDefault();
+                }}
+              >
+                <input name="sessionId" type="hidden" value={session.id} />
+                <button
+                  class="button-icon-danger"
+                  type="submit"
+                  title="Delete session"
+                  aria-label="Delete session"
+                ><
+                  
+                  
+                  
+                  
+                  
+                  
+                  
+                  
+                  
+                  
+                  
+                  
+                  size={16} /></button>
+              </form>
+            {/if}
           </div>
         </div>
       {:else}
@@ -234,3 +271,33 @@
     </div>
   </SurfaceCard>
 </div>
+
+<style>
+  .session-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 0.75rem;
+    gap: 0.5rem;
+  }
+
+  .button-icon-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.375rem;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--color-danger, #ef4444);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    flex-shrink: 0;
+  }
+
+  .button-icon-danger:hover {
+    background: color-mix(in srgb, var(--color-danger, #ef4444) 12%, transparent);
+    border-color: color-mix(in srgb, var(--color-danger, #ef4444) 40%, transparent);
+  }
+</style>

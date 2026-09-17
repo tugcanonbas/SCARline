@@ -43,9 +43,11 @@ export const carlaServerProcessManager: CarlaServerProcessManager = {
       context.config.simulator.carla.public_host,
       context.config.simulator.carla.port,
     )) {
-      throw new ProjectError(
-        `CARLA RPC port ${context.config.simulator.carla.port} is already owned by a process that SCARline did not start. Stop it before retrying.`,
-      );
+      return { running: true, healthy: true, pid: null };
+    }
+
+    if (!context.config.simulator.autostart) {
+      return { running: false, healthy: false, pid: null };
     }
 
     const configuredExecutable = context.config.simulator.carla.executable;
