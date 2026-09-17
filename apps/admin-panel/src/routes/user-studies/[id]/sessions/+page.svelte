@@ -247,7 +247,20 @@
                   type="submit"
                   title="Delete session"
                   aria-label="Delete session"
-                ><Trash2 size={16} /></button>
+                ><
+                  
+                  
+                  
+                  
+                  
+                  
+                  
+                  
+                  
+                  
+                  
+                  
+                  size={16} /></button>
               </form>
             {/if}
           </div>

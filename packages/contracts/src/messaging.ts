@@ -30,7 +30,8 @@ export const EventSessionScopeSchema = z.union([
 export const EventRoutingKeySchema = z
   .string()
   .regex(
-    /^events\.(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|system)\.(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|global)\.[a-z][a-z0-9-]*\.[a-z][a-z0-9.-]*$/i,
+    // Sensor channel keys (for example heart_rate) are preserved in event names.
+    /^events\.(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|system)\.(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|global)\.[a-z][a-z0-9-]*\.[a-z][a-z0-9._-]*$/i,
   );
 
 export const RoutingKeySchema = z.union([

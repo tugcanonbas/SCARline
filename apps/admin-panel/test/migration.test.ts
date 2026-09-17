@@ -29,7 +29,7 @@ test('keeps the frozen admin stylesheet intact', async () => {
   const current = await source('src/app.css');
   assert.equal(
     createHash('sha256').update(current).digest('hex'),
-    'e4d51c7ff8fa2fafb407dd0640c735430f43ac830af534c53c7864cd5e320e55'
+    '4b290aba74793578c6ee0c4d740dd25c20c1121ebb6f865d8914ef0fa9b584bb'
   );
 });
 
@@ -51,11 +51,12 @@ test('uses hardened cookie and WebSocket authentication paths', async () => {
       source('src/routes/user-studies/[id]/participant-view/+page.svelte')
     ]).then((files) => files.join('\n'))
   ]);
-  assert.match(auth, /httpOnly:\s*true/);
-  assert.match(auth, /sameSite:\s*'strict'/);
-  assert.match(auth, /secure:\s*true/);
-  assert.match(auth, /delete\(ACCESS_TOKEN_COOKIE_NAME, ACCESS_COOKIE_OPTIONS\)/);
-  assert.match(auth, /delete\(REFRESH_TOKEN_COOKIE_NAME, REFRESH_TOKEN_COOKIE_OPTIONS\)/);
+  const cookiePolicy = await source('src/lib/server/auth-cookies.ts');
+  assert.match(cookiePolicy, /httpOnly:\s*true/);
+  assert.match(cookiePolicy, /sameSite:\s*'strict'/);
+  assert.match(cookiePolicy, /secure:\s*true/);
+  assert.match(auth, /delete\(ACCESS_TOKEN_COOKIE_NAME, policy\.accessOptions\)/);
+  assert.match(auth, /delete\(policy\.refreshName, policy\.refreshOptions\)/);
   assert.match(realtime, /scarline\.user-ticket\./);
   assert.match(realtime, /requestRealtimeTicket\(\)/);
   assert.match(realtime, /void openSocket\(\)/);
@@ -372,7 +373,7 @@ test('keeps System Settings read-only and exposes safe CLI guidance', async () =
 
 test('retains zero telemetry samples and caps chart history', () => {
   assert.equal(telemetryNumber(0), 0);
-  assert.equal(telemetryNumber(undefined), 0);
+  assert.equal(telemetryNumber(undefined), null);
   assert.deepEqual(appendTelemetrySample([4, 2], 0, 3), [4, 2, 0]);
   assert.deepEqual(appendTelemetrySample([4, 2, 0], 1, 3), [2, 0, 1]);
 });

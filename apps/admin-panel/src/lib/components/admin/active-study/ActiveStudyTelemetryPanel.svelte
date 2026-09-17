@@ -1,6 +1,7 @@
 <script lang="ts">
   import KeyValueGrid from "$lib/components/KeyValueGrid.svelte";
   import SurfaceCard from "$lib/components/SurfaceCard.svelte";
+  import { telemetryNumber, type TelemetrySample } from "$lib/telemetry";
 
   let {
     vehicleState,
@@ -10,10 +11,10 @@
     miniChart,
   } = $props<{
     vehicleState: Record<string, unknown>;
-    speedHistory?: number[];
-    throttleHistory?: number[];
-    brakeHistory?: number[];
-    miniChart: (data: number[], color: string, maxVal?: number) => string;
+    speedHistory?: TelemetrySample[];
+    throttleHistory?: TelemetrySample[];
+    brakeHistory?: TelemetrySample[];
+    miniChart: (data: TelemetrySample[], color: string, maxVal?: number) => string;
   }>();
 </script>
 
@@ -43,7 +44,7 @@
       <div class="telemetry-tile__header">
         <span class="telemetry-tile__label">Throttle</span>
         <span class="telemetry-tile__value"
-          >{Math.round(Number(vehicleState.throttle ?? 0) * 100)}%</span
+          >{telemetryNumber(vehicleState.throttle) === null ? '—' : `${Math.round(Number(vehicleState.throttle) * 100)}%`}</span
         >
       </div>
       {#if throttleHistory.length > 1}
@@ -60,7 +61,7 @@
       <div class="telemetry-tile__header">
         <span class="telemetry-tile__label">Brake</span>
         <span class="telemetry-tile__value"
-          >{Math.round(Number(vehicleState.brake ?? 0) * 100)}%</span
+          >{telemetryNumber(vehicleState.brake) === null ? '—' : `${Math.round(Number(vehicleState.brake) * 100)}%`}</span
         >
       </div>
       {#if brakeHistory.length > 1}

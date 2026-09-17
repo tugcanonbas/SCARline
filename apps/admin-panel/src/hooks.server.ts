@@ -1,7 +1,13 @@
-import type { Handle, HandleFetch } from '@sveltejs/kit';
+import { redirect, type Handle, type HandleFetch } from '@sveltejs/kit';
 import { ACCESS_TOKEN_COOKIE_NAME, clearAuthSession, refreshAuthSession } from '$lib/server/auth';
 
 export const handle: Handle = async ({ event, resolve }) => {
+  if (event.url.pathname === '/admin' || event.url.pathname.startsWith('/admin/')) {
+    // One leading slash keeps the redirect on the browser's current origin.
+    const pathname = event.url.pathname.slice('/admin'.length).replace(/^\/+/, '/') || '/';
+    throw redirect(308, `${pathname}${event.url.search}`);
+  }
+
   event.locals.apiBase = process.env.CORE_API_ORIGIN ?? 'http://127.0.0.1:8088/api/v1';
   event.locals.publicApiBase = process.env.PUBLIC_CORE_API_ORIGIN ?? 'http://127.0.0.1:8088/api/v1';
   event.locals.webSocketOrigin = process.env.PUBLIC_CORE_API_WEBSOCKET_ORIGIN ?? 'ws://127.0.0.1:8088';

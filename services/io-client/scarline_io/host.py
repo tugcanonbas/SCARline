@@ -142,6 +142,7 @@ class IoHost:
     async def _samples(self, active: ActiveDevice, sensor: dict[str, Any]) -> None:
         rate = max(0.1, float(sensor.get("sampleRate", 1))); delay = 1 / rate; sequence = 0
         batch: list[dict[str, Any]] = []; first_timestamp = timestamp(); started = asyncio.get_running_loop().time()
+        sample_timestamps: list[str] = []
         try:
             while active.driver.connected:
                 if not active.driver.running:
@@ -150,12 +151,15 @@ class IoHost:
                 if reading:
                     if not batch: first_timestamp = reading.source_timestamp; started = asyncio.get_running_loop().time()
                     batch.append(reading.sample)
+                    sample_timestamps.append(reading.source_timestamp)
                     await self._publish_realtime_control(active, reading, sequence + len(batch) - 1)
                 elapsed_ms = (asyncio.get_running_loop().time() - started) * 1000
-                if batch and (len(batch) >= self.options.batch_max_samples or elapsed_ms >= self.options.batch_max_milliseconds):
-                    payload = {"sessionConditionId":active.condition_id,"deviceId":active.device["deviceId"],"sensorId":sensor["sensorId"],"sourceKey":active.device["sourceKey"],"channelKey":sensor["key"],"sequenceStart":sequence,"sampleRate":rate,"sourceTimestamp":first_timestamp,"droppedSamples":reading.dropped_samples if reading else 0,"samples":batch}
+                # Slow channels should not wait for the next reading to flush this one.
+                if batch and (len(batch) >= self.options.batch_max_samples or elapsed_ms >= self.options.batch_max_milliseconds
+                              or delay * 1000 >= self.options.batch_max_milliseconds):
+                    payload = {"sessionConditionId":active.condition_id,"deviceId":active.device["deviceId"],"sensorId":sensor["sensorId"],"sourceKey":active.device["sourceKey"],"channelKey":sensor["key"],"sequenceStart":sequence,"sampleRate":rate,"sourceTimestamp":first_timestamp,"sampleTimestamps":sample_timestamps,"droppedSamples":reading.dropped_samples if reading else 0,"samples":batch}
                     await self.publish(envelope(f"events.{active.study_id}.{active.session_id}.{sensor.get('modality') or 'sensor'}.io.{sensor['key']}", payload, study_id=active.study_id, session_id=active.session_id, instance_id=self.instance_id))
-                    sequence += len(batch); batch = []
+                    sequence += len(batch); batch = []; sample_timestamps = []
                 await asyncio.sleep(delay)
         except asyncio.CancelledError:
             raise

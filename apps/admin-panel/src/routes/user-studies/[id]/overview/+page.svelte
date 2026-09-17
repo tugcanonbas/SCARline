@@ -250,7 +250,7 @@
   </div>
 </details>
 
-<div class="metric-grid mt-4">
+<div class="metric-grid">
   <MetricCard
     label={STUDY_SECTIONS.participants.label}
     value={participantCount}

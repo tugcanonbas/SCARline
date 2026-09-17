@@ -73,7 +73,7 @@
         title={!data.canManage ? STUDY_DESIGN_ACCESS_REQUIRED : undefined}
       >
         <label class="form-field required">
-          <span>Participant Code</span>
+          <span>Participant Number</span>
           <input name="participantCode" placeholder="P-001" required />
         </label>
         <label class="form-field">

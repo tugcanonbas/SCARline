@@ -2,21 +2,13 @@ import type { Cookies, RequestEvent } from '@sveltejs/kit';
 import { createHash } from 'node:crypto';
 import {
   AccessTokenResponseSchema,
-  REFRESH_TOKEN_COOKIE_NAME,
-  REFRESH_TOKEN_COOKIE_OPTIONS
+  REFRESH_TOKEN_COOKIE_NAME
 } from '@scarline/contracts';
 import { appPath, stripAppBase } from '$lib/paths';
 import { SingleFlightCache } from '$lib/server/single-flight';
+import { authCookies } from './auth-cookies';
 
 export const ACCESS_TOKEN_COOKIE_NAME = 'scarline_access_token';
-
-const ACCESS_COOKIE_OPTIONS = {
-  path: '/',
-  httpOnly: true,
-  sameSite: 'strict' as const,
-  secure: true,
-  priority: 'high' as const
-};
 
 interface RefreshResult {
   readonly ok: boolean;
@@ -29,38 +21,40 @@ interface RefreshResult {
 // token twice and mistakes normal browser concurrency for token theft.
 const refreshFlights = new SingleFlightCache<RefreshResult>(2_000);
 
-export function clearAuthSession({ cookies, locals }: Pick<RequestEvent, 'cookies' | 'locals'>) {
-  cookies.delete(ACCESS_TOKEN_COOKIE_NAME, ACCESS_COOKIE_OPTIONS);
-  cookies.delete(REFRESH_TOKEN_COOKIE_NAME, REFRESH_TOKEN_COOKIE_OPTIONS);
+export function clearAuthSession({ cookies, locals, url }: Pick<RequestEvent, 'cookies' | 'locals' | 'url'>) {
+  const policy = authCookies(url);
+  cookies.delete(ACCESS_TOKEN_COOKIE_NAME, policy.accessOptions);
+  cookies.delete(policy.refreshName, policy.refreshOptions);
   locals.accessToken = null;
 }
 
-export function setAccessSession(cookies: Cookies, value: unknown): App.AuthenticatedUser {
+export function setAccessSession(cookies: Cookies, value: unknown, url: URL): App.AuthenticatedUser {
   const parsed = AccessTokenResponseSchema.parse(value);
   cookies.set(ACCESS_TOKEN_COOKIE_NAME, parsed.accessToken, {
-    ...ACCESS_COOKIE_OPTIONS,
+    ...authCookies(url).accessOptions,
     expires: new Date(parsed.accessTokenExpiresAt)
   });
   return parsed.user;
 }
 
-export function captureRefreshCookie(response: Response, cookies: Cookies): void {
-  captureRefreshCookieValue(response.headers.get('set-cookie'), cookies);
+export function captureRefreshCookie(response: Response, cookies: Cookies, url: URL): void {
+  captureRefreshCookieValue(response.headers.get('set-cookie'), cookies, url);
 }
 
-function captureRefreshCookieValue(raw: string | null, cookies: Cookies): void {
+function captureRefreshCookieValue(raw: string | null, cookies: Cookies, url: URL): void {
   if (!raw) return;
   const cookie = raw.split(';', 1)[0] ?? '';
   const separator = cookie.indexOf('=');
   if (separator < 0 || cookie.slice(0, separator) !== REFRESH_TOKEN_COOKIE_NAME) return;
   const value = cookie.slice(separator + 1);
+  const policy = authCookies(url);
   if (!value) {
-    cookies.delete(REFRESH_TOKEN_COOKIE_NAME, REFRESH_TOKEN_COOKIE_OPTIONS);
+    cookies.delete(policy.refreshName, policy.refreshOptions);
     return;
   }
   const maxAgeMatch = raw.match(/(?:^|;)\s*Max-Age=(\d+)/i);
-  cookies.set(REFRESH_TOKEN_COOKIE_NAME, value, {
-    ...REFRESH_TOKEN_COOKIE_OPTIONS,
+  cookies.set(policy.refreshName, value, {
+    ...policy.refreshOptions,
     ...(maxAgeMatch ? { maxAge: Number(maxAgeMatch[1]) } : {})
   });
 }
@@ -74,7 +68,7 @@ function authHeaders(event: Pick<RequestEvent, 'url'>, includeCookie?: string): 
 }
 
 export async function refreshAuthSession(event: RequestEvent): Promise<boolean> {
-  const refreshToken = event.cookies.get(REFRESH_TOKEN_COOKIE_NAME);
+  const refreshToken = event.cookies.get(authCookies(event.url).refreshName);
   if (!refreshToken) return false;
   const key = createHash('sha256').update(refreshToken).digest('base64url');
   const result = await refreshFlights.run(key, async () => {
@@ -94,14 +88,14 @@ export async function refreshAuthSession(event: RequestEvent): Promise<boolean> 
     return false;
   }
   const payload = result.payload as { data?: unknown };
-  setAccessSession(event.cookies, payload.data);
-  captureRefreshCookieValue(result.setCookie, event.cookies);
+  setAccessSession(event.cookies, payload.data, event.url);
+  captureRefreshCookieValue(result.setCookie, event.cookies, event.url);
   event.locals.accessToken = AccessTokenResponseSchema.parse(payload.data).accessToken;
   return true;
 }
 
 export async function logoutAuthSession(event: RequestEvent): Promise<void> {
-  const refreshToken = event.cookies.get(REFRESH_TOKEN_COOKIE_NAME);
+  const refreshToken = event.cookies.get(authCookies(event.url).refreshName);
   if (refreshToken) {
     await globalThis.fetch(`${event.locals.apiBase}/auth/logout`, {
       method: 'POST',

@@ -35,6 +35,9 @@ export function createRealtimeStore() {
     } = {},
     webSocketOrigin?: string
   ) {
+    if (currentFilters.studyId !== filters.studyId || currentFilters.sessionId !== filters.sessionId) {
+      telemetry.set({}); events.set([]); lifecycle.set([]); widgets.set([]); sensorStatus.set([]);
+    }
     currentChannels = channels;
     currentFilters = filters;
     currentOrigin = webSocketOrigin;

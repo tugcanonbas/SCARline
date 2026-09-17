@@ -6,6 +6,7 @@
   import ActiveStudySessionContext from "$lib/components/admin/active-study/ActiveStudySessionContext.svelte";
   import ActiveStudyTelemetryPanel from "$lib/components/admin/active-study/ActiveStudyTelemetryPanel.svelte";
   import ActiveStudyWidgetUpdatesPanel from "$lib/components/admin/active-study/ActiveStudyWidgetUpdatesPanel.svelte";
+  import ActiveStudyWidgetDataPanel from "$lib/components/admin/active-study/ActiveStudyWidgetDataPanel.svelte";
   import ActiveStudyWindowManagerPanel from "$lib/components/admin/active-study/ActiveStudyWindowManagerPanel.svelte";
   import MetricCard from "$lib/components/admin/MetricCard.svelte";
   import PageHeader from "$lib/components/PageHeader.svelte";
@@ -14,7 +15,7 @@
   import { createRealtimeStore } from "$lib/stores/realtime";
   import { formatDate, formatStatusLabel, shortId } from "$lib/format";
   import { appPath } from "$lib/paths";
-  import { appendTelemetrySample, telemetryNumber } from "$lib/telemetry";
+  import { appendTelemetryReading, type TelemetrySample } from "$lib/telemetry";
   import { untrack } from "svelte";
 
   // Route-level regression marker preserved for source-inspection tests:
@@ -58,7 +59,11 @@
   const latestTelemetry = $derived(
     ($telemetry.__latest ?? {}) as Record<string, unknown>,
   );
-  const vehicleState = $derived(vehicle(latestTelemetry));
+  let telemetryClock = $state(Date.now());
+  $effect(() => { const timer = setInterval(() => { telemetryClock = Date.now(); }, 500); return () => clearInterval(timer); });
+  const telemetryFresh = $derived($socketState === "open" && typeof latestTelemetry.timestamp === "string"
+    && telemetryClock - Date.parse(latestTelemetry.timestamp) <= 5_000);
+  const vehicleState = $derived(telemetryFresh ? vehicle(latestTelemetry) : {});
   const selectedSessionObj = $derived(
     (data.sessions as SessionOption[]).find(
       (session) => session.id === selectedSession,
@@ -118,36 +123,38 @@
   }
 
   // ─── Telemetry history for mini charts (last 60 data points) ────────────────
-  const MAX_HISTORY = 60;
-  let speedHistory = $state<number[]>([]);
-  let throttleHistory = $state<number[]>([]);
-  let brakeHistory = $state<number[]>([]);
+  let speedHistory = $state<TelemetrySample[]>([]);
+  let throttleHistory = $state<TelemetrySample[]>([]);
+  let brakeHistory = $state<TelemetrySample[]>([]);
+  $effect(() => { selectedSession; speedHistory = []; throttleHistory = []; brakeHistory = []; });
 
   $effect(() => {
     const v = vehicle(latestTelemetry);
-    const speed = telemetryNumber(v.speed);
-    const throttle = telemetryNumber(v.throttle);
-    const brake = telemetryNumber(v.brake);
-    speedHistory = appendTelemetrySample(untrack(() => speedHistory), speed, MAX_HISTORY);
-    throttleHistory = appendTelemetrySample(untrack(() => throttleHistory), throttle, MAX_HISTORY);
-    brakeHistory = appendTelemetrySample(untrack(() => brakeHistory), brake, MAX_HISTORY);
+    if (!["speed", "throttle", "brake"].some((key) => key in v)) return;
+    speedHistory = appendTelemetryReading(untrack(() => speedHistory), v.speed, latestTelemetry.timestamp);
+    throttleHistory = appendTelemetryReading(untrack(() => throttleHistory), v.throttle, latestTelemetry.timestamp);
+    brakeHistory = appendTelemetryReading(untrack(() => brakeHistory), v.brake, latestTelemetry.timestamp);
   });
 
-  function miniChart(data: number[], color: string, maxVal?: number): string {
+  function miniChart(data: TelemetrySample[], color: string, maxVal?: number): string {
     if (data.length < 2) return "";
     const W = 120;
     const H = 32;
-    const max = Math.max(maxVal ?? Math.max(...data, 1), 1);
-    const pts = data
-      .map((v, i) => {
-        const x = (i / (data.length - 1)) * W;
-        const y = H - (v / max) * H;
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      })
-      .join(" ");
+    const max = Math.max(maxVal ?? Math.max(...data.flatMap((point) => point.value === null ? [] : [point.value]), 1), 1);
+    const first = data[0]!.timestamp;
+    const span = Math.max(1, data.at(-1)!.timestamp - first);
+    let previous: TelemetrySample | null = null;
+    let pts = "";
+    for (const point of data) {
+      if (point.value === null) { previous = null; continue; }
+      const x = (point.timestamp - first) / span * W;
+      const y = H - point.value / max * H;
+      pts += `${!previous || point.timestamp - previous.timestamp > 5000 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)} `;
+      previous = point;
+    }
     return (
       `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" style="display:block">` +
-      `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+      `<path d="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`
     );
   }
 
@@ -728,6 +735,7 @@
     widgetUpdates={$widgetUpdates}
     {widgetTitle}
   />
+  <ActiveStudyWidgetDataPanel sessionId={selectedSession} />
 </div>
 
 <div class="mt-4">

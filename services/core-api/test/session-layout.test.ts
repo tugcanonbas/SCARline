@@ -52,7 +52,7 @@ function pool() {
           rowCount: 2,
         };
       }
-      if (text.includes("SELECT runtime_metadata FROM session_conditions")) return { rows: [{ runtime_metadata: {} }], rowCount: 1 };
+      if (text.includes("SELECT id,runtime_metadata FROM session_conditions")) return { rows: [{ runtime_metadata: {} }], rowCount: 1 };
       throw new Error(`Unexpected session layout query: ${text}`);
     },
   } as unknown as Pool;

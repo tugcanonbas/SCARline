@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { WidgetBindingDataSchema } from "./widget.js";
 
 import {
   IsoDateTimeSchema,
@@ -106,6 +107,10 @@ export const ParticipantLayoutBulkSaveSchema = z
 export const ParticipantLayoutBulkSaveResultSchema = z
   .object({
     primaryLayoutId: UuidSchema,
+    widgets: z.array(z.object({
+      id: UuidSchema,
+      order: z.number().int().nonnegative(),
+    }).strict()),
     layouts: z.array(z.object({
       conditionId: UuidSchema,
       layoutId: UuidSchema,
@@ -185,6 +190,7 @@ export const OverlayRuntimeScopeSchema = z
     conditionId: UuidSchema,
     layoutId: UuidSchema,
     instanceId: UuidSchema.nullable(),
+    previewId: UuidSchema.optional(),
   })
   .strict();
 
@@ -208,6 +214,8 @@ export const OverlayRuntimeWidgetSchema = z
     bindingsConfig: JsonObjectSchema,
     styleOverrides: JsonObjectSchema,
     bindings: JsonObjectSchema,
+    bindingData: z.record(z.string(), WidgetBindingDataSchema).default({}),
+    revision: z.number().int().nonnegative().default(0),
     state: z.enum(["visible", "hidden", "highlighted"]),
   })
   .strict();
@@ -215,6 +223,7 @@ export const OverlayRuntimeWidgetSchema = z
 export const OverlayRuntimeSnapshotSchema = z
   .object({
     scope: OverlayRuntimeScopeSchema,
+    sessionConditionId: UuidSchema.nullable().default(null),
     layout: z
       .object({
         id: UuidSchema,
@@ -365,6 +374,8 @@ export const OverlayRuntimeServerMessageSchema = z.discriminatedUnion("type", [
       type: z.literal("overlay.runtime.bindings"),
       instanceId: UuidSchema,
       bindings: JsonObjectSchema,
+      bindingData: z.record(z.string(), WidgetBindingDataSchema).optional(),
+      revision: z.number().int().nonnegative().optional(),
     })
     .strict(),
   z

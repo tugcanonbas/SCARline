@@ -385,7 +385,7 @@ export class AuthService {
 
   async exchangeOverlayBootstrapToken(
     token: string,
-  ): Promise<{ token: string; expiresAt: string; scope: OverlayRuntimeScope }> {
+  ): Promise<{ token: string; expiresAt: string; scope: OverlayRuntimeScope; rendererId: string }> {
     let claims;
     try {
       const verified = await jwtVerify(token, this.#jwtKey, {
@@ -404,32 +404,40 @@ export class AuthService {
       Date.now()
         + this.#config.project.api.overlay_renderer_session_ttl_hours * 3_600_000,
     );
+    const rendererId = randomUUID();
+    // Preview state belongs to this launch, including its child windows.
+    const scope = claims.scope.sessionId === null
+      ? { ...claims.scope, previewId: rendererId }
+      : claims.scope;
     const sessionToken = await new SignJWT({
       tokenType: "overlay-render-session",
-      scope: claims.scope,
+      scope,
     })
       .setProtectedHeader({ alg: "HS256" })
       .setIssuer("scarline-core-api")
       .setAudience("scarline-overlay-renderer")
       .setSubject(claims.sub)
-      .setJti(randomUUID())
+      .setJti(rendererId)
       .setIssuedAt()
       .setExpirationTime(Math.floor(expiresAt.getTime() / 1_000))
       .sign(this.#jwtKey);
     return {
       token: sessionToken,
       expiresAt: expiresAt.toISOString(),
-      scope: claims.scope,
+      scope,
+      rendererId,
     };
   }
 
-  async verifyOverlayRenderSession(token: string): Promise<OverlayRuntimeScope> {
+  async verifyOverlayRenderSession(token: string, rendererId?: string): Promise<OverlayRuntimeScope> {
     try {
       const verified = await jwtVerify(token, this.#jwtKey, {
         issuer: "scarline-core-api",
         audience: "scarline-overlay-renderer",
       });
-      return OverlayRenderSessionClaimsSchema.parse(verified.payload).scope;
+      const claims = OverlayRenderSessionClaimsSchema.parse(verified.payload);
+      if (rendererId !== undefined && claims.jti !== rendererId) throw new Error("Renderer session does not match this launch.");
+      return claims.scope;
     } catch {
       throw new ApiProblem(401, "INVALID_OVERLAY_SESSION", "Invalid overlay renderer session.");
     }

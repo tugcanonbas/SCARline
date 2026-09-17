@@ -27,8 +27,8 @@ export const actions = {
     });
     const payload = await response.json().catch(() => null);
     if (!response.ok || !payload?.data) return fail(response.status || 401, { message: 'Invalid username or password' });
-    const user = setAccessSession(event.cookies, payload.data);
-    captureRefreshCookie(response, event.cookies);
+    const user = setAccessSession(event.cookies, payload.data, event.url);
+    captureRefreshCookie(response, event.cookies, event.url);
     event.locals.accessToken = payload.data.accessToken;
     throw redirect(303, appPath(user.passwordResetRequired ? '/change-password' : redirectTo));
   }

@@ -110,7 +110,7 @@ const compose = {
         SCARLINE_WIDGETS_DIRECTORY: "/app/widgets",
       },
       depends_on: { "core-api": { condition: "service_healthy" } },
-      healthcheck: { test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173/admin/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"], interval: "2s", timeout: "3s", retries: 30, start_period: "5s" },
+      healthcheck: { test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"], interval: "2s", timeout: "3s", retries: 30, start_period: "5s" },
       ports: [`127.0.0.1:${ports.admin}:5173`],
     },
     "overlay-web": {
@@ -175,7 +175,7 @@ try {
     SCARLINE_SMOKE_POSTGRES_PORT: String(ports.database),
     SCARLINE_SMOKE_ORIGIN: adminOrigin,
     SCARLINE_SMOKE_BASE_URL: coreOrigin,
-    SCARLINE_SMOKE_ADMIN_BASE_URL: `${adminOrigin}/admin`,
+    SCARLINE_SMOKE_ADMIN_BASE_URL: adminOrigin,
   };
   await run("node", ["services/core-api/scripts/live-smoke.mjs"], { env: sharedEnvironment });
   await run("npx", ["playwright", "test"], {

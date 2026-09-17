@@ -1,6 +1,8 @@
 import type { FastifyBaseLogger } from "fastify";
 import type { Pool } from "pg";
 import { randomUUID } from "node:crypto";
+import { projectWidgetData, receiveWidgetData, clearLiveWidgetData } from "../overlay/live-data.js";
+import { WidgetMetadataSchema } from "@scarline/contracts";
 import {
   OverlayHostCommandSchema,
   OverlayDisplaySchema,
@@ -11,6 +13,7 @@ import {
   type OverlayRuntimeScope,
   type OverlayRuntimeSnapshot,
   type WebSocketChannel,
+  type WidgetMetadata,
 } from "@scarline/contracts";
 
 import type { AuthenticatedPrincipal } from "../auth/service.js";
@@ -41,6 +44,7 @@ interface OverlayRendererConnection {
   readonly socket: SocketLike;
   readonly scope: OverlayRuntimeScope;
   readonly snapshot: OverlayRuntimeSnapshot;
+  readonly metadata: Map<string, WidgetMetadata>;
 }
 
 interface OverlayHostConnection {
@@ -102,6 +106,8 @@ export class RealtimeHub {
   readonly #overlayHosts = new Map<string, OverlayHostRecord>();
   readonly #pendingOverlayCommands = new Map<string, PendingOverlayCommand>();
   readonly #renderers = new Set<OverlayRendererConnection>();
+  readonly #dirtyRenderers = new WeakSet<OverlayRendererConnection>();
+  readonly #lastLiveDelivery = new WeakMap<OverlayRendererConnection, number>();
   readonly #components = new Map<string, { component: string; instanceId: string | null; status: string; adapters: string[]; updatedAt: string; metadata: Record<string, unknown> }>();
   #selectedOverlayHostId: string | null = null;
   #overlaySelectionExplicit = false;
@@ -109,6 +115,17 @@ export class RealtimeHub {
   constructor(pool: Pool, logger: FastifyBaseLogger) {
     this.#pool = pool;
     this.#logger = logger;
+    // Keep every sample in the cache, but send one current projection per 100 ms.
+    // Silent sources still get a freshness update once a second, without new samples.
+    setInterval(() => {
+      for (const connection of this.#renderers) {
+        if (connection.socket.readyState !== 1 || connection.scope.sessionId === null) continue;
+        if (this.#dirtyRenderers.has(connection)
+          || Date.now() - (this.#lastLiveDelivery.get(connection) ?? 0) >= 1_000) {
+          this.#sendLiveData(connection);
+        }
+      }
+    }, 100).unref();
   }
 
   attachUser(socket: SocketLike, principal: AuthenticatedPrincipal): void {
@@ -164,28 +181,25 @@ export class RealtimeHub {
     socket.on("error", (error) => this.#logger.warn({ err: error, hostId: connection.hostId }, "Overlay WebSocket error"));
   }
 
-  async attachRenderer(socket: SocketLike, scope: OverlayRuntimeScope): Promise<void> {
+  async attachRenderer(socket: SocketLike, scope: OverlayRuntimeScope, lifecycleOnly = false): Promise<void> {
     const status = this.overlayStatus as { displays?: unknown };
     const snapshot = await loadOverlayRuntimeSnapshot(
       this.#pool,
       scope,
       OverlayDisplaySchema.array().parse(Array.isArray(status.displays) ? status.displays : []),
     );
-    const connection: OverlayRendererConnection = { socket, scope, snapshot };
+    if (lifecycleOnly) snapshot.widgets = [];
+    const connection: OverlayRendererConnection = { socket, scope, snapshot,
+      metadata: new Map(snapshot.widgets.map((widget) => [widget.instanceId, WidgetMetadataSchema.parse(widget.metadata)])) };
     this.#renderers.add(connection);
+    this.#lastLiveDelivery.set(connection, Date.now());
     socket.send(JSON.stringify({ type: "overlay.runtime.ready", scope }));
     for (const widget of snapshot.widgets) {
-      if (Object.keys(widget.bindings).length > 0) {
-        socket.send(JSON.stringify({
-          type: "overlay.runtime.bindings",
-          instanceId: widget.instanceId,
-          bindings: widget.bindings,
-        }));
-      }
       socket.send(JSON.stringify({
-        type: "overlay.runtime.state",
+        type: "overlay.runtime.trigger",
         instanceId: widget.instanceId,
-        state: widget.state,
+        trigger: { action: "reset", snapshot: true, state: widget.state,
+          bindingValues: widget.bindings, bindingData: widget.bindingData, revision: widget.revision },
       }));
     }
     socket.on("close", () => this.#renderers.delete(connection));
@@ -601,7 +615,55 @@ export class RealtimeHub {
     this.broadcast(channel, data, message.metadata.studyId, message.metadata.sessionId);
   }
 
+  recordWidgetEvent(message: MessageEnvelope): void {
+    receiveWidgetData(this.#pool, message, message.metadata.studyId, message.metadata.sessionId);
+    this.#queueLiveData(message.metadata.studyId, message.metadata.sessionId);
+  }
+
+  #queueLiveData(studyId: string | null, sessionId: string | null): void {
+    if (sessionId === null) return;
+    for (const connection of this.#renderers) {
+      if (connection.scope.studyId === studyId && connection.scope.sessionId === sessionId) {
+        this.#dirtyRenderers.add(connection);
+      }
+    }
+  }
+
+  #sendLiveData(connection: OverlayRendererConnection): void {
+    this.#dirtyRenderers.delete(connection);
+    this.#lastLiveDelivery.set(connection, Date.now());
+    for (const widget of connection.snapshot.widgets) {
+      const metadata = connection.metadata.get(widget.instanceId)!;
+      const projected = projectWidgetData(this.#pool, { studyId: connection.scope.studyId,
+        sessionId: connection.scope.sessionId, sessionConditionId: connection.snapshot.sessionConditionId,
+        metadata, bindingsConfig: widget.bindingsConfig,
+        bindings: widget.bindings, bindingData: widget.bindingData });
+      const bindings = Object.fromEntries(metadata.bindings.filter((binding) => binding.source === "live")
+        .map(({ key }) => [key, projected.bindings[key]]));
+      const bindingData = Object.fromEntries(Object.keys(bindings).map((key) => {
+        const detail = projected.bindingData[key]!;
+        // Array bindings already carry these points. The bridge restores the
+        // history reference locally, avoiding a second copy on the wire.
+        return [key, Array.isArray(bindings[key]) && bindings[key] === detail.history
+          ? { ...detail, history: undefined } : detail];
+      }));
+      if (Object.keys(bindings).length) connection.socket.send(JSON.stringify({
+        type: "overlay.runtime.bindings", instanceId: widget.instanceId, bindings, bindingData, revision: widget.revision,
+      }));
+    }
+  }
+
   broadcast(channel: WebSocketChannel, data: unknown, studyId: string | null, sessionId: string | null): void {
+    if (["session.telemetry", "sensor.status", "session.events"].includes(channel)) {
+      receiveWidgetData(this.#pool, data, studyId, sessionId);
+      this.#queueLiveData(studyId, sessionId);
+    }
+    if (channel === "session.lifecycle" && studyId && sessionId) {
+      const lifecycle = readObject(data);
+      if (["completed", "aborted", "failed"].includes(String(lifecycle.status)) || lifecycle.commandAction === "advance") {
+        clearLiveWidgetData(this.#pool, studyId, sessionId);
+      }
+    }
     const serialized = JSON.stringify({ type: "data", channel, timestamp: new Date().toISOString(), data });
     for (const connection of this.#users) {
       const matches = connection.subscriptions.some((subscription) =>
@@ -623,7 +685,7 @@ export class RealtimeHub {
       if (
         connection.socket.readyState !== 1
         || connection.scope.studyId !== studyId
-        || (connection.scope.sessionId !== null && connection.scope.sessionId !== sessionId)
+        || connection.scope.sessionId !== sessionId
       ) continue;
       if (channel === "session.lifecycle") {
         const lifecycle = readObject(data);
@@ -642,6 +704,7 @@ export class RealtimeHub {
               type: "overlay.runtime.close",
               reason: "session-terminal",
             }));
+            this.#renderers.delete(connection);
           } else if (
             lifecycle.commandAction === "advance"
             && typeof lifecycle.activeConditionId === "string"
@@ -651,6 +714,7 @@ export class RealtimeHub {
               type: "overlay.runtime.close",
               reason: "condition-changed",
             }));
+            this.#renderers.delete(connection);
           }
         }
         continue;
@@ -658,8 +722,11 @@ export class RealtimeHub {
       if (channel === "session.telemetry" || channel === "sensor.status" || channel === "session.events") {
         const payload = normalizeBindingPayload(data);
         for (const widget of connection.snapshot.widgets) {
+          const metadata = connection.metadata.get(widget.instanceId)!;
           const bindings: Record<string, unknown> = {};
-          for (const binding of readBindings(widget.metadata)) {
+          for (const declaration of metadata.bindings) {
+            if (declaration.source === "live") continue;
+            const binding = declaration.key;
             const configured = widget.bindingsConfig[binding] ?? binding;
             const value = safeGet(payload, String(configured));
             if (value !== undefined) bindings[binding] = value;
@@ -669,6 +736,8 @@ export class RealtimeHub {
               type: "overlay.runtime.bindings",
               instanceId: widget.instanceId,
               bindings,
+              bindingData: Object.fromEntries(Object.keys(bindings).map((key) => [key, widget.bindingData[key]])),
+              revision: widget.revision,
             }));
           }
         }
@@ -676,21 +745,30 @@ export class RealtimeHub {
       }
       if (channel === "widget.updates") {
         const update = readObject(data);
+        if (connection.scope.sessionId === null && connection.scope.previewId !== update.previewId) continue;
+        if (typeof update.conditionId === "string" && update.conditionId !== connection.scope.conditionId) continue;
         for (const widget of connection.snapshot.widgets) {
           if (!targetsWidget(update, widget.instanceId, widget.widgetKey)) continue;
-          const state = normalizeRuntimeState(update.state ?? update.action);
+          if (typeof update.revision === "number") {
+            if (update.revision < widget.revision) continue;
+            widget.revision = update.revision;
+          }
+          if (update.action === "reset") {
+            widget.bindings = readObject(update.bindingValues);
+            if (update.bindingData) widget.bindingData = update.bindingData as typeof widget.bindingData;
+          } else {
+            Object.assign(widget.bindings, readObject(update.bindingValues));
+            for (const key of Object.keys(readObject(update.bindingValues))) {
+              const prior = widget.bindingData[key];
+              if (prior) widget.bindingData[key] = { ...prior, source: "study", status: "ready",
+                sourceKey: update.source === "admin-panel" ? "Researcher override" : "Study interaction", history: [] };
+            }
+          }
           connection.socket.send(JSON.stringify({
             type: "overlay.runtime.trigger",
             instanceId: widget.instanceId,
             trigger: update,
           }));
-          if (state !== null) {
-            connection.socket.send(JSON.stringify({
-              type: "overlay.runtime.state",
-              instanceId: widget.instanceId,
-              state,
-            }));
-          }
         }
       }
     }
@@ -792,16 +870,6 @@ function normalizeBindingPayload(data: unknown): Record<string, unknown> {
   return normalized;
 }
 
-function readBindings(metadata: Record<string, unknown>): string[] {
-  const bindings = metadata.bindings;
-  return Array.isArray(bindings)
-    ? bindings.flatMap((binding) => {
-        const key = readObject(binding).key;
-        return typeof key === "string" ? [key] : [];
-      })
-    : [];
-}
-
 function targetsWidget(update: Record<string, unknown>, instanceId: string, widgetKey: string): boolean {
   const selectors = [
     update.instanceId !== undefined,
@@ -814,11 +882,4 @@ function targetsWidget(update: Record<string, unknown>, instanceId: string, widg
     || (update.widgetId !== undefined && String(update.widgetId) === widgetKey)
     || (Array.isArray(update.instanceIds) && update.instanceIds.map(String).includes(instanceId))
     || (Array.isArray(update.widgetIds) && update.widgetIds.map(String).includes(widgetKey));
-}
-
-function normalizeRuntimeState(value: unknown): "visible" | "hidden" | "highlighted" | null {
-  if (value === "show" || value === "reset" || value === "visible") return "visible";
-  if (value === "hide" || value === "hidden") return "hidden";
-  if (value === "highlight" || value === "highlighted") return "highlighted";
-  return null;
 }
