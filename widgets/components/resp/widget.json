@@ -10,28 +10,39 @@
       "type": "number",
       "unit": "rpm",
       "description": "Current respiration rate.",
-      "default": 18
+      "source": "live",
+      "staleAfterMs": 5000,
+      "preview": 18
     },
     "vitals.respiration_unit": {
       "type": "string",
       "description": "Display unit for respiration rate.",
-      "default": "rpm"
+      "default": "rpm",
+      "source": "presentation"
     },
     "vitals.respiration_wave_scale": {
       "type": "number",
-      "description": "Vertical scale factor for the animated respiration waveform.",
-      "default": 1
+      "description": "Legacy presentation setting; received sample plots use their timestamps and values.",
+      "default": 1,
+      "source": "presentation"
     },
     "vitals.respiration_wave_duration": {
       "type": "number",
       "unit": "s",
-      "description": "Horizontal animation duration for the respiration waveform.",
-      "default": 3.8
+      "description": "Legacy presentation setting; received sample plots use their timestamps and values.",
+      "default": 3.8,
+      "source": "presentation"
     }
   },
   "ui": {
-    "preferredSize": { "w": 95, "h": 65 },
-    "minSize": { "w": 95, "h": 65 }
+    "preferredSize": {
+      "w": 95,
+      "h": 65
+    },
+    "minSize": {
+      "w": 95,
+      "h": 65
+    }
   },
   "window": {
     "frame": "none",

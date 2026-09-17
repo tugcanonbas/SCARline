@@ -74,7 +74,7 @@
       >
         <label class="form-field required">
           <span>Participant Number</span>
-          <input name="participantNumber" placeholder="P-001" required />
+          <input name="participantCode" placeholder="P-001" required />
         </label>
         <label class="form-field">
           <span>Notes</span>

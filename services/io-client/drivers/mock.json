@@ -1,7 +1,7 @@
 {
   "key": "mock",
   "name": "Synthetic Sensor Suite",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "deviceType": "synthetic",
   "platforms": ["linux", "darwin", "win32"],
   "capabilities": ["development.synthetic"],
@@ -34,6 +34,30 @@
       "modality": "health",
       "unit": "mV",
       "sampleRate": 500,
+      "configurationSchema": {}
+    },
+    {
+      "key": "blood_pressure",
+      "name": "Synthetic blood pressure",
+      "modality": "health",
+      "unit": "mmHg",
+      "sampleRate": 1,
+      "configurationSchema": {}
+    },
+    {
+      "key": "spo2",
+      "name": "Synthetic oxygen saturation",
+      "modality": "health",
+      "unit": "%",
+      "sampleRate": 1,
+      "configurationSchema": {}
+    },
+    {
+      "key": "respiration",
+      "name": "Synthetic respiration rate",
+      "modality": "health",
+      "unit": "rpm",
+      "sampleRate": 1,
       "configurationSchema": {}
     },
     {

@@ -76,6 +76,7 @@ export class SessionLifecycleService implements ManagedCoreApiService {
   #timeoutTimer: NodeJS.Timeout | undefined;
   #retentionTimer: NodeJS.Timeout | undefined;
   readonly #lastRealtimeDelivery = new Map<string, number>();
+  readonly #pendingSessionEvents = new Map<string, Promise<void>>();
 
   constructor(pool: Pool, rabbit: RabbitConnection, logger: FastifyBaseLogger, timeoutSeconds: number, hub: RealtimeHub, overlays: SessionOverlayService) {
     this.#pool = pool;
@@ -85,7 +86,7 @@ export class SessionLifecycleService implements ManagedCoreApiService {
     this.#hub = hub;
     this.#overlays = overlays;
     rabbit.registerCoreCommandConsumer((message) => this.#handleCommand(message));
-    rabbit.registerCoreEventConsumer((message) => this.#handleEvent(message));
+    rabbit.registerCoreEventConsumer((message) => this.#queueSessionEvent(message));
   }
 
   start(): void {
@@ -445,12 +446,30 @@ export class SessionLifecycleService implements ManagedCoreApiService {
     }));
   }
 
+  async #queueSessionEvent(message: MessageEnvelope): Promise<void> {
+    const sessionId = message.metadata.sessionId;
+    if (sessionId === null) return this.#handleEvent(message);
+    // These transactions lock the same session row. Waiting before acquiring a
+    // connection keeps sensor bursts from occupying the entire database pool.
+    const previous = this.#pendingSessionEvents.get(sessionId) ?? Promise.resolve();
+    const pending = previous.catch(() => undefined).then(() => this.#handleEvent(message));
+    this.#pendingSessionEvents.set(sessionId, pending);
+    try {
+      await pending;
+    } finally {
+      if (this.#pendingSessionEvents.get(sessionId) === pending) this.#pendingSessionEvents.delete(sessionId);
+    }
+  }
+
   async #handleEvent(message: MessageEnvelope): Promise<void> {
     const sessionId = message.metadata.sessionId;
     if (sessionId === null) {
       await this.#handleSystemEvent(message);
       return;
     }
+    let session: SessionRow | undefined;
+    let overlayFinalization: PendingOverlayFinalization | null = null;
+    let overlayCleanup: PendingOverlayCleanup | null = null;
     const client = await this.#pool.connect();
     try {
       await client.query("BEGIN");
@@ -458,15 +477,16 @@ export class SessionLifecycleService implements ManagedCoreApiService {
         await client.query("COMMIT");
         return;
       }
-      const session = await client.query<SessionRow>(
+      const result = await client.query<SessionRow>(
         `SELECT se.*,s.data_policy FROM sessions se JOIN studies s ON s.id=se.study_id
          WHERE se.id=$1 FOR UPDATE OF se`, [sessionId],
       );
-      if (session.rows[0] === undefined) {
+      session = result.rows[0];
+      if (session === undefined) {
         await client.query("COMMIT");
         return;
       }
-      if (this.#shouldPersist(message, session.rows[0])) {
+      if (this.#shouldPersist(message, session)) {
         await client.query(
           `INSERT INTO session_events(message_id,session_id,session_condition_id,"timestamp",event_type,modality,source_type,source_key,routing_key,payload)
            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb) ON CONFLICT(message_id) DO NOTHING`,
@@ -475,32 +495,33 @@ export class SessionLifecycleService implements ManagedCoreApiService {
             message.producer, message.metadata.source?.component ?? null, message.routingKey, JSON.stringify(message.payload)],
         );
       }
-      let overlayFinalization: PendingOverlayFinalization | null = null;
-      let overlayCleanup: PendingOverlayCleanup | null = null;
       if (message.routingKey.endsWith(".command.ack")) {
-        overlayFinalization = await this.#applyCommandAcknowledgement(client, session.rows[0], message);
+        overlayFinalization = await this.#applyCommandAcknowledgement(client, session, message);
       } else if (message.routingKey.includes(".lifecycle.session-")) {
-        const terminalAction = await this.#applyLifecycleEvent(client, session.rows[0], message);
+        const terminalAction = await this.#applyLifecycleEvent(client, session, message);
         if (terminalAction !== null) {
           overlayCleanup = {
             commandId: String(message.payload.commandId ?? ""),
             action: terminalAction,
-            session: session.rows[0],
+            session,
           };
         }
       } else if (!message.routingKey.includes(".trigger.")) {
-        await this.#evaluateTriggers(client, session.rows[0], message);
+        await this.#evaluateTriggers(client, session, message);
       }
       await client.query("COMMIT");
-      if (this.#shouldBroadcast(message, session.rows[0])) await this.#hub.broadcastEvent(message);
-      if (overlayFinalization !== null) await this.#finalizeParticipantLayout(overlayFinalization);
-      if (overlayCleanup !== null) await this.#cleanupParticipantLayout(overlayCleanup);
     } catch (error) {
       await client.query("ROLLBACK").catch(() => undefined);
       throw error;
     } finally {
       client.release();
     }
+    // Post-commit delivery can issue its own queries. Release the transaction's
+    // connection first so widget loading and lifecycle acknowledgements can run.
+    this.#hub.recordWidgetEvent(message);
+    if (this.#shouldBroadcast(message, session)) await this.#hub.broadcastEvent(message);
+    if (overlayFinalization !== null) await this.#finalizeParticipantLayout(overlayFinalization);
+    if (overlayCleanup !== null) await this.#cleanupParticipantLayout(overlayCleanup);
   }
 
   async #applyCommandAcknowledgement(client: PoolClient, session: SessionRow, message: MessageEnvelope): Promise<PendingOverlayFinalization | null> {

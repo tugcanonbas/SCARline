@@ -38,11 +38,19 @@ export function buildOverlayWeb(options: OverlayWebOptions) {
       coreApiWebSocketOrigin: options.coreApiWebSocketOrigin,
     };
   });
+  app.get("/overlay-shell.css", async (_request, reply) => {
+    reply.type("text/css; charset=utf-8");
+    return shellStyles;
+  });
 
   app.get("/client.js", async (_request, reply) =>
     sendFile(reply, path.join(rendererAssetsDirectory, "client.js"), "text/javascript; charset=utf-8"));
-  app.get("/bridge.js", async (_request, reply) =>
-    sendFile(reply, path.join(rendererAssetsDirectory, "bridge.js"), "text/javascript; charset=utf-8"));
+  app.get("/bridge.js", async (_request, reply) => {
+    // The sandboxed widget frame has an opaque origin. This public module
+    // needs CORS permission; it contains no renderer credentials or data.
+    reply.header("access-control-allow-origin", "*");
+    return sendFile(reply, path.join(rendererAssetsDirectory, "bridge.js"), "text/javascript; charset=utf-8");
+  });
   app.get("/browser-position.js", async (_request, reply) =>
     sendFile(reply, path.join(rendererAssetsDirectory, "browser-position.js"), "text/javascript; charset=utf-8"));
   app.get("/favicon.ico", async (_request, reply) => {
@@ -171,7 +179,7 @@ function contentSecurityPolicy(options: OverlayWebOptions): string {
     .join(" ");
   return [
     "default-src 'none'",
-    "base-uri 'none'",
+    "base-uri 'self'",
     `connect-src 'self' ${connectSources}`,
     "frame-src 'self'",
     "img-src 'self' data:",
@@ -210,10 +218,6 @@ const options: OverlayWebOptions = {
 };
 
 const app = buildOverlayWeb(options);
-app.get("/overlay-shell.css", async (_request, reply) => {
-  reply.type("text/css; charset=utf-8");
-  return shellStyles;
-});
 
 if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   const port = Number(process.env.PORT ?? "4000");

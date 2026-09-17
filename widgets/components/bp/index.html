@@ -19,29 +19,6 @@
                 linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
         }
 
-        @keyframes wave-scroll {
-            from {
-                transform: translateX(0);
-            }
-
-            to {
-                transform: translateX(-50%);
-            }
-        }
-
-        .wave-marquee {
-            --wave-duration: 1.45s;
-            animation: wave-scroll var(--wave-duration) linear infinite;
-            will-change: transform;
-        }
-
-        .wave-trace {
-            --wave-scale: 1;
-            transform-box: fill-box;
-            transform-origin: center;
-            transform: scaleY(var(--wave-scale));
-            transition: transform 0.3s ease-out;
-        }
     </style>
 </head>
 
@@ -50,29 +27,19 @@
     <!-- Card Container: 95x65 -->
     <!-- Card Container: 95x65 -->
     <div data-scarline-widget-root
-        class="bg-transparent w-full h-full rounded-lg overflow-hidden shadow-md relative text-white flex p-1.5 isolate">
+        class="bg-[#686d76] w-full h-full rounded-lg overflow-hidden shadow-md relative text-white flex p-1.5 isolate">
         <!-- Added isolate for z-index context -->
 
-
+        <!-- Grid Background Overlay -->
+        <div class="absolute inset-0 bg-grid pointer-events-none opacity-50 z-0"></div>
 
         <!-- Waveform (Left, larger and centered vertically) -->
         <div
-            class="absolute left-0 top-0 bottom-0 w-[70%] text-red-500 opacity-80 z-0 flex items-center overflow-hidden">
-            <div class="flex h-full w-[200%] wave-marquee" data-bind="vitals.blood_pressure_wave_duration"
-                data-bind-style="--wave-duration" data-style-unit="s" data-bind-text="false">
-                <svg class="w-1/2 h-full shrink-0" preserveAspectRatio="none"
-                    data-bind="vitals.blood_pressure_wave_scale" data-bind-style="--wave-scale" data-bind-text="false">
-                    <path class="wave-trace"
-                        d="M0,45 Q5,45 8,30 T15,45 Q20,45 23,25 T30,45 Q35,45 38,30 T45,45 Q50,45 53,25 T60,45 Q65,45 68,30 T75,45 H100"
-                        stroke="currentColor" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke" />
+            class="absolute left-0 top-0 bottom-0 w-[40%] text-red-500 opacity-80 z-0 flex items-center overflow-hidden">
+            <svg data-chart="vitals.blood_pressure_systolic" data-chart-secondary="vitals.blood_pressure_diastolic" data-chart-window="60" viewBox="0 0 240 60" preserveAspectRatio="none" role="img" aria-label="Blood pressure trend" style="width:100%;height:100%;overflow:hidden">
+                    <title>Blood pressure trend</title>
+                    <path data-chart-trace fill="none" stroke="#ef4444" stroke-width="1.5" vector-effect="non-scaling-stroke" />
                 </svg>
-                <svg class="w-1/2 h-full shrink-0" preserveAspectRatio="none"
-                    data-bind="vitals.blood_pressure_wave_scale" data-bind-style="--wave-scale" data-bind-text="false">
-                    <path class="wave-trace"
-                        d="M0,45 Q5,45 8,30 T15,45 Q20,45 23,25 T30,45 Q35,45 38,30 T45,45 Q50,45 53,25 T60,45 Q65,45 68,30 T75,45 H100"
-                        stroke="currentColor" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke" />
-                </svg>
-            </div>
         </div>
 
         <!-- Main Value (Right, with background to 'cut off' the wave) -->
@@ -83,9 +50,9 @@
                 mmHg
             </div>
             <div class="text-xl font-bold text-white tracking-tight leading-[0.85] text-right">
-                <span data-bind="vitals.blood_pressure_diastolic" data-format="number"
-                    data-decimals="0">78</span><br><span class="text-lg" data-bind="vitals.blood_pressure_systolic"
-                    data-format="number" data-decimals="0">123</span>
+                <span aria-label="Systolic" data-bind="vitals.blood_pressure_systolic" data-format="number"
+                    data-decimals="0">—</span><br><span class="text-lg" aria-label="Diastolic" data-bind="vitals.blood_pressure_diastolic"
+                    data-format="number" data-decimals="0">—</span>
             </div>
         </div>
 

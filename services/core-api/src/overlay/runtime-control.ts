@@ -3,6 +3,10 @@ import type { Pool, PoolClient } from "pg";
 
 import { ApiProblem } from "../errors.js";
 import { createEnvelope, enqueueMessage } from "../infrastructure/outbox.js";
+import { runtimeRevision } from "./preview-runtime.js";
+import { musicBindingUpdate, projectMusicBindings } from "./widget-interactions.js";
+import { projectWidgetData } from "./live-data.js";
+import type { WidgetBindingData } from "@scarline/contracts";
 import {
   configuredWidgetRuntime,
   readStoredWidgetRuntimeOverrides,
@@ -31,6 +35,7 @@ interface WidgetTargetRow {
   readonly order: number;
   readonly condition_metadata: Record<string, unknown>;
   readonly metadata: Record<string, unknown>;
+  readonly bindings_config: Record<string, unknown>;
 }
 
 export interface ManualWidgetRuntimeUpdate {
@@ -44,9 +49,11 @@ export interface ManualWidgetRuntimeUpdate {
   readonly requestedAction: WidgetRuntimeAction;
   readonly state: WidgetVisualState;
   readonly bindingValues: Record<string, unknown>;
+  readonly bindingData: Record<string, WidgetBindingData>;
   readonly triggerType: "manual";
   readonly source: "admin-panel";
   readonly triggeredBy: string;
+  readonly revision: number;
 }
 
 export async function studyIdForSession(pool: Pool, sessionId: string): Promise<string> {
@@ -83,29 +90,50 @@ export async function applyManualWidgetRuntimeCommand(
       target.instance_id,
       target.widget_key,
     );
-    const bindingValues = validateManualBindingValues(configured.metadata, command.bindingValues);
+    let bindingValues = validateManualBindingValues(configured.metadata, command.bindingValues);
     if (command.action === "update" && Object.keys(bindingValues).length === 0) {
       throw new ApiProblem(400, "EMPTY_WIDGET_UPDATE", "A widget binding update requires at least one binding value.");
     }
 
     const runtimeMetadata = readObject(sessionCondition.runtime_metadata);
+    const revision = runtimeRevision(runtimeMetadata.widgetRuntimeRevision) + 1;
+    const resetRevisions = readObject(runtimeMetadata.widgetResetRevisions);
     const runtimeOverrides = readStoredWidgetRuntimeOverrides(runtimeMetadata);
     const previous = runtimeOverrides[target.instance_id];
+    if (target.widget_key === "music" && command.action !== "reset" && Object.keys(bindingValues).some((key) =>
+      ["media.is_playing", "media.position_seconds", "media.duration_seconds", "media.progress_label", "media.duration_label", "media.progress_ratio"].includes(key))) {
+      bindingValues = validateManualBindingValues(configured.metadata,
+        musicBindingUpdate({ ...configured.bindings, ...previous?.bindingValues }, bindingValues));
+    }
     const next = resolveNextRuntimeOverride(previous, target, command.action, bindingValues, actorUserId);
     let deliveredBindings = bindingValues;
     let state = next?.state ?? previous?.state ?? configured.state;
     let action = canonicalAction(command.action);
     if (command.action === "reset") {
+      resetRevisions[target.instance_id] = revision;
       delete runtimeOverrides[target.instance_id];
-      deliveredBindings = configured.bindings;
+      deliveredBindings = target.widget_key === "music" ? projectMusicBindings(configured.bindings) : configured.bindings;
       state = configured.state;
     } else {
       runtimeOverrides[target.instance_id] = next!;
     }
+    const bindingData = configured.bindingData;
+    for (const key of Object.keys(command.action === "reset" ? {} : next?.bindingValues ?? {})) {
+      const detail = bindingData[key];
+      if (detail) bindingData[key] = { ...detail, source: "study", status: "ready", sourceKey: "Researcher override" };
+    }
+    if (command.action === "reset") {
+      const projected = projectWidgetData(pool, { studyId: session.study_id, sessionId,
+        sessionConditionId: sessionCondition.id, metadata: configured.metadata,
+        bindingsConfig: target.bindings_config ?? {}, bindings: deliveredBindings, bindingData });
+      deliveredBindings = projected.bindings;
+      Object.assign(bindingData, projected.bindingData);
+    }
 
     await client.query(
       "UPDATE session_conditions SET runtime_metadata=$2::jsonb WHERE id=$1",
-      [sessionCondition.id, JSON.stringify({ ...runtimeMetadata, widgetRuntime: runtimeOverrides })],
+      [sessionCondition.id, JSON.stringify({ ...runtimeMetadata, widgetRuntime: runtimeOverrides,
+        widgetRuntimeRevision: revision, widgetResetRevisions: resetRevisions })],
     );
     const update: ManualWidgetRuntimeUpdate = {
       studyId: session.study_id,
@@ -118,9 +146,12 @@ export async function applyManualWidgetRuntimeCommand(
       requestedAction: command.action,
       state,
       bindingValues: deliveredBindings,
+      bindingData: command.action === "reset" ? bindingData : Object.fromEntries(
+        Object.keys(deliveredBindings).flatMap((key) => bindingData[key] ? [[key, bindingData[key]]] : [])),
       triggerType: "manual",
       source: "admin-panel",
       triggeredBy: actorUserId,
+      revision,
     };
     await enqueueMessage(client, createEnvelope({
       routingKey: `events.${session.study_id}.${sessionId}.trigger.widget-manual`,
@@ -138,7 +169,7 @@ export async function applyManualWidgetRuntimeCommand(
   }
 }
 
-async function lockSession(client: PoolClient, sessionId: string): Promise<SessionRow> {
+export async function lockSession(client: PoolClient, sessionId: string): Promise<SessionRow> {
   const result = await client.query<SessionRow>(
     "SELECT study_id,status FROM sessions WHERE id=$1 FOR UPDATE",
     [sessionId],
@@ -151,7 +182,7 @@ async function lockSession(client: PoolClient, sessionId: string): Promise<Sessi
   return session;
 }
 
-async function lockCurrentSessionCondition(
+export async function lockCurrentSessionCondition(
   client: PoolClient,
   sessionId: string,
 ): Promise<SessionConditionRow> {
@@ -167,7 +198,7 @@ async function lockCurrentSessionCondition(
   return result.rows[0];
 }
 
-async function resolveActiveWidgetTarget(
+export async function resolveActiveWidgetTarget(
   client: PoolClient,
   studyId: string,
   conditionId: string,
@@ -194,7 +225,7 @@ async function resolveActiveWidgetTarget(
   }
   const target = await client.query<WidgetTargetRow>(
     `SELECT wi.id AS instance_id,wi.widget_id,w.key AS widget_key,l.type AS layout_type,l.name AS layout_name,wi."order",
-            c.metadata AS condition_metadata,w.metadata
+            c.metadata AS condition_metadata,w.metadata,wi.bindings_config
        FROM widget_instances wi
        JOIN widgets w ON w.id=wi.widget_id
        JOIN layouts l ON l.id=wi.layout_id

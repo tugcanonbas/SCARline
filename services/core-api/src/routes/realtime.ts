@@ -13,10 +13,12 @@ import {
   UserWebSocketTicketHeadersSchema,
   WebSocketAuthHeadersSchema,
   WidgetRuntimeCommandSchema,
+  type OverlayRuntimeScope,
 } from "@scarline/contracts";
 
 import { authenticate, requireAnyRole, requirePasswordReady } from "../auth/guards.js";
 import type { AuthService } from "../auth/service.js";
+import { overlayRendererCookie } from "../auth/overlay-cookie.js";
 import type { CoreApiConfig } from "../config.js";
 import { ApiProblem } from "../errors.js";
 import { loadOverlayRuntimeSnapshot, requireLiveBrowserSessionScope, resolveOverlayScope } from "../overlay/runtime.js";
@@ -24,7 +26,7 @@ import {
   applyManualWidgetRuntimeCommand,
   studyIdForSession,
 } from "../overlay/runtime-control.js";
-import { createEnvelope, enqueueMessage } from "../infrastructure/outbox.js";
+import { applyOverlayWidgetInteraction } from "../overlay/interaction-control.js";
 import { OverlayCommandError, type RealtimeHub } from "../realtime/hub.js";
 import { AuthHeadersSchema, EmptyObjectSchema, UuidParamsSchema, success } from "./common.js";
 import { ensureStudyAccess } from "./studies.js";
@@ -32,6 +34,13 @@ import { ensureStudyAccess } from "./studies.js";
 const OverlayTokenHeadersSchema = z.object({ "x-overlay-control-secret": z.string().min(1) }).passthrough();
 const BootstrapHeadersSchema = z.object({ authorization: z.string().regex(/^Bearer\s+\S+$/) }).passthrough();
 const CookieHeadersSchema = z.object({ cookie: z.string().optional() }).passthrough();
+const OverlayBootstrapBodySchema = z.object({ scoped: z.boolean().optional() }).strict();
+const RendererParamsSchema = z.object({ rendererId: z.string().uuid() }).strict();
+const RuntimeWidgetQuerySchema = z.object({ instanceId: z.string().uuid().optional() }).strict();
+const RuntimeSubscriptionSchema = z.object({
+  instanceId: z.string().uuid().optional(),
+  lifecycleOnly: z.literal("true").optional(),
+}).strict();
 const RenderGrantSchema = z.object({
   rendererMode: OverlayRendererModeSchema,
   layoutId: z.string().uuid(),
@@ -39,6 +48,8 @@ const RenderGrantSchema = z.object({
   sessionId: z.string().uuid().nullable().optional(),
 }).strict();
 const InteractionSchema = z.object({
+  requestId: z.string().uuid().optional(),
+  observedRevision: z.number().int().nonnegative().optional(),
   instanceId: z.string().uuid(),
   action: z.string().min(1).max(100),
   payload: z.record(z.string(), z.unknown()).default({}),
@@ -105,15 +116,18 @@ export async function registerRealtimeRoutes(
 
   app.get("/overlay-runtime", {
     websocket: true,
-    schema: { params: EmptyObjectSchema, querystring: EmptyObjectSchema, headers: WebSocketAuthHeadersSchema },
+    schema: { params: EmptyObjectSchema, querystring: RuntimeSubscriptionSchema, headers: WebSocketAuthHeadersSchema },
     preValidation: async (request) => {
       const token = bearerFromHeaders(request, "scarline.overlay-ticket.");
       if (token === undefined) throw new ApiProblem(401, "AUTHENTICATION_REQUIRED", "Overlay ticket required.");
-      (request as FastifyRequest & { overlayScope?: unknown }).overlayScope = await auth.verifyOverlayWebSocketTicket(token);
+      const scope = await auth.verifyOverlayWebSocketTicket(token);
+      const { instanceId } = RuntimeSubscriptionSchema.parse(request.query);
+      (request as FastifyRequest & { overlayScope?: unknown }).overlayScope = restrictRendererInstance(scope, instanceId);
     },
   }, (socket, request) => {
     const scope = OverlayRuntimeScopeSchema.parse((request as FastifyRequest & { overlayScope?: unknown }).overlayScope);
-    void hub.attachRenderer(socket, scope).catch((error) => {
+    const { lifecycleOnly } = RuntimeSubscriptionSchema.parse(request.query);
+    void hub.attachRenderer(socket, scope, lifecycleOnly === "true").catch((error) => {
       request.log.warn({ err: error, scope }, "Overlay renderer registration failed");
       socket.close(1011, "Overlay renderer registration failed");
     });
@@ -122,6 +136,28 @@ export async function registerRealtimeRoutes(
   const readers = [authenticate(auth), requirePasswordReady, requireAnyRole("admin", "researcher", "operator", "observer")];
   const controllers = [authenticate(auth), requirePasswordReady, requireAnyRole("admin", "researcher", "operator")];
   const administrators = [authenticate(auth), requirePasswordReady, requireAnyRole("admin")];
+
+  app.get("/api/v1/sessions/:id/widgets/data", {
+    preHandler: readers,
+    schema: { params: UuidParamsSchema, querystring: EmptyObjectSchema, headers: AuthHeadersSchema },
+  }, async (request) => {
+    const { id } = UuidParamsSchema.parse(request.params);
+    const studyId = await studyIdForSession(pool, id);
+    await ensureStudyAccess(request, pool, studyId);
+    const layouts = await pool.query<{ id: string; condition_id: string }>(
+      `SELECT l.id,l.condition_id FROM layouts l JOIN session_conditions sc ON sc.condition_id=l.condition_id
+        WHERE sc.session_id=$1 AND sc.status IN ('active','paused') ORDER BY l.name,l.id`, [id]);
+    const snapshots = await Promise.all(layouts.rows.map((layout) => loadOverlayRuntimeSnapshot(pool, {
+      studyId, sessionId: id, conditionId: layout.condition_id, layoutId: layout.id, instanceId: null, rendererMode: "browser",
+    })));
+    return success(snapshots.flatMap((snapshot) => snapshot.widgets.map((widget) => ({
+      instanceId: widget.instanceId, name: widget.name, layout: snapshot.layout.name,
+      bindings: Object.fromEntries(Object.entries(widget.bindingData).map(([key, detail]) => {
+        const { history: _history, ...status } = detail;
+        return [key, { ...status, value: Array.isArray(widget.bindings[key]) ? `${widget.bindings[key].length} samples` : widget.bindings[key] }];
+      })),
+    }))));
+  });
 
   app.get("/api/v1/overlay/status", {
     preHandler: readers,
@@ -201,72 +237,45 @@ export async function registerRealtimeRoutes(
 
   app.post("/api/v1/overlay/bootstrap", {
     config: { rateLimit: { max: 60, timeWindow: "1 minute" } },
-    schema: { params: EmptyObjectSchema, querystring: EmptyObjectSchema, headers: BootstrapHeadersSchema, body: EmptyObjectSchema },
+    schema: { params: EmptyObjectSchema, querystring: EmptyObjectSchema, headers: BootstrapHeadersSchema, body: OverlayBootstrapBodySchema },
   }, async (request, reply) => {
     const token = BootstrapHeadersSchema.parse(request.headers).authorization.slice(7);
     const session = await auth.exchangeOverlayBootstrapToken(token);
-    reply.setCookie(OVERLAY_RENDER_COOKIE_NAME, session.token, {
-      ...OVERLAY_RENDER_COOKIE_OPTIONS,
+    const scoped = OverlayBootstrapBodySchema.parse(request.body).scoped === true;
+    const cookie = scoped ? overlayRendererCookie(request, session.rendererId) : {
+      name: OVERLAY_RENDER_COOKIE_NAME, options: OVERLAY_RENDER_COOKIE_OPTIONS,
+    };
+    reply.setCookie(cookie.name, session.token, {
+      ...cookie.options,
       expires: new Date(session.expiresAt),
     });
-    return success({ expiresAt: session.expiresAt, scope: session.scope });
+    return success({ expiresAt: session.expiresAt, scope: session.scope, ...(scoped ? { rendererId: session.rendererId } : {}) });
   });
 
-  app.get("/api/v1/overlay/runtime", {
-    schema: { params: EmptyObjectSchema, querystring: EmptyObjectSchema, headers: CookieHeadersSchema },
-  }, async (request) => success(await loadOverlayRuntimeSnapshot(
-    pool,
-    await rendererScopeFromCookie(request, auth),
-    selectedOverlayDisplays(hub),
-  )));
+  for (const prefix of ["/api/v1/overlay", "/api/v1/overlay/renderers/:rendererId"]) {
+    const params = prefix.includes(":rendererId") ? RendererParamsSchema : EmptyObjectSchema;
+    app.get(`${prefix}/runtime`, {
+      schema: { params, querystring: RuntimeWidgetQuerySchema, headers: CookieHeadersSchema },
+    }, async (request) => success(await loadOverlayRuntimeSnapshot(
+      pool,
+      restrictRendererInstance(await rendererScopeFromCookie(request, auth), RuntimeWidgetQuerySchema.parse(request.query).instanceId),
+      selectedOverlayDisplays(hub),
+    )));
 
-  app.post("/api/v1/overlay/websocket-ticket", {
-    schema: { params: EmptyObjectSchema, querystring: EmptyObjectSchema, headers: CookieHeadersSchema, body: EmptyObjectSchema },
-  }, async (request) => success(await auth.signOverlayWebSocketTicket(await rendererScopeFromCookie(request, auth))));
+    app.post(`${prefix}/websocket-ticket`, {
+      schema: { params, querystring: EmptyObjectSchema, headers: CookieHeadersSchema, body: EmptyObjectSchema },
+    }, async (request) => success(await auth.signOverlayWebSocketTicket(await rendererScopeFromCookie(request, auth))));
 
-  app.post("/api/v1/overlay/interactions", {
-    schema: { params: EmptyObjectSchema, querystring: EmptyObjectSchema, headers: CookieHeadersSchema, body: InteractionSchema },
-  }, async (request, reply) => {
-    const scope = await rendererScopeFromCookie(request, auth);
-    const body = InteractionSchema.parse(request.body);
-    const snapshot = await loadOverlayRuntimeSnapshot(pool, scope);
-    const widget = snapshot.widgets.find((entry) => entry.instanceId === body.instanceId);
-    if (widget === undefined) throw new ApiProblem(403, "WIDGET_OUT_OF_SCOPE", "Widget instance is outside this overlay scope.");
-    const actions = Array.isArray(widget.metadata.triggers)
-      ? widget.metadata.triggers.map((value) => (value as Record<string, unknown>).action)
-      : [];
-    if (!actions.includes(body.action)) throw new ApiProblem(400, "UNDECLARED_WIDGET_ACTION", "Widget action is not declared in metadata.");
-    const interaction = {
-      instanceId: body.instanceId,
-      widgetId: widget.widgetId,
-      widgetKey: widget.widgetKey,
-      action: body.action,
-      payload: body.payload,
-      source: "overlay-widget",
-    };
-    if (scope.sessionId !== null) {
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
-        await enqueueMessage(client, createEnvelope({
-          routingKey: `events.${scope.studyId}.${scope.sessionId}.widget.interaction`,
-          studyId: scope.studyId,
-          sessionId: scope.sessionId,
-          payload: interaction,
-        }));
-        await client.query("COMMIT");
-      } catch (error) {
-        await client.query("ROLLBACK").catch(() => undefined);
-        throw error;
-      } finally {
-        client.release();
-      }
-    }
-    hub.broadcast("widget.updates", {
-      ...interaction,
-    }, scope.studyId, scope.sessionId);
-    return reply.status(202).send(success({ accepted: true }));
-  });
+    app.post(`${prefix}/interactions`, {
+      schema: { params, querystring: EmptyObjectSchema, headers: CookieHeadersSchema, body: InteractionSchema },
+    }, async (request, reply) => {
+      const scope = await rendererScopeFromCookie(request, auth);
+      const body = InteractionSchema.parse(request.body);
+      const result = await applyOverlayWidgetInteraction(pool, scope, { ...body, requestId: body.requestId ?? randomUUID() });
+      if (!result.duplicate) hub.broadcast("widget.updates", result.update, scope.studyId, scope.sessionId);
+      return reply.status(202).send(success(result));
+    });
+  }
 
   app.post("/api/v1/sessions/:id/widgets/trigger", {
     preHandler: controllers,
@@ -334,6 +343,13 @@ function selectedOverlayDisplays(hub: RealtimeHub) {
   return OverlayDisplaySchema.array().parse(Array.isArray(status.displays) ? status.displays : []);
 }
 
+function restrictRendererInstance(scope: OverlayRuntimeScope, instanceId?: string): OverlayRuntimeScope {
+  if (instanceId !== undefined && scope.instanceId !== null && scope.instanceId !== instanceId) {
+    throw new ApiProblem(403, "OVERLAY_SCOPE_MISMATCH", "The requested widget is outside this renderer's scope.");
+  }
+  return { ...scope, ...(instanceId === undefined ? {} : { instanceId }) };
+}
+
 function overlayCommandProblem(error: unknown): ApiProblem {
   if (!(error instanceof OverlayCommandError)) {
     return new ApiProblem(500, "OVERLAY_COMMAND_FAILED", error instanceof Error ? error.message : "Overlay command failed.");
@@ -349,9 +365,11 @@ function overlayCommandProblem(error: unknown): ApiProblem {
 }
 
 async function rendererScopeFromCookie(request: FastifyRequest, auth: AuthService) {
-  const token = request.cookies[OVERLAY_RENDER_COOKIE_NAME];
+  const rendererId = (request.params as { rendererId?: string }).rendererId;
+  const name = rendererId === undefined ? OVERLAY_RENDER_COOKIE_NAME : overlayRendererCookie(request, rendererId).name;
+  const token = request.cookies[name];
   if (token === undefined) throw new ApiProblem(401, "OVERLAY_SESSION_REQUIRED", "Overlay renderer session required.");
-  return auth.verifyOverlayRenderSession(token);
+  return auth.verifyOverlayRenderSession(token, rendererId);
 }
 
 async function layoutIdForInstance(pool: Pool, instanceId: string): Promise<string> {

@@ -70,6 +70,7 @@ export async function saveParticipantLayouts(
     }
 
     const results: ParticipantLayoutBulkSaveResult["layouts"] = [];
+    let primaryWidgets: ParticipantLayoutBulkSaveResult["widgets"] = [];
     for (const condition of conditions.rows) {
       const previousLayout = currentByCondition.get(condition.id);
       const layout = previousLayout === undefined
@@ -86,13 +87,15 @@ export async function saveParticipantLayouts(
               RETURNING id,condition_id,revision`,
             [previousLayout.id, condition.id, input.name, input.targetDisplay, JSON.stringify(input.layoutConfig)],
           )).rows[0]!;
-      await replaceLayoutWidgets(client, layout.id, condition.metadata, input, widgetKeys);
+      const widgets = await replaceLayoutWidgets(client, layout.id, condition.metadata, input, widgetKeys);
+      if (results.length === 0) primaryWidgets = widgets;
       results.push({ conditionId: condition.id, layoutId: layout.id, revision: layout.revision });
     }
 
     await client.query("COMMIT");
     return ParticipantLayoutBulkSaveResultSchema.parse({
       primaryLayoutId: results[0]!.layoutId,
+      widgets: primaryWidgets,
       layouts: results,
     });
   } catch (error) {
@@ -137,7 +140,7 @@ async function replaceLayoutWidgets(
   conditionMetadata: Record<string, unknown>,
   input: ParticipantLayoutBulkSave,
   widgetKeys: Map<string, string>,
-): Promise<void> {
+): Promise<ParticipantLayoutBulkSaveResult["widgets"]> {
   const previous = (await client.query<WidgetRow>(
     `SELECT id,widget_id,"order" AS "order" FROM widget_instances
       WHERE layout_id=$1 ORDER BY "order",id FOR UPDATE`,
@@ -145,6 +148,7 @@ async function replaceLayoutWidgets(
   )).rows;
   const hidden = readHiddenWidgets(conditionMetadata);
   const used = new Set<string>();
+  const saved: ParticipantLayoutBulkSaveResult["widgets"] = [];
   for (const widget of [...input.widgets].sort((left, right) => left.order - right.order)) {
     const match = previous.find((entry) =>
       !used.has(entry.id) && entry.widget_id === widget.widgetId && entry.order === widget.order
@@ -158,13 +162,15 @@ async function replaceLayoutWidgets(
       JSON.stringify(widget.configuration), JSON.stringify(widget.bindingsConfig), JSON.stringify(widget.styleOverrides),
     ];
     if (match === undefined) {
-      await client.query(
+      const inserted = await client.query<{ id: string }>(
         `INSERT INTO widget_instances(
            layout_id,widget_id,window_mode,input_mode,target_display,"order",x,y,width,height,
            enabled,configuration,bindings_config,style_overrides
-         ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14::jsonb)`,
+         ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14::jsonb)
+         RETURNING id`,
         values,
       );
+      saved.push({ id: inserted.rows[0]!.id, order: widget.order });
     } else {
       await client.query(
         `UPDATE widget_instances SET
@@ -173,12 +179,14 @@ async function replaceLayoutWidgets(
          WHERE id=$15 AND layout_id=$1`,
         [...values, match.id],
       );
+      saved.push({ id: match.id, order: widget.order });
     }
   }
   const removed = previous.filter((entry) => !used.has(entry.id)).map((entry) => entry.id);
   if (removed.length > 0) {
     await client.query("DELETE FROM widget_instances WHERE layout_id=$1 AND id=ANY($2::uuid[])", [layoutId, removed]);
   }
+  return saved;
 }
 
 function readHiddenWidgets(metadata: Record<string, unknown>): Set<string> {

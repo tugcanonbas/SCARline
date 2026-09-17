@@ -16,7 +16,7 @@
 <body class="m-0 h-screen w-full overflow-hidden bg-transparent">
 
     <!-- Card Container -->
-    <div data-scarline-widget-root class="bg-transparent w-full h-full rounded-2xl p-6 shadow-2xl relative text-white">
+    <div data-scarline-widget-root class="bg-[#686d76] w-full h-full rounded-2xl p-6 shadow-2xl relative text-white">
 
         <!-- Top Section: Album Art & Info -->
         <div class="flex gap-5 mb-8">
@@ -94,7 +94,9 @@
             </button>
 
             <!-- Play/Pause -->
-            <button type="button" data-action="media.play_pause"
+            <button type="button" data-action="media.play_pause" aria-label="Play music" aria-pressed="false"
+                data-bind="media.is_playing" data-bind-attr="aria-pressed"
+                data-bind-label-true="Pause music" data-bind-label-false="Play music"
                 class="bg-white rounded-full p-4 hover:scale-105 transition shadow-lg shadow-black/20">
                 <svg class="hidden w-8 h-8 fill-zinc-800" viewBox="0 0 24 24" data-bind="media.is_playing"
                     data-bind-class="inline-block" data-bind-class-false="hidden">

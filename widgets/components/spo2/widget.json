@@ -10,28 +10,39 @@
       "type": "number",
       "unit": "%",
       "description": "Current oxygen saturation value.",
-      "default": 98
+      "source": "live",
+      "staleAfterMs": 5000,
+      "preview": 98
     },
     "vitals.spo2_unit": {
       "type": "string",
       "description": "Display unit for oxygen saturation.",
-      "default": "%"
+      "default": "%",
+      "source": "presentation"
     },
     "vitals.spo2_wave_scale": {
       "type": "number",
-      "description": "Vertical scale factor for the animated pleth waveform.",
-      "default": 1
+      "description": "Legacy presentation setting; received sample plots use their timestamps and values.",
+      "default": 1,
+      "source": "presentation"
     },
     "vitals.spo2_wave_duration": {
       "type": "number",
       "unit": "s",
-      "description": "Horizontal animation duration for the pleth waveform.",
-      "default": 1.3
+      "description": "Legacy presentation setting; received sample plots use their timestamps and values.",
+      "default": 1.3,
+      "source": "presentation"
     }
   },
   "ui": {
-    "preferredSize": { "w": 95, "h": 65 },
-    "minSize": { "w": 95, "h": 65 }
+    "preferredSize": {
+      "w": 95,
+      "h": 65
+    },
+    "minSize": {
+      "w": 95,
+      "h": 65
+    }
   },
   "window": {
     "frame": "none",

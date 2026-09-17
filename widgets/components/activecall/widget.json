@@ -67,11 +67,11 @@
       "interactionType": "click"
     },
     "call.bluetooth": {
-      "description": "Toggle Bluetooth audio route.",
+      "description": "Select Bluetooth audio route.",
       "interactionType": "click"
     },
     "call.speaker": {
-      "description": "Toggle speaker mode.",
+      "description": "Select speaker audio route.",
       "interactionType": "click"
     },
     "call.mute": {

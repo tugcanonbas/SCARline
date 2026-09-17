@@ -104,7 +104,12 @@ export const IoSensorBatchPayloadSchema = z.object({
   sourceTimestamp: IsoDateTimeSchema,
   droppedSamples: z.number().int().nonnegative(),
   samples: z.array(JsonObjectSchema).min(1).max(10_000),
-}).strict();
+  sampleTimestamps: z.array(IsoDateTimeSchema).min(1).max(10_000).optional(),
+}).strict().superRefine((batch, context) => {
+  if (batch.sampleTimestamps && batch.sampleTimestamps.length !== batch.samples.length) {
+    context.addIssue({ code: "custom", path: ["sampleTimestamps"], message: "Provide one timestamp for each sample." });
+  }
+});
 
 export type IoDriverManifest = z.infer<typeof IoDriverManifestSchema>;
 export type IoSessionConfiguration = z.infer<typeof IoSessionConfigurationSchema>;

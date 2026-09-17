@@ -17,23 +17,21 @@ export const WidgetBindingSchema = z
     description: z.string().optional(),
     required: z.boolean().optional(),
     default: z.unknown().optional(),
+    preview: z.unknown().optional(),
+    source: z.enum(["live", "study", "presentation"]).optional(),
+    staleAfterMs: z.number().int().positive().optional(),
   })
   .strict()
   .superRefine((binding, context) => {
-    if (binding.default === undefined) return;
-    const valid = binding.type === "array"
-      ? Array.isArray(binding.default)
-      : binding.type === "object"
-        ? binding.default !== null
-          && typeof binding.default === "object"
-          && !Array.isArray(binding.default)
-        : typeof binding.default === binding.type;
-    if (!valid) {
-      context.addIssue({
-        code: "custom",
-        path: ["default"],
-        message: `Default value must match binding type ${binding.type}`,
-      });
+    for (const field of ["default", "preview"] as const) {
+      const value = binding[field];
+      if (value === undefined) continue;
+      const valid = binding.type === "array" ? Array.isArray(value)
+        : binding.type === "object" ? value !== null && typeof value === "object" && !Array.isArray(value)
+          : binding.type === "number" ? typeof value === "number" && Number.isFinite(value)
+            : typeof value === binding.type;
+      if (!valid) context.addIssue({ code: "custom", path: [field],
+        message: `${field} value must match binding type ${binding.type}` });
     }
   });
 
@@ -84,23 +82,21 @@ const ModernWidgetBindingSchema = z
     description: z.string().optional(),
     required: z.boolean().optional(),
     default: z.unknown().optional(),
+    preview: z.unknown().optional(),
+    source: z.enum(["live", "study", "presentation"]).optional(),
+    staleAfterMs: z.number().int().positive().optional(),
   })
   .strict()
   .superRefine((binding, context) => {
-    if (binding.default === undefined) return;
-    const valid = binding.type === "array"
-      ? Array.isArray(binding.default)
-      : binding.type === "object"
-        ? binding.default !== null
-          && typeof binding.default === "object"
-          && !Array.isArray(binding.default)
-        : typeof binding.default === binding.type;
-    if (!valid) {
-      context.addIssue({
-        code: "custom",
-        path: ["default"],
-        message: `Default value must match binding type ${binding.type}`,
-      });
+    for (const field of ["default", "preview"] as const) {
+      const value = binding[field];
+      if (value === undefined) continue;
+      const valid = binding.type === "array" ? Array.isArray(value)
+        : binding.type === "object" ? value !== null && typeof value === "object" && !Array.isArray(value)
+          : binding.type === "number" ? typeof value === "number" && Number.isFinite(value)
+            : typeof value === binding.type;
+      if (!valid) context.addIssue({ code: "custom", path: [field],
+        message: `${field} value must match binding type ${binding.type}` });
     }
   });
 
@@ -189,3 +185,16 @@ export const WidgetMetadataSchema = WidgetMetadataInputSchema.transform(
 export type WidgetBinding = z.infer<typeof WidgetBindingSchema>;
 export type WidgetMetadataInput = z.input<typeof WidgetMetadataSchema>;
 export type WidgetMetadata = z.output<typeof WidgetMetadataSchema>;
+
+export const WidgetBindingDataSchema = z.object({
+  source: z.enum(["live", "preview", "study", "presentation"]),
+  status: z.enum(["ready", "waiting", "receiving", "stale", "disconnected", "ambiguous"]),
+  sourceKey: z.string().nullable(),
+  path: z.string(),
+  timestamp: z.number().finite().nullable(),
+  receivedAt: z.number().finite().nullable(),
+  staleAfterMs: z.number().positive(),
+  simulated: z.boolean().optional(),
+  history: z.array(z.object({ timestamp: z.number().finite(), value: z.number().finite().nullable() }).strict()).optional(),
+}).strict();
+export type WidgetBindingData = z.infer<typeof WidgetBindingDataSchema>;

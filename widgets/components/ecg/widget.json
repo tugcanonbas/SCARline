@@ -10,105 +10,141 @@
       "type": "number",
       "unit": "bpm",
       "description": "Current heart rate.",
-      "default": 82
+      "source": "live",
+      "staleAfterMs": 5000,
+      "preview": 82
     },
     "vitals.unit": {
       "type": "string",
       "description": "Display unit for heart rate.",
-      "default": "bpm"
+      "default": "bpm",
+      "source": "presentation"
     },
     "vitals.heart_rate_wave_scale": {
       "type": "number",
-      "description": "Vertical scale factor for the animated ECG waveform.",
-      "default": 1
+      "description": "Legacy presentation setting; received sample plots use their timestamps and values.",
+      "default": 1,
+      "source": "presentation"
     },
     "vitals.heart_rate_wave_duration": {
       "type": "number",
       "unit": "s",
-      "description": "Horizontal animation duration for the ECG waveform.",
-      "default": 1.35
+      "description": "Legacy presentation setting; received sample plots use their timestamps and values.",
+      "default": 1.35,
+      "source": "presentation"
     },
     "vitals.ecg_status": {
       "type": "string",
       "description": "Current ECG status label.",
-      "default": "Normal sinus"
+      "source": "live",
+      "staleAfterMs": 5000,
+      "preview": "Normal sinus"
     },
     "vitals.blood_pressure_systolic": {
       "type": "number",
       "unit": "mmHg",
       "description": "Current systolic blood pressure.",
-      "default": 123
+      "source": "live",
+      "staleAfterMs": 60000,
+      "preview": 123
     },
     "vitals.blood_pressure_diastolic": {
       "type": "number",
       "unit": "mmHg",
       "description": "Current diastolic blood pressure.",
-      "default": 78
+      "source": "live",
+      "staleAfterMs": 60000,
+      "preview": 78
     },
     "vitals.blood_pressure_unit": {
       "type": "string",
       "description": "Display unit for blood pressure.",
-      "default": "mmHg"
+      "default": "mmHg",
+      "source": "presentation"
     },
     "vitals.blood_pressure_wave_scale": {
       "type": "number",
-      "description": "Vertical scale factor for the animated NIBP waveform.",
-      "default": 1
+      "description": "Legacy presentation setting; received sample plots use their timestamps and values.",
+      "default": 1,
+      "source": "presentation"
     },
     "vitals.blood_pressure_wave_duration": {
       "type": "number",
       "unit": "s",
-      "description": "Horizontal animation duration for the NIBP waveform.",
-      "default": 1.45
+      "description": "Legacy presentation setting; received sample plots use their timestamps and values.",
+      "default": 1.45,
+      "source": "presentation"
     },
     "vitals.spo2": {
       "type": "number",
       "unit": "%",
       "description": "Current oxygen saturation.",
-      "default": 98
+      "source": "live",
+      "staleAfterMs": 5000,
+      "preview": 98
     },
     "vitals.spo2_unit": {
       "type": "string",
       "description": "Display unit for oxygen saturation.",
-      "default": "%"
+      "default": "%",
+      "source": "presentation"
     },
     "vitals.spo2_wave_scale": {
       "type": "number",
-      "description": "Vertical scale factor for the animated SpO2 waveform.",
-      "default": 1
+      "description": "Legacy presentation setting; received sample plots use their timestamps and values.",
+      "default": 1,
+      "source": "presentation"
     },
     "vitals.spo2_wave_duration": {
       "type": "number",
       "unit": "s",
-      "description": "Horizontal animation duration for the SpO2 waveform.",
-      "default": 1.3
+      "description": "Legacy presentation setting; received sample plots use their timestamps and values.",
+      "default": 1.3,
+      "source": "presentation"
     },
     "vitals.respiration_rate": {
       "type": "number",
       "unit": "rpm",
       "description": "Current respiration rate.",
-      "default": 18
+      "source": "live",
+      "staleAfterMs": 5000,
+      "preview": 18
     },
     "vitals.respiration_unit": {
       "type": "string",
       "description": "Display unit for respiration rate.",
-      "default": "rpm"
+      "default": "rpm",
+      "source": "presentation"
     },
     "vitals.respiration_wave_scale": {
       "type": "number",
-      "description": "Vertical scale factor for the animated respiration waveform.",
-      "default": 1
+      "description": "Legacy presentation setting; received sample plots use their timestamps and values.",
+      "default": 1,
+      "source": "presentation"
     },
     "vitals.respiration_wave_duration": {
       "type": "number",
       "unit": "s",
-      "description": "Horizontal animation duration for the respiration waveform.",
-      "default": 3.8
+      "description": "Legacy presentation setting; received sample plots use their timestamps and values.",
+      "default": 3.8,
+      "source": "presentation"
+    },
+    "vitals.ecg_samples": {
+      "type": "array",
+      "source": "live",
+      "staleAfterMs": 2000,
+      "description": "Timestamped ECG samples, each {timestamp: Unix milliseconds, value: number or null}. Never inferred from BPM."
     }
   },
   "ui": {
-    "preferredSize": { "w": 316, "h": 197 },
-    "minSize": { "w": 316, "h": 197 }
+    "preferredSize": {
+      "w": 316,
+      "h": 197
+    },
+    "minSize": {
+      "w": 316,
+      "h": 197
+    }
   },
   "window": {
     "frame": "none",

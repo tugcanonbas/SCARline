@@ -9,38 +9,56 @@
     "vitals.heart_rate": {
       "type": "number",
       "unit": "bpm",
-      "description": "Current participant heart rate."
+      "description": "Current participant heart rate.",
+      "source": "live",
+      "staleAfterMs": 5000,
+      "preview": 102
     },
     "vitals.heart_rate_min": {
       "type": "number",
       "unit": "bpm",
-      "description": "Observed lower bound in the current window."
+      "description": "Observed lower bound in the current window.",
+      "source": "live",
+      "staleAfterMs": 5000,
+      "preview": 87
     },
     "vitals.heart_rate_max": {
       "type": "number",
       "unit": "bpm",
-      "description": "Observed upper bound in the current window."
+      "description": "Observed upper bound in the current window.",
+      "source": "live",
+      "staleAfterMs": 5000,
+      "preview": 113
     },
     "vitals.heart_rate_wave_scale": {
       "type": "number",
-      "description": "Vertical scale factor for the animated waveform.",
-      "default": 1
+      "description": "Legacy presentation setting; received sample plots use their timestamps and values.",
+      "default": 1,
+      "source": "presentation"
     },
     "vitals.heart_rate_wave_duration": {
       "type": "number",
       "unit": "s",
-      "description": "Horizontal animation duration for the waveform.",
-      "default": 1.35
+      "description": "Legacy presentation setting; received sample plots use their timestamps and values.",
+      "default": 1.35,
+      "source": "presentation"
     },
     "vitals.unit": {
       "type": "string",
       "description": "Display unit for heart rate.",
-      "default": "bpm"
+      "default": "bpm",
+      "source": "presentation"
     }
   },
   "ui": {
-    "preferredSize": { "w": 95, "h": 65 },
-    "minSize": { "w": 95, "h": 65 }
+    "preferredSize": {
+      "w": 95,
+      "h": 65
+    },
+    "minSize": {
+      "w": 95,
+      "h": 65
+    }
   },
   "window": {
     "frame": "none",

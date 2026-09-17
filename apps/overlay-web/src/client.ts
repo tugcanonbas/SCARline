@@ -17,13 +17,15 @@ interface RuntimeWidget {
   x: number;
   y: number;
   bindings: Record<string, unknown>;
+  bindingData: Record<string, unknown>;
+  revision: number;
   metadata: Record<string, unknown>;
   styleOverrides: Record<string, unknown>;
   state: "visible" | "hidden" | "highlighted";
 }
 
 interface RuntimeSnapshot {
-  scope: { rendererMode: "desktop" | "browser"; layoutId: string; instanceId: string | null };
+  scope: { rendererMode: "desktop" | "browser"; layoutId: string; instanceId: string | null; sessionId: string | null };
   layout: { name: string };
   displays: BrowserDisplay[];
   widgets: RuntimeWidget[];
@@ -32,13 +34,15 @@ interface RuntimeSnapshot {
 interface ApiEnvelope<T> { data: T }
 
 const app = requiredElement("app");
+let rendererId = "";
 void start().catch(showError);
 
 async function start(): Promise<void> {
   const config = await fetchJson<RuntimeConfig>("/runtime-config.json", false);
   await exchangeBootstrap(config);
-  const snapshot = await fetchJson<ApiEnvelope<RuntimeSnapshot>>(`${config.coreApiOrigin}/api/v1/overlay/runtime`, true);
   const route = routeParts();
+  const query = route.kind === "widget" ? `?instanceId=${encodeURIComponent(route.id)}` : "";
+  const snapshot = await fetchJson<ApiEnvelope<RuntimeSnapshot>>(`${rendererApi(config)}/runtime${query}`, true);
   if (route.kind === "launcher") {
     await renderLauncher(config, snapshot.data);
   } else {
@@ -51,15 +55,27 @@ async function start(): Promise<void> {
 async function exchangeBootstrap(config: RuntimeConfig): Promise<void> {
   const fragment = new URLSearchParams(location.hash.slice(1));
   const bootstrap = fragment.get("bootstrap");
-  if (bootstrap === null) return;
+  const storageKey = `scarline.overlay.renderer:${location.pathname}`;
+  rendererId = fragment.get("renderer") ?? sessionStorage.getItem(storageKey) ?? "";
   history.replaceState(null, "", `${location.pathname}${location.search}`);
-  const response = await fetch(`${config.coreApiOrigin}/api/v1/overlay/bootstrap`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${bootstrap}`, "content-type": "application/json" },
-    credentials: "include",
-    body: "{}",
-  });
-  if (!response.ok) throw new Error(`Overlay authorization failed (${response.status}).`);
+  if (bootstrap !== null) {
+    const response = await fetch(`${config.coreApiOrigin}/api/v1/overlay/bootstrap`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${bootstrap}`, "content-type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ scoped: true }),
+    });
+    if (!response.ok) throw new Error(`Overlay authorization failed (${response.status}). Launch the widget again from Participant View.`);
+    const result = await response.json() as ApiEnvelope<{ rendererId: string }>;
+    rendererId = result.data.rendererId;
+  }
+  if (!/^[0-9a-f-]{36}$/i.test(rendererId)) throw new Error("Launch this overlay from Participant View to authorize it.");
+  // Store only a non-secret session identifier; the credential stays HttpOnly.
+  sessionStorage.setItem(storageKey, rendererId);
+}
+
+function rendererApi(config: RuntimeConfig): string {
+  return `${config.coreApiOrigin}/api/v1/overlay/renderers/${rendererId}`;
 }
 
 async function renderLauncher(config: RuntimeConfig, snapshot: RuntimeSnapshot): Promise<void> {
@@ -72,7 +88,22 @@ async function renderLauncher(config: RuntimeConfig, snapshot: RuntimeSnapshot):
   const list = document.createElement("div");
   list.className = "launcher-list";
   app.append(heading, instructions, list);
-  const popups = new Set<Window>();
+  const popups = new Map<string, Window>();
+  const closePopups = () => {
+    for (const popup of popups.values()) if (!popup.closed) popup.close();
+    popups.clear();
+  };
+  window.addEventListener("beforeunload", closePopups);
+  window.addEventListener("message", (event) => {
+    if (event.source !== window.opener || !isRecord(event.data)
+      || event.data.channel !== "scarline.preview-control.v1" || event.data.type !== "close-widgets"
+      || !Array.isArray(event.data.instanceIds)) return;
+    for (const instanceId of event.data.instanceIds) {
+      if (typeof instanceId !== "string") continue;
+      popups.get(instanceId)?.close();
+      popups.delete(instanceId);
+    }
+  });
 
   for (const widget of snapshot.widgets) {
     const row = document.createElement("div");
@@ -84,13 +115,13 @@ async function renderLauncher(config: RuntimeConfig, snapshot: RuntimeSnapshot):
     button.textContent = "Open";
     const open = () => {
       const popup = window.open(
-        `/widget/${encodeURIComponent(widget.instanceId)}`,
+        `/widget/${encodeURIComponent(widget.instanceId)}#renderer=${encodeURIComponent(rendererId)}`,
         `scarline-widget-${widget.instanceId}`,
         popupFeatures(widget, snapshot.displays),
       );
       button.dataset.open = String(popup !== null);
       button.textContent = popup === null ? "Open" : "Opened";
-      if (popup !== null) popups.add(popup);
+      if (popup !== null) popups.set(widget.instanceId, popup);
       return popup;
     };
     button.addEventListener("click", open);
@@ -99,12 +130,13 @@ async function renderLauncher(config: RuntimeConfig, snapshot: RuntimeSnapshot):
     open();
   }
   await connectRuntime(config, null, () => undefined, () => {
-    for (const popup of popups) if (!popup.closed) popup.close();
+    closePopups();
     window.close();
   });
 }
 
 async function renderWidget(config: RuntimeConfig, snapshot: RuntimeSnapshot, widget: RuntimeWidget): Promise<void> {
+  document.title = `${widget.name}${snapshot.scope.sessionId === null ? " · Preview" : ""} · SCARline`;
   app.className = "widget-shell";
   app.replaceChildren();
   const frame = document.createElement("iframe");
@@ -116,16 +148,21 @@ async function renderWidget(config: RuntimeConfig, snapshot: RuntimeSnapshot, wi
   frame.srcdoc = injectBridge(html, widget.widgetKey);
   app.append(frame);
 
-  if (snapshot.scope.rendererMode === "browser") {
+  if (snapshot.scope.rendererMode === "browser" && snapshot.scope.sessionId === null) {
     const toolbar = document.createElement("div");
     toolbar.className = "browser-toolbar";
-    toolbar.textContent = `SCARline · ${widget.name}`;
+    toolbar.textContent = `SCARline · ${widget.name}${snapshot.scope.sessionId === null ? " · Preview" : ""}`;
     app.append(toolbar);
   }
 
   let frameReady = false;
   const queued: Array<Record<string, unknown>> = [];
+  let pendingRequestId: string | null = null;
+  let revision = Number.isSafeInteger(widget.revision) ? widget.revision : 0;
   const send = (message: Record<string, unknown>) => {
+    if (isRecord(message.trigger) && typeof message.trigger.revision === "number") {
+      revision = Math.max(revision, message.trigger.revision);
+    }
     if (!frameReady || frame.contentWindow === null) queued.push(message);
     else frame.contentWindow.postMessage({ channel: "scarline.host.v1", ...message }, "*");
   };
@@ -136,12 +173,23 @@ async function renderWidget(config: RuntimeConfig, snapshot: RuntimeSnapshot, wi
       frameReady = true;
       for (const message of queued.splice(0)) send(message);
     } else if (event.data.type === "action" && typeof event.data.action === "string") {
-      void postInteraction(config, widget.instanceId, event.data.action, isRecord(event.data.payload) ? event.data.payload : {});
+      if (pendingRequestId !== null) return;
+      const payload = isRecord(event.data.payload) ? { ...event.data.payload } : {};
+      const requestId = typeof payload.requestId === "string" && /^[0-9a-f-]{36}$/i.test(payload.requestId)
+        ? payload.requestId : crypto.randomUUID();
+      delete payload.requestId;
+      pendingRequestId = requestId;
+      const action = event.data.action;
+      send({ type: "trigger", trigger: { interaction: { requestId, action, status: "pending" } } });
+      void postInteraction(config, widget.instanceId, action, payload, requestId, revision, send)
+        .finally(() => { pendingRequestId = null; });
     }
   });
 
-  send({ type: "metadata", metadata: widget.metadata });
-  send({ type: "bindings", bindings: widget.bindings });
+  send({ type: "metadata", metadata: { ...widget.metadata, interactionResults: true,
+    dataMode: snapshot.scope.sessionId === null ? "preview" : "live", bindingData: widget.bindingData } });
+  send({ type: "trigger", trigger: { action: "reset", bindingValues: widget.bindings, bindingData: widget.bindingData,
+    state: widget.state, revision: widget.revision } });
   send({ type: "styles", styles: safeStyles(widget.styleOverrides) });
   send({ type: "state", state: widget.state });
   startSystemBindings(send);
@@ -184,7 +232,7 @@ async function connectRuntime(
     const version = ++connectionVersion;
     try {
       const ticket = await fetchJson<ApiEnvelope<{ token: string }>>(
-        `${config.coreApiOrigin}/api/v1/overlay/websocket-ticket`,
+        `${rendererApi(config)}/websocket-ticket`,
         true,
         { method: "POST", body: "{}", headers: { "content-type": "application/json" } },
       );
@@ -192,10 +240,16 @@ async function connectRuntime(
       if (typeof ticket.data?.token !== "string" || ticket.data.token.length === 0) {
         throw new Error("Overlay WebSocket ticket is invalid.");
       }
-      const opened = new WebSocket(`${config.coreApiWebSocketOrigin}/overlay-runtime`, `scarline.overlay-ticket.${ticket.data.token}`);
+      const runtimeUrl = new URL("/overlay-runtime", config.coreApiWebSocketOrigin);
+      // A layout grant can authorize many popups, but each popup needs only its
+      // own data. The launcher watches closure without receiving chart histories.
+      if (instanceId === null) runtimeUrl.searchParams.set("lifecycleOnly", "true");
+      else runtimeUrl.searchParams.set("instanceId", instanceId);
+      const opened = new WebSocket(runtimeUrl, `scarline.overlay-ticket.${ticket.data.token}`);
       socket = opened;
       opened.addEventListener("open", () => {
         if (socket === opened) retryCount = 0;
+        send({ type: "connection", connected: true });
       });
       opened.addEventListener("message", (event) => {
         let message: unknown;
@@ -211,7 +265,7 @@ async function connectRuntime(
           return;
         }
         if (instanceId === null || message.instanceId !== instanceId) return;
-        if (message.type === "overlay.runtime.bindings" && isRecord(message.bindings)) send({ type: "bindings", bindings: message.bindings });
+        if (message.type === "overlay.runtime.bindings" && isRecord(message.bindings)) send({ type: "bindings", bindings: message.bindings, bindingData: message.bindingData, revision: message.revision });
         else if (message.type === "overlay.runtime.trigger" && isRecord(message.trigger)) send({ type: "trigger", trigger: message.trigger });
         else if (message.type === "overlay.runtime.state" && ["visible", "hidden", "highlighted"].includes(String(message.state))) {
           send({ type: "state", state: message.state });
@@ -223,23 +277,47 @@ async function connectRuntime(
       opened.addEventListener("close", () => {
         if (socket !== opened) return;
         socket = null;
+        send({ type: "connection", connected: false });
         scheduleReconnect();
       });
     } catch {
+      send({ type: "connection", connected: false });
       if (!stopped && version === connectionVersion) scheduleReconnect();
     }
   };
   await connect();
 }
 
-async function postInteraction(config: RuntimeConfig, instanceId: string, action: string, payload: Record<string, unknown>): Promise<void> {
-  const response = await fetch(`${config.coreApiOrigin}/api/v1/overlay/interactions`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ instanceId, action, payload }),
-  });
-  if (!response.ok) console.error(`SCARline widget interaction rejected (${response.status}).`);
+async function postInteraction(config: RuntimeConfig, instanceId: string, action: string, payload: Record<string, unknown>,
+  requestId: string, observedRevision: number, send: (message: Record<string, unknown>) => void): Promise<void> {
+  const report = (status: string, message: string, retryable = false) => send({ type: "trigger", trigger: {
+    interaction: { requestId, action, status, message, retryable },
+  } });
+  try {
+    const response = await fetch(`${rendererApi(config)}/interactions`, {
+      method: "POST", credentials: "include", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ instanceId, action, payload, requestId, observedRevision }), signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) {
+      const message = response.status === 401
+        ? "Session expired. Relaunch this widget from Participant View."
+        : response.status === 409 ? "The widget is no longer available. Reopen the current widget."
+        : response.status >= 500 ? "Could not confirm the action. Retry to check its result."
+        : "This action was rejected.";
+      report("failed", message, response.status >= 500);
+      return;
+    }
+    const result = await response.json() as ApiEnvelope<{ accepted: boolean; applied: boolean; requestId: string; update: Record<string, unknown> }>;
+    if (result.data?.accepted !== true || result.data.requestId !== requestId || !isRecord(result.data.update)) {
+      throw new Error("Invalid interaction result");
+    }
+    send({ type: "trigger", trigger: result.data.update });
+    report(result.data.applied ? "applied" : "accepted", "");
+  } catch {
+    // The request might have committed before the connection failed. Retrying
+    // the same ID obtains its result without applying the toggle twice.
+    report("failed", "Could not confirm the action. Retry to check its result.", true);
+  }
 }
 
 function startSystemBindings(send: (message: Record<string, unknown>) => void): void {
@@ -263,7 +341,7 @@ function startSystemBindings(send: (message: Record<string, unknown>) => void): 
 }
 
 function injectBridge(html: string, widgetKey: string): string {
-  const base = `<base href="/assets/${escapeAttribute(widgetKey)}/" /><script src="/bridge.js"></script>`;
+  const base = `<base href="${escapeAttribute(location.origin)}/assets/${escapeAttribute(widgetKey)}/" /><script type="module" src="/bridge.js"></script>`;
   if (/<head(?:\s[^>]*)?>/i.test(html)) return html.replace(/<head(?:\s[^>]*)?>/i, (match) => `${match}${base}`);
   return `${base}${html}`;
 }

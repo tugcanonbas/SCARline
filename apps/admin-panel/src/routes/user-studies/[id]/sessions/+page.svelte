@@ -118,7 +118,7 @@
             {/each}
           </select>
         </label>
-        
+
         <!-- Conditions field: select and order in one list -->
         <div class="form-field required">
           <span>Conditions</span>
