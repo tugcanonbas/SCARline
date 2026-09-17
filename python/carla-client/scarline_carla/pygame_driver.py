@@ -202,7 +202,7 @@ def run() -> None:
         sys.exit(1)
 
     pygame.init()
-    clock = pygame.time.Clock()
+    clock = None
     font = None
     screen = None
 
@@ -231,33 +231,42 @@ def run() -> None:
         sensor = world.spawn_actor(bp, transform, attach_to=veh)
 
         def on_image(image):
-            surf = _carla_image_to_surface(image)
-            with frame_lock:
-                latest_frame[0] = surf
+            try:
+                surf = _carla_image_to_surface(image)
+                with frame_lock:
+                    latest_frame[0] = surf
+            except Exception:
+                pass
 
         sensor.listen(on_image)
         return sensor
 
     def cleanup_session():
-        nonlocal vehicle, camera_sensor, world
+        nonlocal vehicle, camera_sensor, world, screen, font, clock
         if camera_sensor is not None:
-            with suppress(Exception):
-                camera_sensor.stop()
-                camera_sensor.destroy()
+            with suppress(Exception, RuntimeError, BaseException):
+                try:
+                    if getattr(camera_sensor, "is_alive", False) and getattr(camera_sensor, "is_listening", False):
+                        camera_sensor.stop()
+                except Exception:
+                    pass
+                if getattr(camera_sensor, "is_alive", False):
+                    camera_sensor.destroy()
             camera_sensor = None
         vehicle = None
+        clock = None
         if client is not None:
-            with suppress(Exception):
+            with suppress(Exception, RuntimeError, BaseException):
                 world = client.get_world()
         with frame_lock:
             latest_frame[0] = None
-        if screen is not None and pygame.display.get_init():
-            screen.fill((15, 15, 25))
-            if font is not None:
-                msg = font.render("Waiting for session...", True, (160, 160, 180))
-                screen.blit(msg, (WIN_W // 2 - msg.get_width() // 2, WIN_H // 2))
-            pygame.display.flip()
-            print("pygame_driver: session ended -- waiting for next session...", flush=True)
+        if screen is not None or pygame.display.get_init():
+            with suppress(Exception):
+                pygame.display.quit()
+                pygame.quit()
+            screen = None
+            font = None
+            print("pygame_driver: session ended / cancelled -- window closed, waiting for next session...", flush=True)
 
     last_poll = 0.0
     running = True
@@ -278,7 +287,7 @@ def run() -> None:
                     except Exception:
                         client = None
                         world = None
-                        time.sleep(1.0)
+                        time.sleep(0.5)
                         continue
 
                 # ------------------------------------------------------------
@@ -286,7 +295,7 @@ def run() -> None:
                 # ------------------------------------------------------------
                 if vehicle is None:
                     now = time.monotonic()
-                    if now - last_poll >= 1.0:
+                    if now - last_poll >= 0.5:
                         last_poll = now
                         try:
                             if client is not None:
@@ -296,31 +305,55 @@ def run() -> None:
                             client = None
                             world = None
                             continue
-                        if hero is not None:
+                        if hero is not None and getattr(hero, "is_alive", False):
                             vehicle = hero
                             try:
-                                if not pygame.display.get_init():
-                                    pygame.display.init()
+                                pygame.init()
+                                pygame.font.init()
+                                pygame.display.init()
+                                clock = pygame.time.Clock()
                                 screen = pygame.display.set_mode((WIN_W, WIN_H))
                                 pygame.display.set_caption(f"SCARline -- Keyboard Driver  |  Session Active [{vehicle.type_id}]")
                                 font = pygame.font.SysFont("monospace", 14)
                                 _focus_window()
 
                                 camera_sensor = attach_camera(vehicle)
-                                print(f"pygame_driver: hero vehicle found ({vehicle.type_id}) -- window popped up & keyboard control active", flush=True)
+                                print(f"pygame_driver: hero vehicle found ({vehicle.type_id}) -- new window opened & keyboard control active", flush=True)
                             except Exception as err:
                                 print(f"pygame_driver: failed to attach camera / display: {err}", flush=True)
                                 cleanup_session()
 
                     if vehicle is None:
-                        time.sleep(0.3)
+                        time.sleep(0.05)
                         continue
 
                 # ------------------------------------------------------------
-                # Verify vehicle liveness
+                # Verify vehicle liveness and session match against CARLA world
                 # ------------------------------------------------------------
-                if not getattr(vehicle, "is_alive", True):
-                    print("pygame_driver: hero vehicle destroyed / disconnected -- session ended", flush=True)
+                try:
+                    if world is None or client is None:
+                        cleanup_session()
+                        continue
+                    current_hero = _find_hero(world)
+                    if current_hero is None:
+                        print("pygame_driver: hero vehicle despawned -- session ended", flush=True)
+                        cleanup_session()
+                        continue
+                    if current_hero.id != vehicle.id:
+                        print(f"pygame_driver: hero vehicle changed ({vehicle.id} -> {current_hero.id}) -- switching session", flush=True)
+                        cleanup_session()
+                        continue
+                    if not getattr(vehicle, "is_alive", False):
+                        print("pygame_driver: hero vehicle not alive -- session ended", flush=True)
+                        cleanup_session()
+                        continue
+                    _transform = vehicle.get_transform()
+                    if _transform is None:
+                        print("pygame_driver: hero vehicle transform is None -- session ended", flush=True)
+                        cleanup_session()
+                        continue
+                except Exception as actor_err:
+                    print(f"pygame_driver: hero vehicle destroyed / disconnected ({actor_err}) -- session ended", flush=True)
                     cleanup_session()
                     continue
 
@@ -334,6 +367,10 @@ def run() -> None:
                             cleanup_session()
                             break
                         if event.type == pygame.KEYDOWN:
+                            if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                                print("pygame_driver: close requested via keyboard", flush=True)
+                                cleanup_session()
+                                break
                             if event.key == pygame.K_r and vehicle is not None:
                                 reverse = not reverse
 
@@ -386,7 +423,10 @@ def run() -> None:
                         _draw_hud(screen, font, vehicle, ctrl, connected=True)
                     pygame.display.flip()
 
-                clock.tick(FPS)
+                if clock is not None:
+                    clock.tick(FPS)
+                else:
+                    time.sleep(1.0 / FPS)
 
             except Exception as loop_err:
                 print(f"pygame_driver: loop warning: {loop_err}", flush=True)
@@ -397,7 +437,8 @@ def run() -> None:
 
     finally:
         cleanup_session()
-        pygame.quit()
+        with suppress(Exception):
+            pygame.quit()
         print("pygame_driver: exited", flush=True)
 
 

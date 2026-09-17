@@ -122,16 +122,16 @@ class CarlaAdapter:
                 commands = [carla.command.DestroyActor(x) for x in all_actors]
                 self.client.apply_batch_sync(commands, False)
 
-        # carla connection - 2026-09-01: clean up any leftover orphan hero/autopilot vehicles
+        # carla connection - clean up any leftover orphan hero/autopilot vehicles safely
         if self.world is not None:
             with suppress(Exception):
                 orphans = [
                     a for a in self.world.get_actors().filter("vehicle.*")
-                    if a.attributes.get("role_name") in ("hero", "autopilot")
+                    if getattr(a, "is_alive", False) and a.attributes.get("role_name", "") in ("hero", "autopilot")
                 ]
-                for o in orphans:
+                if self.client is not None and carla is not None and orphans:
                     with suppress(Exception):
-                        o.destroy()
+                        self.client.apply_batch_sync([carla.command.DestroyActor(x) for x in orphans], False)
         # end carla connection
 
         # 4. Reset CARLA and TM to asynchronous mode so server never freezes between sessions

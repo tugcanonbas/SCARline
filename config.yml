@@ -70,7 +70,7 @@ sim_bridge:
 simulator:
   # May be overridden with `scarline start --simulator carla|mock`.
   # `scarline start --no-sim` uses the Mock Simulator on unsupported systems.
-  default: carla
+  default: mock
   autostart: false
 
   carla:
@@ -78,7 +78,7 @@ simulator:
     # adapter runs through the `carla` Compose profile and connects back to it.
     # Set this to the local CarlaUE4 launcher (absolute or repository-relative).
     version: 0.9.16
-    executable: C:\Users\zirae\WorkSpace\CARLA 0.9.16\CarlaUE4.exe
+    executable: your/path/to/CarlaUE4.sh
     public_host: 127.0.0.1
     host: host.docker.internal
     port: 2000

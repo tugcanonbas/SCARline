@@ -83,7 +83,7 @@
   current={`/user-studies/${data.study.id}/overview`}
 />
 
-<details class="surface-card" id="checklist" open={isNewStudy}>
+<details class="surface-card mb-6" id="checklist" open={isNewStudy}>
   <summary class="surface-card__title" style="cursor: pointer;"
     >Quick Start — steps to get you started</summary
   >
@@ -119,41 +119,13 @@
         class="entity-card entity-card--tight"
         href={appPath(
           readinessRoute(
-            "conditions",
-            studySectionHref(data.study.id, "conditions"),
-          ),
-        )}
-      >
-        <p class="entity-card__title">
-          2. {STUDY_SECTIONS.conditions.label}
-          {#if readinessCheck("conditions")?.status === "ready"}
-            <CircleCheck size={18} aria-hidden="true" /><span class="sr-only"
-              >Ready</span
-            >
-          {:else}
-            <CircleX size={18} aria-hidden="true" /><span class="sr-only"
-              >Not Ready</span
-            >
-          {/if}
-        </p>
-        <p class="entity-card__meta">
-          Configure experimental conditions. Currently {conditionCount} condition{conditionCount ===
-          1
-            ? ""
-            : "s"} configured.
-        </p>
-      </a>
-      <a
-        class="entity-card entity-card--tight"
-        href={appPath(
-          readinessRoute(
             "simulator",
             studySectionHref(data.study.id, "simulator"),
           ),
         )}
       >
         <p class="entity-card__title">
-          3. {STUDY_SECTIONS.simulator.label}
+          2. {STUDY_SECTIONS.simulator.label}
           {#if readinessCheck("simulator")?.status === "ready"}
             <CircleCheck size={18} aria-hidden="true" /><span class="sr-only"
               >Ready</span
@@ -176,7 +148,7 @@
         )}
       >
         <p class="entity-card__title">
-          4. {STUDY_SECTIONS.sensors.label}
+          3. {STUDY_SECTIONS.sensors.label}
           {#if readinessCheck("sensors")?.status === "ready"}
             <CircleCheck size={18} aria-hidden="true" /><span class="sr-only"
               >Ready</span
@@ -201,7 +173,7 @@
         )}
       >
         <p class="entity-card__title">
-          5. {STUDY_SECTIONS["participant-view"].label}
+          4. {STUDY_SECTIONS["participant-view"].label}
           {#if readinessCheck("participant_view")?.status === "ready"}
             <CircleCheck size={18} aria-hidden="true" /><span class="sr-only"
               >Ready</span
@@ -214,6 +186,34 @@
         </p>
         <p class="entity-card__meta">
           Design what participants see on their display during a session.
+        </p>
+      </a>
+      <a
+        class="entity-card entity-card--tight"
+        href={appPath(
+          readinessRoute(
+            "conditions",
+            studySectionHref(data.study.id, "conditions"),
+          ),
+        )}
+      >
+        <p class="entity-card__title">
+          5. {STUDY_SECTIONS.conditions.label}
+          {#if readinessCheck("conditions")?.status === "ready"}
+            <CircleCheck size={18} aria-hidden="true" /><span class="sr-only"
+              >Ready</span
+            >
+          {:else}
+            <CircleX size={18} aria-hidden="true" /><span class="sr-only"
+              >Not Ready</span
+            >
+          {/if}
+        </p>
+        <p class="entity-card__meta">
+          Configure experimental conditions. Currently {conditionCount} condition{conditionCount ===
+          1
+            ? ""
+            : "s"} configured.
         </p>
       </a>
       {#each [{ key: "desktop_host", number: 6, label: "Desktop Host" }, { key: "displays", number: 7, label: "Displays" }, { key: "widget_renderer", number: 8, label: "Widget Renderer" }, { key: "study_status", number: 9, label: "Study Status" }] as item}
