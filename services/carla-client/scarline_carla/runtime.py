@@ -5,6 +5,7 @@ import queue
 import random
 import threading
 import time
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -72,6 +73,9 @@ class CarlaRuntime:
             previous_recording = self._stop_recording()
             if previous_recording is not None: self.events.put(previous_recording)
             self._cleanup(restore_settings=True)
+            if self.world is not None:
+                with suppress(Exception):
+                    self.world.wait_for_tick(0.5)
             configuration = session["configuration"]
             target_map = configuration["map"]
             try:
@@ -93,14 +97,20 @@ class CarlaRuntime:
                 self.traffic_manager.set_random_device_seed(configuration["randomSeed"])
                 speed_diff = float(configuration["trafficConfig"].get("speedDifference", 0.0))
                 if speed_diff == 0.0:
-                    speed_diff = -35.0
+                    speed_diff = 10.0
                 self.traffic_manager.global_percentage_speed_difference(speed_diff)
                 try:
-                    self.traffic_manager.set_global_distance_to_leading_vehicle(2.5)
+                    self.traffic_manager.set_global_distance_to_leading_vehicle(4.0)
+                    self.traffic_manager.global_percentage_ignore_lights(0.0)
+                    self.traffic_manager.global_percentage_ignore_vehicles(0.0)
+                    self.traffic_manager.global_percentage_ignore_walkers(0.0)
+                    self.traffic_manager.global_percentage_random_left_lane_change(0.0)
+                    self.traffic_manager.global_percentage_random_right_lane_change(0.0)
+                    self.traffic_manager.set_global_percentage_keep_right_rule(70.0)
                     self.traffic_manager.set_hybrid_physics_mode(True)
                     self.traffic_manager.set_hybrid_physics_radius(70.0)
                     self.traffic_manager.set_respawn_dormant_vehicles(True)
-                    self.traffic_manager.set_boundaries_respawn_dormant_vehicles(25.0, 150.0)
+                    self.traffic_manager.set_boundaries_respawn_dormant_vehicles(25.0, 180.0)
                 except Exception as error:
                     LOGGER.debug("Could not set TM performance settings: %s", error)
 
@@ -174,7 +184,7 @@ class CarlaRuntime:
     def _stop_tick_thread(self) -> None:
         self._stop_tick_event.set()
         if self._tick_thread is not None and self._tick_thread.is_alive():
-            self._tick_thread.join(timeout=1.0)
+            self._tick_thread.join(timeout=2.5)
             self._tick_thread = None
 
     def _tick_worker(self) -> None:
@@ -187,20 +197,22 @@ class CarlaRuntime:
             if active is not None and not self.paused and world is not None and ego is not None:
                 try:
                     configuration = active["configuration"]
-                    if configuration["controlMode"] == "io":
+                    if configuration.get("controlMode") == "io":
                         self._enforce_control_timeout()
 
                     snapshot = world.wait_for_tick(2.0)
+                    if self._stop_tick_event.is_set() or self.active_configuration is None:
+                        break
                     tick_count += 1
 
                     # Emit telemetry every 3 ticks (~20 Hz) for lightweight network bandwidth at 60 FPS
                     if tick_count % 3 == 0:
                         try:
-                            if ego.is_alive:
+                            if ego is not None and getattr(ego, "is_alive", False):
                                 velocity = ego.get_velocity()
                                 control = ego.get_control()
                                 speed = math.sqrt(velocity.x ** 2 + velocity.y ** 2 + velocity.z ** 2) * 3.6
-                                configured_speed_limit = configuration["trafficConfig"].get("speedLimitOverride")
+                                configured_speed_limit = configuration.get("trafficConfig", {}).get("speedLimitOverride")
                                 speed_limit = float(configured_speed_limit) if configured_speed_limit is not None else float(ego.get_speed_limit())
                                 self.outbound_messages.put({
                                     "type": "vehicle.telemetry",
@@ -210,7 +222,7 @@ class CarlaRuntime:
                                     "steer": max(-1.0, min(1.0, float(control.steer))),
                                     "brake": max(0.0, min(1.0, float(control.brake))),
                                 })
-                        except Exception:
+                        except (Exception, RuntimeError, BaseException):
                             pass
 
                     while True:
@@ -284,17 +296,85 @@ class CarlaRuntime:
         weather.sun_altitude_angle = float(configuration["sunConfig"]["sunAltitudeAngle"])
         self.world.set_weather(weather)
 
+    def _clear_vehicles_at_location(self, target_location: Any, clearance_radius: float = 12.0) -> None:
+        """Clear any vehicles or walkers within clearance_radius meters of target_location."""
+        try:
+            actors_to_clear = []
+            for actor in self.world.get_actors():
+                try:
+                    if getattr(actor, "is_alive", False):
+                        loc = actor.get_location()
+                        dist = math.sqrt((loc.x - target_location.x)**2 + (loc.y - target_location.y)**2 + (loc.z - target_location.z)**2)
+                        if dist < clearance_radius:
+                            actors_to_clear.append(actor)
+                except Exception:
+                    pass
+            if actors_to_clear and self.client is not None and carla is not None:
+                try:
+                    self.client.apply_batch_sync([carla.command.DestroyActor(x) for x in actors_to_clear], False)
+                except Exception:
+                    for a in actors_to_clear:
+                        with suppress(Exception):
+                            a.destroy()
+        except Exception:
+            pass
+
     def _spawn_ego_vehicle(self, blueprint_id: str, spawn_points: list[Any], role_name: str) -> Any:
+        # Despawn any preexisting hero vehicles first
+        try:
+            old_heros = []
+            for actor in self.world.get_actors().filter("vehicle.*"):
+                with suppress(Exception):
+                    if actor.attributes.get("role_name") == role_name:
+                        old_heros.append(actor)
+            if old_heros:
+                if self.client is not None and carla is not None:
+                    with suppress(Exception):
+                        self.client.apply_batch_sync([carla.command.DestroyActor(x) for x in old_heros], False)
+                for h in old_heros:
+                    with suppress(Exception):
+                        h.destroy()
+        except Exception:
+            pass
+
         library = self.world.get_blueprint_library()
-        try: blueprint = library.find(blueprint_id)
-        except Exception as error: raise RuntimeError(f"Unknown CARLA vehicle blueprint: {blueprint_id}") from error
-        if blueprint.has_attribute("role_name"): blueprint.set_attribute("role_name", role_name)
+        try:
+            blueprint = library.find(blueprint_id)
+        except Exception:
+            try:
+                blueprint = library.find("vehicle.tesla.model3")
+            except Exception:
+                blueprints = list(library.filter("vehicle.*"))
+                if not blueprints:
+                    raise RuntimeError("No vehicle blueprints available in CARLA library")
+                blueprint = blueprints[0]
+        if blueprint.has_attribute("role_name"):
+            blueprint.set_attribute("role_name", role_name)
+        if blueprint.has_attribute("color"):
+            with suppress(Exception):
+                color = random.choice(blueprint.get_attribute("color").recommended_values) if blueprint.get_attribute("color").recommended_values else "255,0,0"
+                blueprint.set_attribute("color", color)
+
         for i in range(len(spawn_points)):
-            actor = self.world.try_spawn_actor(blueprint, spawn_points[i])
+            sp = spawn_points[i]
+            self._clear_vehicles_at_location(sp.location, clearance_radius=12.0)
+            actor = self.world.try_spawn_actor(blueprint, sp)
             if actor is not None:
                 spawn_points.pop(i)
                 return actor
-        raise RuntimeError(f"Could not spawn {blueprint_id} (all {len(spawn_points)} spawn points occupied/obstructed)")
+
+        # Fallback with slight elevation (+0.5m) in case terrain ground contact caused obstruction
+        for sp in spawn_points:
+            self._clear_vehicles_at_location(sp.location, clearance_radius=12.0)
+            elevated = carla.Transform(
+                carla.Location(x=sp.location.x, y=sp.location.y, z=sp.location.z + 0.5),
+                sp.rotation,
+            )
+            actor = self.world.try_spawn_actor(blueprint, elevated)
+            if actor is not None:
+                return actor
+
+        raise RuntimeError(f"Could not spawn ego vehicle {blueprint_id} (all {len(spawn_points)} spawn points occupied/obstructed)")
 
     def _spawn_vehicle(self, blueprint_id: str, transform: Any, role_name: str) -> Any:
         library = self.world.get_blueprint_library()
@@ -306,17 +386,40 @@ class CarlaRuntime:
         return actor
 
     def _spawn_traffic(self, configuration: dict[str, Any], spawn_points: list[Any]) -> None:
-        count = min(configuration["trafficConfig"]["npcVehicleCount"], len(spawn_points))
+        count = int(configuration["trafficConfig"].get("npcVehicleCount", 0))
+        if count <= 0:
+            return
         blueprints = list(self.world.get_blueprint_library().filter("vehicle.*"))
         randomizer = random.Random(configuration["randomSeed"])
-        for index in range(count):
+        spawned_count = 0
+        for sp in spawn_points:
+            if spawned_count >= count:
+                break
             blueprint = randomizer.choice(blueprints)
-            if blueprint.has_attribute("role_name"): blueprint.set_attribute("role_name", "autopilot")
-            actor = self.world.try_spawn_actor(blueprint, spawn_points[index])
-            if actor is None: continue
-            self.vehicles.append(actor)
-            actor.set_autopilot(True, self.traffic_manager.get_port())
-            self._apply_speed_limit_override(actor, configuration["trafficConfig"].get("speedLimitOverride"))
+            if blueprint.has_attribute("role_name"):
+                blueprint.set_attribute("role_name", "autopilot")
+            if blueprint.has_attribute("color"):
+                with suppress(Exception):
+                    color = random.choice(blueprint.get_attribute("color").recommended_values) if blueprint.get_attribute("color").recommended_values else "0,0,200"
+                    blueprint.set_attribute("color", color)
+            actor = self.world.try_spawn_actor(blueprint, sp)
+            if actor is None:
+                # Try slight elevation in case ground plane contact caused collision rejection
+                elevated = carla.Transform(carla.Location(x=sp.location.x, y=sp.location.y, z=sp.location.z + 0.3), sp.rotation)
+                actor = self.world.try_spawn_actor(blueprint, elevated)
+            if actor is not None:
+                self.vehicles.append(actor)
+                actor.set_autopilot(True, self.traffic_manager.get_port())
+                try:
+                    self.traffic_manager.auto_lane_change(actor, False)
+                    self.traffic_manager.distance_to_leading_vehicle(actor, 4.0)
+                    self.traffic_manager.ignore_lights_percentage(actor, 0.0)
+                    self.traffic_manager.ignore_vehicles_percentage(actor, 0.0)
+                    self.traffic_manager.ignore_walkers_percentage(actor, 0.0)
+                except Exception:
+                    pass
+                self._apply_speed_limit_override(actor, configuration["trafficConfig"].get("speedLimitOverride"))
+                spawned_count += 1
 
     def _apply_speed_limit_override(self, actor: Any, speed_limit_override: Any) -> None:
         if speed_limit_override is None: return
@@ -365,7 +468,15 @@ class CarlaRuntime:
             try:
                 if sensor_type == "sensor.other.collision":
                     impulse = data.normal_impulse
-                    self.events.put({"type":"simulator.collision","otherActor":str(data.other_actor.type_id),"impulse":math.sqrt(impulse.x**2+impulse.y**2+impulse.z**2)})
+                    other_actor = getattr(data, "other_actor", None)
+                    other_actor_type = "unknown"
+                    if other_actor is not None:
+                        try:
+                            if getattr(other_actor, "is_alive", False):
+                                other_actor_type = str(other_actor.type_id)
+                        except Exception:
+                            pass
+                    self.events.put({"type":"simulator.collision","otherActor":other_actor_type,"impulse":math.sqrt(impulse.x**2+impulse.y**2+impulse.z**2)})
                 elif sensor_type == "sensor.other.lane_invasion":
                     self.events.put({"type":"simulator.lane_invasion","markings":[str(marking.type) for marking in data.crossed_lane_markings]})
                 elif sensor_type == "sensor.other.gnss":
@@ -458,24 +569,87 @@ class CarlaRuntime:
 
     def _cleanup(self, restore_settings: bool) -> None:
         self._stop_tick_thread()
+        self.ego_vehicle = None
+        self.active_configuration = None
+        self.paused = False
+
+        # 1. Stop all sensors first to prevent in-flight callbacks
         for sensor in self.sensors:
-            try: sensor.stop()
-            except Exception: pass
-        for controller in self.walker_controllers:
-            try: controller.stop()
-            except Exception: pass
-        for actor in [*self.sensors, *self.walker_controllers, *self.walkers, *reversed(self.vehicles)]:
             try:
-                if actor.is_alive:
-                    actor.destroy()
-            except Exception: pass
+                if sensor is not None and getattr(sensor, "is_alive", False):
+                    try:
+                        if getattr(sensor, "is_listening", False):
+                            sensor.stop()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        for controller in self.walker_controllers:
+            try:
+                if controller is not None and getattr(controller, "is_alive", False):
+                    controller.stop()
+            except Exception:
+                pass
+
+        # 2. Batch destroy all tracked session actors
+        all_actors = [a for a in [*self.sensors, *self.walker_controllers, *self.walkers, *self.vehicles] if a is not None]
+        if self.client is not None and carla is not None and all_actors:
+            try:
+                commands = [carla.command.DestroyActor(x) for x in all_actors if getattr(x, "is_alive", False)]
+                if commands:
+                    self.client.apply_batch_sync(commands, False)
+            except Exception:
+                for actor in all_actors:
+                    try:
+                        if getattr(actor, "is_alive", False):
+                            actor.destroy()
+                    except Exception:
+                        pass
+        else:
+            for actor in all_actors:
+                try:
+                    if getattr(actor, "is_alive", False):
+                        actor.destroy()
+                except Exception:
+                    pass
+
+        # 3. Clean up any leftover orphan hero / autopilot vehicles or walkers
         if self.world is not None:
             try:
-                for actor in self.world.get_actors().filter("vehicle.*"):
-                    role = actor.attributes.get("role_name", "")
-                    if role in ("hero", "autopilot") and actor.is_alive:
-                        actor.destroy()
-            except Exception: pass
+                orphan_actors = []
+                for actor in self.world.get_actors():
+                    try:
+                        if getattr(actor, "is_alive", False):
+                            type_id = getattr(actor, "type_id", "")
+                            role = ""
+                            if hasattr(actor, "attributes"):
+                                with suppress(Exception):
+                                    role = actor.attributes.get("role_name", "")
+                            if role in ("hero", "autopilot") or type_id.startswith("walker.") or type_id.startswith("controller.ai.walker"):
+                                orphan_actors.append(actor)
+                    except Exception:
+                        pass
+                if orphan_actors:
+                    if self.client is not None and carla is not None:
+                        try:
+                            self.client.apply_batch_sync([carla.command.DestroyActor(x) for x in orphan_actors], False)
+                        except Exception:
+                            for o in orphan_actors:
+                                try:
+                                    if getattr(o, "is_alive", False):
+                                        o.destroy()
+                                except Exception:
+                                    pass
+                    else:
+                        for o in orphan_actors:
+                            try:
+                                if getattr(o, "is_alive", False):
+                                    o.destroy()
+                            except Exception:
+                                pass
+            except Exception:
+                pass
+
         if self.traffic_manager is not None:
             try: self.traffic_manager.set_synchronous_mode(False)
             except Exception: pass
@@ -483,8 +657,7 @@ class CarlaRuntime:
             try: self.world.apply_settings(self.original_settings)
             except Exception: pass
         self.sensors = []; self.walker_controllers = []; self.walkers = []; self.vehicles = []
-        self.ego_vehicle = None; self.traffic_manager = None; self.original_settings = None
-        self.active_configuration = None; self.paused = False
+        self.traffic_manager = None; self.original_settings = None
         self.recording_path = None; self.recording_active = False
 
     @staticmethod

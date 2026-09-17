@@ -154,11 +154,23 @@ body {
   textarea {
     border: 1px solid var(--scarline-muted) !important;
     border-radius: var(--scarline-radius-md) !important;
-    background: var(--scarline-grey) !important;
+    background: var(--scarline-black) !important;
     color: var(--scarline-white) !important;
     padding: 12px 16px !important;
     outline: none;
     font: inherit;
+  }
+
+  select {
+    color-scheme: dark;
+    background-color: var(--scarline-black) !important;
+    color: var(--scarline-white) !important;
+  }
+
+  select option,
+  select optgroup {
+    background-color: #151718 !important;
+    color: #eceff0 !important;
   }
 
   .required>span::after {
