@@ -301,7 +301,9 @@
         }
 
         button {
-            margin-top: 50px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             border:#28ACDC 1px solid;
             background-color: #252729;
             border-radius: 10px;
@@ -319,6 +321,22 @@
             transform: translateY(-2px);
             box-shadow: 2px 5px 5px rgba(30, 143, 184, 0.5);
             border-color: #28acdc;
+        }
+
+        img.small-img {
+            max-width: 35%;
+        }
+
+        @media (max-width: 850px) {
+            img.small-img {
+                max-width: 100%;
+            }
+        }
+
+        @media (min-width: 851px) and (max-width: 1200px) {
+            img.small-img {
+                max-width: 70%;
+            }
         }
 
         .platform-showcase,
