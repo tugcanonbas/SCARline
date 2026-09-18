@@ -6,6 +6,7 @@
   import ActiveStudySessionContext from "$lib/components/admin/active-study/ActiveStudySessionContext.svelte";
   import ActiveStudyTelemetryPanel from "$lib/components/admin/active-study/ActiveStudyTelemetryPanel.svelte";
   import ActiveStudyWidgetUpdatesPanel from "$lib/components/admin/active-study/ActiveStudyWidgetUpdatesPanel.svelte";
+  import ActiveStudyCameraPanel from "$lib/components/admin/active-study/ActiveStudyCameraPanel.svelte";
   import ActiveStudyWidgetDataPanel from "$lib/components/admin/active-study/ActiveStudyWidgetDataPanel.svelte";
   import ActiveStudyWindowManagerPanel from "$lib/components/admin/active-study/ActiveStudyWindowManagerPanel.svelte";
   import MetricCard from "$lib/components/admin/MetricCard.svelte";
@@ -728,13 +729,7 @@
     commandPending={commandPending}
     liveLifecycle={latestLifecycle}
   />
-  <ActiveStudyWidgetUpdatesPanel
-    canOperate={data.canOperate}
-    triggerableWidgets={data.triggerableWidgets}
-    {selectedSession}
-    widgetUpdates={$widgetUpdates}
-    {widgetTitle}
-  />
+  <ActiveStudyCameraPanel />
   <ActiveStudyWidgetDataPanel sessionId={selectedSession} />
 </div>
 
@@ -750,6 +745,13 @@
 </div>
 
 <div class="mt-4 section-grid section-grid--balanced">
+  <ActiveStudyWidgetUpdatesPanel
+    canOperate={data.canOperate}
+    triggerableWidgets={data.triggerableWidgets}
+    {selectedSession}
+    widgetUpdates={$widgetUpdates}
+    {widgetTitle}
+  />
   <ActiveStudySensorStatusPanel sensorStatuses={$sensorStatus} {sensorTitle} />
   <ActiveStudyNotesPanel
     {selectedSession}
