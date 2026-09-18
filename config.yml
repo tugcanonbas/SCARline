@@ -71,7 +71,7 @@ simulator:
   # May be overridden with `scarline start --simulator carla|mock`.
   # `scarline start --no-sim` uses the Mock Simulator on unsupported systems.
   default: mock
-  autostart: false
+  autostart: true
 
   carla:
     # CARLA itself runs on the host OS and is owned by the CLI. The Python

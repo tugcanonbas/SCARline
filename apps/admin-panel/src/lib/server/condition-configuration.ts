@@ -102,13 +102,8 @@ export async function saveAndApplySimulatorTemplate(
   const onlyAvailableSimulator = availableSimulatorTypes.size === 1
     ? [...availableSimulatorTypes][0] as 'carla' | 'mock'
     : null;
-  const currentSimulators = await Promise.all(conditions.map((condition) => apiRequest(
-    fetch,
-    locals.apiBase,
-    `/studies/${studyId}/conditions/${String(condition.id)}/simulator`,
-    locals.accessToken
-  ) as Promise<JsonRecord | null>));
   const metadata = asRecord(study.metadata);
+  const simulatorType: 'carla' | 'mock' = onlyAvailableSimulator === 'mock' ? 'mock' : 'carla';
   await apiRequest(fetch, locals.apiBase, `/studies/${studyId}`, locals.accessToken, {
     method: 'PATCH',
     body: JSON.stringify({
@@ -116,18 +111,20 @@ export async function saveAndApplySimulatorTemplate(
         ...metadata,
         configurationTemplates: {
           ...asRecord(metadata.configurationTemplates),
-          simulator: configuration
+          simulator: configuration,
+          simulatorType
         }
       }
     })
   });
-  await Promise.all(conditions.map((condition, index) => {
-    if (currentSimulators[index]?.simulatorType === 'mock') return Promise.resolve();
-    const simulatorType = onlyAvailableSimulator === 'mock' ? 'mock' : 'carla';
-    return putSimulator(
-      fetch, locals, studyId, String(condition.id), simulatorType, applyCarlaOverrides(configuration, readCarlaOverrides(condition))
-    );
-  }));
+  await Promise.all(conditions.map((condition) => putSimulator(
+    fetch,
+    locals,
+    studyId,
+    String(condition.id),
+    simulatorType,
+    simulatorType === 'mock' ? configuration : applyCarlaOverrides(configuration, readCarlaOverrides(condition))
+  )));
 }
 
 export async function applyConditionSimulatorOverrides(
@@ -138,17 +135,21 @@ export async function applyConditionSimulatorOverrides(
   overrides: CarlaOverrides
 ): Promise<void> {
   const study = await apiRequest(fetch, locals.apiBase, `/studies/${studyId}`, locals.accessToken) as JsonRecord;
-  const template = asRecord(asRecord(asRecord(study.metadata).configurationTemplates).simulator);
-  let base = template;
-  let simulatorType: 'carla' | 'mock' = 'carla';
-  if (Object.keys(base).length === 0) {
-    const current = await apiRequest(fetch, locals.apiBase, `/studies/${studyId}/conditions/${conditionId}/simulator`, locals.accessToken) as JsonRecord | null;
-    if (current?.simulatorType === 'mock') return;
-    simulatorType = current?.simulatorType === 'carla' ? 'carla' : simulatorType;
-    base = asRecord(current?.configuration);
-  }
+  const templates = asRecord(asRecord(study.metadata).configurationTemplates);
+  const template = asRecord(templates.simulator);
+  const current = await apiRequest(fetch, locals.apiBase, `/studies/${studyId}/conditions/${conditionId}/simulator`, locals.accessToken) as JsonRecord | null;
+  const resolved = current?.simulatorType ?? templates.simulatorType;
+  const simulatorType: 'carla' | 'mock' = resolved === 'mock' ? 'mock' : 'carla';
+  const base = Object.keys(template).length > 0 ? template : asRecord(current?.configuration);
   if (Object.keys(base).length > 0) {
-    await putSimulator(fetch, locals, studyId, conditionId, simulatorType, applyCarlaOverrides(base, overrides));
+    await putSimulator(
+      fetch,
+      locals,
+      studyId,
+      conditionId,
+      simulatorType,
+      simulatorType === 'mock' ? base : applyCarlaOverrides(base, overrides)
+    );
   }
 }
 
