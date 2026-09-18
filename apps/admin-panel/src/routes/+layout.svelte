@@ -77,7 +77,7 @@
       roles: adminRoles,
     },
     {
-      href: data.docsUrl ?? "/docs/",
+      href: data.docsUrl ?? "/docs",
       label: "Documentation",
       icon: BookOpenText,
       roles: allRoles,

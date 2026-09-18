@@ -81,3 +81,25 @@ scarline
 operational. The current lifecycle commands manage the PostgreSQL and RabbitMQ
 Compose infrastructure while preserving data under `.runtime/`. `restart` and
 `logs` retain placeholder behavior until their platform integrations are added.
+
+## Documentation
+
+The full documentation lives in `docs/` as a VitePress site and is served by the
+Admin Panel, so it is available at `http://localhost:5173/docs` once the platform
+is running — the sidebar's **Documentation** button opens it in a new tab.
+
+To work on it without the platform:
+
+```sh
+npm run dev:docs      # http://localhost:4040/docs/
+npm run build:docs    # docs/.vitepress/dist
+```
+
+| Section | Covers |
+| --- | --- |
+| Getting Started | Install, first run, first study, troubleshooting |
+| CLI & Configuration | Commands, `config.yml`, `.env`, `.runtime/`, Compose |
+| Platform | Architecture, topology, lifecycle, overlays, simulators, sensors, data, security |
+| Operations | Running studies, readiness, sessions, logs, exports, recovery |
+| Builders | Contracts, CoreAPI, widgets, adapters, drivers, schema, testing |
+| Reference | Routes, channels, messaging, schema, config keys, ports, error codes |

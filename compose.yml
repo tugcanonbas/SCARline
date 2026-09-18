@@ -95,6 +95,8 @@ services:
       SCARLINE_SIMULATOR_DEFAULT: mock
       CARLA_SERVER_PORT: "2000"
       SCARLINE_WIDGETS_DIRECTORY: /app/widgets
+      SCARLINE_DOCS_DIRECTORY: /app/docs
+      PUBLIC_DOCS_URL: /docs
     depends_on:
       core-api:
         condition: service_healthy

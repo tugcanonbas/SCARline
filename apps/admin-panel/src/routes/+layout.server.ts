@@ -22,7 +22,7 @@ export const load = async ({ fetch, locals, url }) => {
     user,
     isAuthenticated: Boolean(locals.accessToken),
     onboardingCompleted: bootstrap.onboardingCompleted,
-    docsUrl: process.env.PUBLIC_DOCS_URL ?? '/docs/',
+    docsUrl: process.env.PUBLIC_DOCS_URL ?? '/docs',
     publicApiBase: locals.publicApiBase,
     webSocketOrigin: locals.webSocketOrigin
   };
