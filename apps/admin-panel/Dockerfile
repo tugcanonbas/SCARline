@@ -13,13 +13,17 @@ COPY services/mock-simulator/package.json services/mock-simulator/package.json
 COPY apps/admin-panel/package.json apps/admin-panel/package.json
 COPY apps/overlay-web/package.json apps/overlay-web/package.json
 COPY apps/desktop-overlay/package.json apps/desktop-overlay/package.json
+COPY docs/package.json docs/package.json
 
 RUN npm ci --ignore-scripts
 
 COPY packages/contracts packages/contracts
 COPY apps/admin-panel apps/admin-panel
+COPY docs docs
 
-RUN npm run build -w @scarline/contracts -w @scarline/admin-panel
+# The documentation site is built with base /docs/ and served by the Admin Panel,
+# so the image carries it instead of a separate container.
+RUN npm run build -w @scarline/contracts -w @scarline/docs -w @scarline/admin-panel
 RUN npm prune --omit=dev --ignore-scripts
 
 FROM node:22-alpine AS runtime
@@ -33,6 +37,7 @@ ENV PORT=5173
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/apps/admin-panel/build ./build
 COPY --from=build --chown=node:node /app/apps/admin-panel/package.json ./package.json
+COPY --from=build --chown=node:node /app/docs/.vitepress/dist ./docs
 COPY --chown=node:node widgets ./widgets
 
 USER node

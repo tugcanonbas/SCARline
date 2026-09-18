@@ -1,0 +1,622 @@
+/* SCARline documentation theme.
+ *
+ * The design system is the Admin Panel's: apps/admin-panel/src/app.css. The
+ * tokens below are copied from its `:root` block so the two surfaces stay in
+ * step — change them there first, then mirror the change here.
+ *
+ * The site is dark only. `appearance: false` in the VitePress config means the
+ * default theme never adds its `.dark` class, so every variable is declared
+ * once on `:root`.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,200..900;1,200..900&display=swap');
+
+:root {
+  color-scheme: dark;
+
+  /* ---- Admin Panel tokens (apps/admin-panel/src/app.css) ---------------- */
+  --scarline-page: #080e10;
+  --scarline-main: #1d90b9;
+  --scarline-main-muted: #1d90b91a;
+  --scarline-white: #eceff0;
+  --scarline-white-60: rgba(255, 255, 255, 0.6);
+  --scarline-white-72: rgba(255, 255, 255, 0.72);
+  --scarline-black: #151718;
+  --scarline-muted: rgba(255, 255, 255, 0.11);
+  --scarline-grey: #4444442c;
+  --scarline-grey-16: rgba(255, 255, 255, 0.08);
+  --scarline-grey-24: rgba(255, 255, 255, 0.12);
+  --scarline-border: rgba(29, 143, 185, 0.425);
+  --scarline-success: #2ea043;
+  --scarline-success-bg: rgba(46, 160, 67, 0.12);
+  --scarline-warning: #d29922;
+  --scarline-warning-bg: rgba(210, 153, 34, 0.12);
+  --scarline-danger: #be5a56;
+  --scarline-danger-bg: rgba(248, 81, 73, 0.12);
+  --scarline-info: #58a6ff;
+  --scarline-info-bg: rgba(88, 166, 255, 0.12);
+  --scarline-radius-lg: 16px;
+  --scarline-radius-md: 10px;
+  --scarline-transition: 180ms ease-in-out;
+
+  /* ---- Typography ------------------------------------------------------- */
+  --vp-font-family-base: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --vp-font-family-mono: "Source Code Pro", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ---- Surfaces --------------------------------------------------------- */
+  --vp-c-bg: var(--scarline-page);
+  --vp-c-bg-alt: var(--scarline-black);
+  --vp-c-bg-elv: var(--scarline-black);
+  --vp-c-bg-soft: var(--scarline-black);
+
+  --vp-c-text-1: var(--scarline-white);
+  --vp-c-text-2: var(--scarline-white-72);
+  --vp-c-text-3: var(--scarline-white-60);
+
+  --vp-c-divider: var(--scarline-grey-24);
+  --vp-c-border: var(--scarline-border);
+  --vp-c-gutter: var(--scarline-grey-24);
+
+  --vp-c-default-1: var(--scarline-white-72);
+  --vp-c-default-2: var(--scarline-white-60);
+  --vp-c-default-3: var(--scarline-grey-24);
+  --vp-c-default-soft: var(--scarline-grey-16);
+
+  /* ---- Brand ------------------------------------------------------------ */
+  --vp-c-brand-1: var(--scarline-main);
+  --vp-c-brand-2: #3aa9d0;
+  --vp-c-brand-3: #1a7fa3;
+  --vp-c-brand-soft: var(--scarline-main-muted);
+  --vp-c-brand: var(--scarline-main);
+
+  /* ---- Semantic, mirroring .inline-notice ------------------------------- */
+  --vp-c-tip-1: var(--scarline-success);
+  --vp-c-tip-2: var(--scarline-success);
+  --vp-c-tip-3: var(--scarline-success);
+  --vp-c-tip-soft: var(--scarline-success-bg);
+
+  --vp-c-note-1: var(--scarline-info);
+  --vp-c-note-soft: var(--scarline-info-bg);
+
+  --vp-c-warning-1: var(--scarline-warning);
+  --vp-c-warning-2: var(--scarline-warning);
+  --vp-c-warning-3: var(--scarline-warning);
+  --vp-c-warning-soft: var(--scarline-warning-bg);
+
+  --vp-c-danger-1: var(--scarline-danger);
+  --vp-c-danger-2: var(--scarline-danger);
+  --vp-c-danger-3: var(--scarline-danger);
+  --vp-c-danger-soft: var(--scarline-danger-bg);
+
+  --vp-c-caution-1: var(--scarline-danger);
+  --vp-c-caution-soft: var(--scarline-danger-bg);
+  --vp-c-important-1: var(--scarline-main);
+  --vp-c-important-soft: var(--scarline-main-muted);
+
+  /* ---- Code ------------------------------------------------------------- */
+  --vp-code-block-bg: var(--scarline-grey-16);
+  --vp-code-block-color: var(--scarline-white);
+  --vp-code-bg: var(--scarline-grey-16);
+  --vp-code-color: var(--scarline-white);
+  --vp-code-line-height: 1.6;
+  --vp-code-font-size: 13px;
+  --vp-code-link-color: var(--scarline-main);
+  --vp-code-link-hover-color: var(--vp-c-brand-2);
+  --vp-code-copy-code-bg: var(--scarline-black);
+  --vp-code-copy-code-hover-bg: var(--scarline-grey-16);
+  --vp-code-copy-code-border-color: var(--scarline-border);
+  --vp-code-copy-code-hover-border-color: var(--scarline-border);
+  --vp-code-copy-code-active-text: var(--scarline-white-72);
+  --vp-code-lang-color: var(--scarline-white-60);
+  --vp-code-tab-bg: var(--scarline-black);
+  --vp-code-tab-divider: var(--scarline-border);
+  --vp-code-tab-text-color: var(--scarline-white-60);
+  --vp-code-tab-active-text-color: var(--scarline-white);
+  --vp-code-tab-active-bar-color: var(--scarline-main);
+  --vp-code-line-number-color: var(--scarline-white-60);
+
+  /* ---- Custom blocks ---------------------------------------------------- */
+  --vp-custom-block-font-size: 14px;
+  --vp-custom-block-code-font-size: 13px;
+  --vp-custom-block-details-bg: var(--scarline-grey-16);
+  --vp-custom-block-details-border: var(--scarline-border);
+  --vp-custom-block-details-text: var(--scarline-white);
+  --vp-custom-block-details-code-bg: var(--scarline-black);
+
+  /* ---- Buttons, mirroring .button-primary / .button-secondary ----------- */
+  --vp-button-brand-bg: var(--scarline-border);
+  --vp-button-brand-border: var(--scarline-border);
+  --vp-button-brand-text: var(--scarline-white);
+  --vp-button-brand-hover-bg: var(--scarline-muted);
+  --vp-button-brand-hover-border: var(--scarline-border);
+  --vp-button-brand-hover-text: var(--scarline-main);
+  --vp-button-brand-active-bg: var(--scarline-muted);
+  --vp-button-brand-active-border: var(--scarline-border);
+  --vp-button-brand-active-text: var(--scarline-main);
+
+  --vp-button-alt-bg: var(--scarline-black);
+  --vp-button-alt-border: var(--scarline-border);
+  --vp-button-alt-text: var(--scarline-white);
+  --vp-button-alt-hover-bg: var(--scarline-grey-16);
+  --vp-button-alt-hover-border: var(--scarline-border);
+  --vp-button-alt-hover-text: var(--scarline-white);
+  --vp-button-alt-active-bg: var(--scarline-grey-16);
+  --vp-button-alt-active-border: var(--scarline-border);
+  --vp-button-alt-active-text: var(--scarline-white);
+
+  /* ---- Inputs and search ------------------------------------------------ */
+  --vp-input-bg-color: var(--scarline-black);
+  --vp-input-border-color: var(--scarline-muted);
+  --vp-input-switch-bg-color: var(--scarline-grey-16);
+  --vp-local-search-bg: var(--scarline-black);
+  --vp-local-search-highlight-bg: var(--scarline-main);
+  --vp-local-search-highlight-text: var(--scarline-page);
+  --vp-local-nav-bg-color: var(--scarline-black);
+  --vp-backdrop-bg-color: rgba(8, 14, 16, 0.72);
+  --vp-nav-bg-color: var(--scarline-black);
+  --vp-sidebar-bg-color: var(--scarline-black);
+
+  /* ---- Badges ----------------------------------------------------------- */
+  --vp-badge-tip-bg: var(--scarline-success-bg);
+  --vp-badge-tip-border: var(--scarline-success);
+  --vp-badge-tip-text: var(--scarline-success);
+  --vp-badge-warning-bg: var(--scarline-warning-bg);
+  --vp-badge-warning-border: var(--scarline-warning);
+  --vp-badge-warning-text: var(--scarline-warning);
+  --vp-badge-danger-bg: var(--scarline-danger-bg);
+  --vp-badge-danger-border: var(--scarline-danger);
+  --vp-badge-danger-text: var(--scarline-danger);
+  --vp-badge-info-bg: var(--scarline-grey-16);
+  --vp-badge-info-border: var(--scarline-border);
+  --vp-badge-info-text: var(--scarline-white);
+
+  /* ---- Home hero -------------------------------------------------------- */
+  --vp-home-hero-name-color: var(--scarline-main);
+  --vp-home-hero-image-background-image: none;
+  --vp-home-hero-image-filter: none;
+
+  --vp-layout-max-width: 1600px;
+}
+
+html,
+body {
+  background: var(--scarline-page);
+}
+
+body {
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+::selection {
+  background: var(--scarline-main);
+  color: var(--scarline-page);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scarline-grey-24) transparent;
+}
+
+/* ---- Chrome: nav, sidebar, local nav ----------------------------------- */
+
+.VPNav,
+.VPNavBar {
+  background-color: var(--scarline-black);
+}
+
+.VPNavBar,
+.VPNavBar.has-sidebar .content-body,
+.VPLocalNav {
+  border-bottom: 1px solid var(--scarline-border);
+}
+
+.VPNavBar .title,
+.VPNavBarTitle .title {
+  font-family: var(--vp-font-family-mono);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-bottom: none;
+}
+
+.VPNavBarMenuLink {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.VPSidebar {
+  background-color: var(--scarline-black);
+  border-right: 1px solid var(--scarline-border);
+}
+
+/* Section labels use the Admin Panel's .scarline-nav-label treatment. */
+.VPSidebarItem.level-0 > .item > .text {
+  color: var(--scarline-white-60);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.VPSidebarItem.level-0 > .item {
+  padding-bottom: 4px;
+}
+
+/* Sidebar links are the Admin Panel's .scarline-nav-item pills. VitePress
+ * renders the label as `p.text` inside `a.VPLink`, so the pill goes on the
+ * anchor and the indicator bar is dropped. */
+.VPSidebarItem.level-1 > .item > .VPLink.link,
+.VPSidebarItem.level-2 > .item > .VPLink.link {
+  display: block;
+  border: 1px solid var(--scarline-grey);
+  border-radius: var(--scarline-radius-md);
+  padding: 8px 12px;
+  transition:
+    background-color var(--scarline-transition),
+    border-color var(--scarline-transition);
+}
+
+.VPSidebarItem.level-1 > .item > .VPLink.link > .text,
+.VPSidebarItem.level-2 > .item > .VPLink.link > .text {
+  color: var(--scarline-white);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  padding: 0;
+  transition: color var(--scarline-transition);
+}
+
+.VPSidebarItem.level-1 > .item > .VPLink.link:hover,
+.VPSidebarItem.level-2 > .item > .VPLink.link:hover {
+  border-color: var(--scarline-border);
+  background: var(--scarline-grey-16);
+}
+
+.VPSidebarItem.is-active > .item > .VPLink.link {
+  border: 2px solid var(--scarline-border);
+  background: var(--scarline-grey);
+  padding: 7px 11px;
+}
+
+.VPSidebarItem.is-active > .item > .VPLink.link > .text {
+  color: var(--scarline-white);
+}
+
+/* The pill carries the active state, so the default marker is redundant. */
+.VPSidebarItem.level-1 > .item > .indicator,
+.VPSidebarItem.level-2 > .item > .indicator {
+  display: none;
+}
+
+.VPSidebarItem.level-1 .items,
+.VPSidebarItem.level-2 .items {
+  border-left: none;
+  padding-left: 0;
+}
+
+.VPSidebarItem.level-1,
+.VPSidebarItem.level-2 {
+  padding-bottom: 6px;
+}
+
+/* ---- Typography, mirroring the Admin Panel base layer ------------------- */
+
+/* .page-header__title: uppercase display type over a short rule. */
+.vp-doc h1 {
+  margin-bottom: 24px;
+  font-family: var(--vp-font-family-mono);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.15;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.vp-doc h1::after {
+  display: block;
+  width: 128px;
+  height: 1px;
+  margin-top: 10px;
+  background: var(--scarline-white);
+  content: "";
+}
+
+.vp-doc h2 {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--scarline-grey-24);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 28px;
+  letter-spacing: 0;
+}
+
+/* The Admin Panel sets h3 to a 12px uppercase label. Documentation runs it one
+ * step larger so a subsection still outranks 14px body copy. */
+.vp-doc h3 {
+  margin-top: 28px;
+  color: var(--scarline-white);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 24px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.vp-doc h4 {
+  margin-top: 24px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 24px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--scarline-white-72);
+}
+
+.vp-doc p,
+.vp-doc li {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.vp-doc a {
+  font-weight: 500;
+  text-decoration-color: var(--scarline-border);
+  text-underline-offset: 3px;
+}
+
+.vp-doc strong {
+  color: var(--scarline-white);
+  font-weight: 700;
+}
+
+/* ---- Tables, copied from the Admin Panel base layer --------------------- */
+
+.vp-doc table {
+  display: table;
+  width: 100%;
+  margin: 20px 0;
+  border-collapse: collapse;
+  border: 1px solid var(--scarline-border);
+  border-radius: var(--scarline-radius-md);
+  background: var(--scarline-black);
+  overflow: hidden;
+}
+
+.vp-doc tr {
+  background: transparent;
+  border-top: none;
+}
+
+.vp-doc th,
+.vp-doc td {
+  border: none;
+  border-bottom: 1px solid var(--scarline-border);
+  padding: 12px 16px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.vp-doc th {
+  background: var(--scarline-grey);
+  color: var(--scarline-white);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 24px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.vp-doc td {
+  color: var(--scarline-white-72);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.vp-doc tbody tr:last-child td {
+  border-bottom: none;
+}
+
+@media (max-width: 767px) {
+  .vp-doc table {
+    display: block;
+    overflow-x: auto;
+  }
+}
+
+/* ---- Code -------------------------------------------------------------- */
+
+.vp-doc :not(pre) > code {
+  border: 1px solid var(--scarline-border);
+  border-radius: 6px;
+  background: var(--scarline-grey-16);
+  color: var(--scarline-white);
+  font-size: 0.86em;
+  padding: 2px 6px;
+}
+
+.vp-doc div[class*='language-'] {
+  border: 1px solid var(--scarline-border);
+  border-radius: var(--scarline-radius-md);
+  background: var(--scarline-grey-16);
+}
+
+.vp-doc div[class*='language-'] pre {
+  padding: 16px 0;
+}
+
+.vp-doc th > code,
+.vp-doc td > code {
+  white-space: nowrap;
+}
+
+/* ---- Custom blocks, mirroring .inline-notice ---------------------------- */
+
+.vp-doc .custom-block {
+  border-radius: var(--scarline-radius-lg);
+  border-width: 1px;
+  padding: 14px 16px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.vp-doc .custom-block-title {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+}
+
+.vp-doc .custom-block.info {
+  border-color: var(--scarline-border);
+  background: var(--scarline-grey-16);
+  color: var(--scarline-white);
+}
+
+.vp-doc .custom-block.tip {
+  border-color: rgba(46, 160, 67, 0.35);
+  background: var(--scarline-success-bg);
+}
+
+.vp-doc .custom-block.warning {
+  border-color: rgba(210, 153, 34, 0.35);
+  background: var(--scarline-warning-bg);
+}
+
+.vp-doc .custom-block.danger {
+  border-color: rgba(190, 90, 86, 0.35);
+  background: var(--scarline-danger-bg);
+}
+
+.vp-doc .custom-block a {
+  color: inherit;
+  font-weight: 700;
+}
+
+/* ---- Surface cards, mirroring .surface-card ---------------------------- */
+
+.section-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  margin: 24px 0;
+}
+
+.section-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--scarline-border);
+  border-radius: var(--scarline-radius-lg);
+  background: var(--scarline-black);
+  padding: 20px;
+  color: var(--scarline-white);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+  transition:
+    transform var(--scarline-transition),
+    border-color var(--scarline-transition);
+}
+
+.section-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--scarline-white-60);
+}
+
+.section-card h3 {
+  margin: 0;
+  color: var(--scarline-white);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 24px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.section-card p {
+  margin: 0;
+  color: var(--scarline-white-60);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.section-card p a {
+  color: var(--scarline-main);
+  font-weight: 700;
+}
+
+@media (max-width: 767px) {
+  .section-card {
+    padding: 16px;
+    border-radius: 14px;
+  }
+}
+
+/* ---- Home hero --------------------------------------------------------- */
+
+.VPHero .name,
+.VPHero .text {
+  font-family: var(--vp-font-family-mono);
+  letter-spacing: 0.02em;
+}
+
+.VPHero .tagline {
+  color: var(--scarline-white-72);
+}
+
+.VPHome .VPFeature {
+  border: 1px solid var(--scarline-border);
+  border-radius: var(--scarline-radius-lg);
+  background: var(--scarline-black);
+}
+
+.VPButton {
+  border-radius: var(--scarline-radius-md) !important;
+  font-weight: 700;
+}
+
+/* ---- Diagrams ---------------------------------------------------------- */
+
+.vp-doc .mermaid {
+  overflow-x: auto;
+  margin: 24px 0;
+  padding: 20px;
+  border: 1px solid var(--scarline-border);
+  border-radius: var(--scarline-radius-lg);
+  background: var(--scarline-black);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+}
+
+/* ---- Footer and page nav ----------------------------------------------- */
+
+.VPDocFooter .prev-next {
+  border-top: 1px solid var(--scarline-grey-24);
+}
+
+.VPDocFooter .pager-link {
+  border: 1px solid var(--scarline-border);
+  border-radius: var(--scarline-radius-md);
+  background: var(--scarline-black);
+}
+
+.VPDocFooter .pager-link:hover {
+  border-color: var(--scarline-white-60);
+  background: var(--scarline-grey-16);
+}
+
+.VPFooter {
+  border-top: 1px solid var(--scarline-border);
+  background: var(--scarline-black);
+}
+
+.VPDocAsideOutline .outline-marker {
+  background-color: var(--scarline-main);
+}
+
+.VPDocAsideOutline .outline-title {
+  color: var(--scarline-white-60);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}

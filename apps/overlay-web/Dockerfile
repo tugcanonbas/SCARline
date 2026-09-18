@@ -9,6 +9,7 @@ COPY services/mock-simulator/package.json services/mock-simulator/package.json
 COPY apps/admin-panel/package.json apps/admin-panel/package.json
 COPY apps/overlay-web/package.json apps/overlay-web/package.json
 COPY apps/desktop-overlay/package.json apps/desktop-overlay/package.json
+COPY docs/package.json docs/package.json
 RUN npm ci --ignore-scripts --workspace @scarline/contracts --workspace @scarline/overlay-web --include-workspace-root
 COPY packages/contracts packages/contracts
 COPY apps/overlay-web apps/overlay-web

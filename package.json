@@ -8,7 +8,8 @@
   "workspaces": [
     "packages/*",
     "services/*",
-    "apps/*"
+    "apps/*",
+    "docs"
   ],
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
@@ -16,12 +17,13 @@
     "typescript": "5.8.2"
   },
   "scripts": {
-    "build": "npm run widgets:build-css && npm run build -w @scarline/contracts -w @scarline/cli -w @scarline/core-api -w @scarline/sim-bridge -w @scarline/mock-simulator -w @scarline/admin-panel -w @scarline/overlay-web -w @scarline/desktop-overlay",
+    "build": "npm run widgets:build-css && npm run build -w @scarline/contracts -w @scarline/cli -w @scarline/core-api -w @scarline/sim-bridge -w @scarline/mock-simulator -w @scarline/docs -w @scarline/admin-panel -w @scarline/overlay-web -w @scarline/desktop-overlay",
     "build:cli": "npm run build -w @scarline/contracts -w @scarline/cli",
     "build:core-api": "npm run build -w @scarline/contracts -w @scarline/core-api",
     "build:sim-bridge": "npm run build -w @scarline/contracts -w @scarline/sim-bridge -w @scarline/mock-simulator",
-    "build:admin-panel": "npm run build -w @scarline/contracts -w @scarline/admin-panel",
+    "build:admin-panel": "npm run build -w @scarline/contracts -w @scarline/docs -w @scarline/admin-panel",
     "build:overlays": "npm run build -w @scarline/contracts -w @scarline/overlay-web -w @scarline/desktop-overlay",
+    "build:docs": "npm run build -w @scarline/docs",
     "check": "npm run widgets:check-css && npm run typecheck --workspaces && npm test --workspaces",
     "test:e2e": "npm run build:core-api && node scripts/run-isolated-e2e.mjs",
     "test:widgets": "npm run build -w @scarline/contracts -w @scarline/overlay-web && playwright test tests/e2e/widget-runtime.spec.ts tests/e2e/widget-interactions.spec.mts",
@@ -32,6 +34,7 @@
     "dev:admin-panel": "npm run dev -w @scarline/admin-panel",
     "dev:overlay-web": "npm run dev -w @scarline/overlay-web",
     "dev:desktop-overlay": "npm run dev -w @scarline/desktop-overlay",
+    "dev:docs": "npm run dev -w @scarline/docs",
     "postinstall": "npm run build:cli && npm run build -w @scarline/desktop-overlay && npm link -w @scarline/cli",
     "package:cli": "npm pack -w @scarline/cli",
     "widgets:build-css": "npm run widgets:build-css -w @scarline/admin-panel",
