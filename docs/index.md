@@ -6,7 +6,6 @@ hero:
   text: Platform Documentation
   tagline: Install, operate, and extend the simulator-based automotive UX and HCI research platform.
   image:
-    src: /images/logo.svg
     alt: SCARline
   actions:
     - theme: brand
@@ -75,17 +74,17 @@ flowchart LR
 
 ## What Each Component Owns
 
-| Component | Responsibility |
-| --- | --- |
-| `scarline` CLI | Configuration validation, secret generation, Compose lifecycle, host processes, diagnostics |
-| CoreAPI | Authentication, RBAC, persistence, REST, WebSocket fanout, session lifecycle, exports |
-| Admin Panel | Researcher and operator UI, server-side route guards, participant layout editor |
-| Sim-Bridge | Simulator adapter registry, command dispatch, telemetry publication |
-| Mock Simulator / CARLA client | Simulator adapters that bind to a session condition and emit events |
-| IO Client | Sensor driver lifecycle, device discovery, sample batching |
-| Overlay Web | Participant-facing widget renderer and widget asset server |
-| Desktop Overlay | Electron host for transparent, display-targeted participant windows |
-| PostgreSQL / RabbitMQ | Durable state and asynchronous command/event transport |
+| Component                     | Responsibility                                                                              |
+| ----------------------------- | ------------------------------------------------------------------------------------------- |
+| `scarline` CLI                | Configuration validation, secret generation, Compose lifecycle, host processes, diagnostics |
+| CoreAPI                       | Authentication, RBAC, persistence, REST, WebSocket fanout, session lifecycle, exports       |
+| Admin Panel                   | Researcher and operator UI, server-side route guards, participant layout editor             |
+| Sim-Bridge                    | Simulator adapter registry, command dispatch, telemetry publication                         |
+| Mock Simulator / CARLA client | Simulator adapters that bind to a session condition and emit events                         |
+| IO Client                     | Sensor driver lifecycle, device discovery, sample batching                                  |
+| Overlay Web                   | Participant-facing widget renderer and widget asset server                                  |
+| Desktop Overlay               | Electron host for transparent, display-targeted participant windows                         |
+| PostgreSQL / RabbitMQ         | Durable state and asynchronous command/event transport                                      |
 
 ## Documentation Map
 
