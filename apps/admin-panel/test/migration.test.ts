@@ -13,6 +13,7 @@ import {
 } from '../src/lib/server/widget-assets';
 import {
   applyCarlaOverrides,
+  applyConditionSimulatorOverrides,
   materializeAdminTriggerRules,
   saveAndApplySimulatorTemplate
 } from '../src/lib/server/condition-configuration';
@@ -153,7 +154,7 @@ test('materializes independent condition simulator overrides from the shared tem
 });
 
 test('saves CARLA defaults without replacing an active mock simulator', async () => {
-  const requests: Array<{ method: string; path: string; body: unknown }> = [];
+  const requests: Array<{ method: string; path: string; body: any }> = [];
   const studyId = '50523e28-b25a-49e3-bfbb-c558582c93f7';
   const conditionId = '440bd5d9-c6a0-41a9-99b1-03ccca42df3d';
   const fakeFetch = async (input: string | URL | Request, init: RequestInit = {}) => {
@@ -176,6 +177,9 @@ test('saves CARLA defaults without replacing an active mock simulator', async ()
     if (url.pathname.endsWith(`/studies/${studyId}`) && method === 'PATCH') {
       return Response.json({ data: { id: studyId, metadata: body.metadata } });
     }
+    if (url.pathname.endsWith(`/conditions/${conditionId}/simulator`) && method === 'PUT') {
+      return Response.json({ data: { simulatorType: body.simulatorType, configuration: body.configuration } });
+    }
     throw new Error(`Unexpected request: ${method} ${url.pathname}`);
   };
 
@@ -188,9 +192,10 @@ test('saves CARLA defaults without replacing an active mock simulator', async ()
 
   const metadataPatch = requests.find((request) => request.method === 'PATCH');
   assert.deepEqual(metadataPatch?.body, {
-    metadata: { configurationTemplates: { simulator: { map: 'Town03' } } }
+    metadata: { configurationTemplates: { simulator: { map: 'Town03' }, simulatorType: 'mock' } }
   });
-  assert.equal(requests.some((request) => request.method === 'PUT' && request.path.endsWith('/simulator')), false);
+  const simulatorUpdate = requests.find((request) => request.method === 'PUT' && request.path.endsWith('/simulator'));
+  assert.equal(simulatorUpdate?.body.simulatorType, 'mock');
 });
 
 test('uses the active Mock adapter when Simulator Setup materializes a condition', async () => {
@@ -233,6 +238,45 @@ test('uses the active Mock adapter when Simulator Setup materializes a condition
   const simulatorUpdate = requests.find((request) => request.method === 'PUT' && request.path.endsWith('/simulator'));
   assert.equal(simulatorUpdate?.body.simulatorType, 'mock');
   assert.equal(simulatorUpdate?.body.configuration.map, 'Town03');
+});
+
+test('gives a study\'s first condition the simulator type recorded on the template', async () => {
+  const requests: Array<{ method: string; path: string; body: any }> = [];
+  const studyId = '50523e28-b25a-49e3-bfbb-c558582c93f7';
+  const conditionId = '440bd5d9-c6a0-41a9-99b1-03ccca42df3d';
+  const fakeFetch = async (input: string | URL | Request, init: RequestInit = {}) => {
+    const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url);
+    const method = init.method ?? 'GET';
+    const body = typeof init.body === 'string' ? JSON.parse(init.body) : null;
+    requests.push({ method, path: url.pathname, body });
+    if (url.pathname.endsWith(`/studies/${studyId}`) && method === 'GET') {
+      return Response.json({
+        data: {
+          id: studyId,
+          metadata: { configurationTemplates: { simulator: { map: 'Town03' }, simulatorType: 'mock' } }
+        }
+      });
+    }
+    // A brand-new first condition has no simulator row yet.
+    if (url.pathname.endsWith(`/conditions/${conditionId}/simulator`) && method === 'GET') {
+      return Response.json({ data: null });
+    }
+    if (url.pathname.endsWith(`/conditions/${conditionId}/simulator`) && method === 'PUT') {
+      return Response.json({ data: { simulatorType: body.simulatorType, configuration: body.configuration } });
+    }
+    throw new Error(`Unexpected request: ${method} ${url.pathname}`);
+  };
+
+  await applyConditionSimulatorOverrides(
+    fakeFetch as typeof globalThis.fetch,
+    { apiBase: 'http://core.test/api/v1', accessToken: 'token' } as Parameters<typeof applyConditionSimulatorOverrides>[1],
+    studyId,
+    conditionId,
+    { weather: null, trafficDensity: null, pedestrianDensity: null, speedLimitOverride: null }
+  );
+
+  const simulatorUpdate = requests.find((request) => request.method === 'PUT' && request.path.endsWith('/simulator'));
+  assert.equal(simulatorUpdate?.body.simulatorType, 'mock');
 });
 
 test('uses named save actions on pages that also expose study transitions', async () => {
