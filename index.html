@@ -4,401 +4,26 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>1st SCARline Workshop</title>
+    <title>A: About SCARline</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Bitter:ital,wght@0,100..900;1,100..900&amp;family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&amp;display=swap"
+        href="https://fonts.googleapis.com/css2?family=Bitter:ital,wght@0,100..900;1,100..900&amp;family=Source+Code+Pro:ital,wght@0,200..900;1,200..900&amp;family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&amp;display=swap"
         rel="stylesheet">
-    <style>
-        * {
-            box-sizing: border-box;
-        }
-
-        html {
-            min-height: 100%;
-            color-scheme: dark;
-            background-color: #111213;
-            background-image:
-                linear-gradient(to right, rgba(240, 236, 230, 0.1) 0.5px, transparent 0.5px),
-                linear-gradient(to bottom, rgba(240, 236, 230, 0.1) 0.5px, transparent 0.5px);
-            background-size: clamp(4rem, 6.85vw, 8.75rem) clamp(4rem, 6.85vw, 8.75rem);
-        }
-
-        body {
-            margin: 0;
-            color: #F0ECE6;
-            font-family: "Poppins", Arial, sans-serif;
-            font-size: clamp(0.8125rem, 0.9rem, 1.25rem);
-            line-height: 1.4;
-        }
-
-        .page {
-            --page-gutter: clamp(1.5rem, 11.7vw, 15rem);
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-            min-height: max(100svh, 147.4vw);
-        }
-
-        .github-link,
-        .publication-link {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            width: 3.5rem;
-            height: 3.5rem;
-            border-radius: 50%;
-            color: #FFFFFF;
-        }
-
-        .github-link svg,
-        .publication-link svg {
-            width: 2.5rem;
-            height: 2.5rem;
-        }
-
-        .github-link svg {
-            fill: currentColor;
-        }
-
-        .publication-link svg {
-            fill: none;
-            stroke: currentColor;
-            stroke-width: 1.8;
-            stroke-linecap: round;
-            stroke-linejoin: round;
-        }
-
-        .github-link:hover,
-        .publication-link:hover {
-            background-color: rgba(240, 236, 230, 0.1);
-        }
-
-        .github-link:focus-visible,
-        .publication-link:focus-visible {
-            outline: 2px solid #1E8FB8;
-            outline-offset: 4px;
-        }
-
-        .eyebrow-links {
-            display: flex;
-            align-items: center;
-            flex-shrink: 0;
-            gap: 1rem;
-            margin-left: auto;
-        }
-
-        main {
-            flex: 1;
-            padding: clamp(4rem, 9.2vw, 12rem) var(--page-gutter) 4rem;
-        }
-
-        h1,
-        h2,
-        h3,
-        p {
-            margin: 0;
-        }
-
-        .eyebrow-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 1.5rem;
-            margin-bottom: clamp(2rem, 3.7vw, 4.75rem);
-        }
-
-        .eyebrow {
-            min-width: 0;
-            color: #1E8FB8;
-            font-size: clamp(0.875rem, 1.5vw, 1.875rem);
-            font-weight: 500;
-            line-height: 1.5;
-        }
-
-        h1,
-        h2,
-        .expected-outcomes h3,
-        .subtitle {
-            color: #FFFFFF;
-            font-family: "Bitter", Georgia, serif;
-        }
-
-        h1 {
-            font-size: clamp(2.5rem, 5.2vw, 6.625rem);
-            font-weight: 700;
-            line-height: 1.12;
-            letter-spacing: -0.025em;
-        }
-
-        .subtitle {
-            max-width: 25em;
-            margin-top: clamp(0.5rem, 0.65vw, 0.875rem);
-            font-size: clamp(1.4rem, 2.35vw, 3rem);
-            font-weight: 600;
-            line-height: 1.25;
-        }
-
-        .abstract,
-        .workshop-goal,
-        .participant-note,
-        .organizers {
-            color: rgba(240, 236, 230, 0.85);
-            font-weight: 400;
-            line-height: 1.4;
-        }
-
-        .abstract {
-            display: grid;
-            grid-template-columns: max-content minmax(0, 1fr);
-            align-items: start;
-            column-gap: clamp(1.5rem, 3vw, 3rem);
-            row-gap: 1rem;
-            margin-top: clamp(2rem, 3.2vw, 4.125rem);
-        }
-
-        .abstract h2 {
-            margin-bottom: 0;
-        }
-
-        main section h2 {
-            margin-bottom: 1rem;
-        }
-
-        main section p+p {
-            margin-top: 1.25em;
-        }
-
-        .workshop-goal,
-        .organizers {
-            margin-top: clamp(4rem, 8.5vw, 11rem);
-            line-height: 1.65;
-        }
-
-        .expected-outcomes {
-            margin-top: 2rem;
-        }
-
-        .expected-outcomes h3 {
-            margin-bottom: 1rem;
-            font-size: clamp(1.125rem, 1.5vw, 1.875rem);
-            font-weight: 600;
-            line-height: 1.3;
-        }
-
-        .expected-outcomes ul {
-            margin: 0;
-            padding-left: 1.5em;
-        }
-
-        .expected-outcomes li+li {
-            margin-top: 0.75em;
-        }
-
-        h2 {
-            font-size: clamp(1.375rem, 1.85vw, 2.375rem);
-            font-weight: 600;
-            line-height: 1.3;
-        }
-
-        .platform-showcase,
-        .workshop-schedule {
-            margin-top: clamp(4rem, 8.5vw, 11rem);
-        }
-
-        .participant-note {
-            margin-bottom: 2rem;
-            line-height: 1.65;
-        }
-
-        .platform-figure {
-            margin: 1.5rem 0 0;
-        }
-
-        .platform-preview {
-            display: block;
-            overflow: hidden;
-            border: 0.5px solid rgba(240, 236, 230, 0.2);
-            border-radius: clamp(0.5rem, 1vw, 1rem);
-            cursor: zoom-in;
-        }
-
-        .platform-preview:hover {
-            border-color: rgba(240, 236, 230, 0.4);
-        }
-
-        .platform-preview:focus-visible {
-            outline: 2px solid #1E8FB8;
-            outline-offset: 6px;
-        }
-
-        .platform-preview img {
-            display: block;
-            width: 100%;
-            height: auto;
-        }
-
-        .platform-figure figcaption {
-            margin-top: 1rem;
-            color: rgba(240, 236, 230, 0.7);
-            font-size: clamp(0.8125rem, 1vw, 1rem);
-            line-height: 1.5;
-        }
-
-        .schedule-grid {
-            display: grid;
-            grid-template-columns: repeat(6, minmax(0, 1fr));
-            gap: clamp(1rem, 2.4vw, 3.5rem);
-            padding: 0;
-            list-style: none;
-            max-width: 100%;
-            margin: auto;
-        }
-
-        .schedule-slot {
-            display: grid;
-            place-items: center;
-            min-height: clamp(5.5rem, 5.85vw, 8.625rem);
-            padding: 1.25rem 0.75rem;
-            border:#1E8FB8 solid 0.8px;
-            border-radius: clamp(0.75rem, 1vw, 1.5rem);
-            background-color: #292A2C;
-            color: #CFD0D3;
-        }
-
-        .schedule-session {
-            font-size: clamp(0.75rem, 0.8vw, 1.125rem);
-            font-weight: 500;
-            line-height: 1.3;
-            text-align: center;
-        }
-
-        .schedule-duration {
-            display: block;
-            margin-top: 0.125rem;
-            font-size: clamp(0.625rem, 0.625vw, 0.875rem);
-            line-height: 1.3;
-            text-align: center;
-        }
-
-        .schedule-item h3 {
-            margin-top: clamp(1.5rem, 2.5vw, 3.5rem);
-            color: #FFFFFF;
-            font-size: clamp(1rem, 1vw, 1.75rem);
-            font-weight: 500;
-            line-height: 1.25;
-        }
-
-        .schedule-description {
-            margin-top: clamp(1rem, 0.4vw, 2.25rem);
-            color: rgba(240, 236, 230, 0.85);
-            font-weight: 400;
-            line-height: 1.25;
-        }
-
-        footer {
-            margin-right: var(--page-gutter);
-            padding: clamp(2rem, 4.2vw, 5.375rem) 0 clamp(2rem, 2.8vw, 3.625rem) var(--page-gutter);
-            border-top: 0.5px solid rgba(240, 236, 230, 0.4);
-            color: rgba(240, 236, 230, 0.85);
-            font-weight: 300;
-            line-height: 1.25;
-        }
-
-        .authors {
-            margin-top: 0.125rem;
-        }
-
-        .authors a,
-        .organizers a {
-            color: inherit;
-            text-decoration: none;
-            white-space: nowrap;
-        }
-
-        .organizers a {
-            font-weight: 600;
-        }
-
-        .authors a:hover,
-        .organizers a:hover {
-            text-decoration: underline;
-            text-underline-offset: 0.15em;
-        }
-
-        .authors a:focus-visible,
-        .organizers a:focus-visible {
-            outline: 2px solid #1E8FB8;
-            outline-offset: 4px;
-        }
-
-        @media (max-width: 1100px) {
-            .schedule-grid {
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-                gap: 2.5rem 1.5rem;
-                margin-inline: 0;
-            }
-        }
-
-        @media (max-width: 700px) {
-            .abstract {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        @media (max-width: 600px) {
-            .page {
-                --page-gutter: 1.5rem;
-                min-height: 100svh;
-            }
-
-            main {
-                padding-block: 3rem 4rem;
-            }
-
-            .eyebrow-row {
-                flex-wrap: wrap;
-                row-gap: 0.75rem;
-            }
-
-            .eyebrow {
-                line-height: 1.65;
-            }
-
-            .abstract,
-            .workshop-goal,
-            .participant-note,
-            .organizers {
-                font-size: 0.9375rem;
-                line-height: 1.65;
-            }
-
-            .schedule-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .schedule-session {
-                font-size: 1rem;
-            }
-
-            .schedule-duration {
-                font-size: 0.8125rem;
-            }
-
-            .schedule-description {
-                line-height: 1.5;
-            }
-
-            footer {
-                line-height: 1.5;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
+    <nav class="top-nav" aria-label="Main navigation">
+        <div class="nav-inner">
+            <a class="nav-brand" href="index.html">SCARline</a>
+            <div class="nav-links">
+                <a href="about-workshop.html">About</a>
+                <a class="active" href="index.html">Part A: SCARline</a>
+                <a href="your-task.html">Part B: Your task</a>
+            </div>
+        </div>
+    </nav>
     <div class="page">
         <main>
             <header>
@@ -407,17 +32,26 @@
                     <div class="eyebrow-links">
                         <a class="publication-link"
                             href="https://camps.aptaracorp.com/ACM_PMS/PMS/ACM/AUTOMOTIVEUIADJUNCT26/20/2303e427-8b5b-11f1-b513-16ffd757ba29/OUT/automotiveuiadjunct26-20.html"
-                            aria-label="Read the SCARline workshop paper" title="Workshop paper">
+                            aria-label="Read the SCARline workshop paper" title="Workshop paper" target="_blank">
                             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
                                 <path d="M14 2v6h6M8 13h8M8 17h5" />
                             </svg>
                         </a>
                         <a class="github-link" href="https://github.com/tugcanonbas/SCARline"
-                            aria-label="SCARline on GitHub" title="SCARline on GitHub">
+                            aria-label="SCARline on GitHub" title="SCARline on GitHub" target="_blank">
                             <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
                                 <path
                                     d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.65 7.65 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+                            </svg>
+                        </a>
+                        <a class="github-link" href="images/SCARline_Workshop_Handout.pdf" target="_blank" aria-label="Download the handout as PDF" title="Download the handout as PDF">
+                            <svg version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="auto" height="40px" viewBox="0 0 550.801 550.801" style="enable-background:new 0 0 550.801 550.801;" xml:space="preserve" fill="white">
+                                <g>
+                                    <path d="M160.381,282.225c0-14.832-10.299-23.684-28.474-23.684c-7.414,0-12.437,0.715-15.071,1.432V307.6   c3.114,0.707,6.942,0.949,12.192,0.949C148.419,308.549,160.381,298.74,160.381,282.225z"/>
+                                    <path d="M272.875,259.019c-8.145,0-13.397,0.717-16.519,1.435v105.523c3.116,0.729,8.142,0.729,12.69,0.729   c33.017,0.231,54.554-17.946,54.554-56.474C323.842,276.719,304.215,259.019,272.875,259.019z"/>
+                                    <path d="M488.426,197.019H475.2v-63.816c0-0.398-0.063-0.799-0.116-1.202c-0.021-2.534-0.827-5.023-2.562-6.995L366.325,3.694   c-0.032-0.031-0.063-0.042-0.085-0.076c-0.633-0.707-1.371-1.295-2.151-1.804c-0.231-0.155-0.464-0.285-0.706-0.419   c-0.676-0.369-1.393-0.675-2.131-0.896c-0.2-0.056-0.38-0.138-0.58-0.19C359.87,0.119,359.037,0,358.193,0H97.2   c-11.918,0-21.6,9.693-21.6,21.601v175.413H62.377c-17.049,0-30.873,13.818-30.873,30.873v160.545   c0,17.043,13.824,30.87,30.873,30.87h13.224V529.2c0,11.907,9.682,21.601,21.6,21.601h356.4c11.907,0,21.6-9.693,21.6-21.601   V419.302h13.226c17.044,0,30.871-13.827,30.871-30.87v-160.54C519.297,210.838,505.47,197.019,488.426,197.019z M97.2,21.605   h250.193v110.513c0,5.967,4.841,10.8,10.8,10.8h95.407v54.108H97.2V21.605z M362.359,309.023c0,30.876-11.243,52.165-26.82,65.333   c-16.971,14.117-42.82,20.814-74.396,20.814c-18.9,0-32.297-1.197-41.401-2.389V234.365c13.399-2.149,30.878-3.346,49.304-3.346   c30.612,0,50.478,5.508,66.039,17.226C351.828,260.69,362.359,280.547,362.359,309.023z M80.7,393.499V234.365   c11.241-1.904,27.042-3.346,49.296-3.346c22.491,0,38.527,4.308,49.291,12.928c10.292,8.131,17.215,21.534,17.215,37.328   c0,15.799-5.25,29.198-14.829,38.285c-12.442,11.728-30.865,16.996-52.407,16.996c-4.778,0-9.1-0.243-12.435-0.723v57.67H80.7   V393.499z M453.601,523.353H97.2V419.302h356.4V523.353z M484.898,262.127h-61.989v36.851h57.913v29.674h-57.913v64.848h-36.593   V232.216h98.582V262.127z"/>
+                                </g>
                             </svg>
                         </a>
                     </div>
@@ -427,79 +61,17 @@
                     Prototyping and Evaluation</p>
             </header>
 
-            <section class="abstract" aria-labelledby="abstract-title">
-                <h3 id="abstract-title">Abstract</h2>
-                    <p>Designing and evaluating in-vehicle Human-Machine Interfaces (HMI) requires researchers and UX
-                        designers to simultaneously navigate driving simulation software, interaction design, and user
-                        study
-                        methodology, a steep learning curve for those without a deep technical background. This workshop
-                        introduces SCARline, an open platform built atop a driving simulator that abstracts away
-                        technical
-                        complexity, letting researchers and designers focus on their research question, study design,
-                        and
-                        the in-cabin interaction they want to evaluate. A preliminary evaluation with participants from
-                        mixed disciplinary backgrounds provided initial validation and surfaced key areas for
-                        improvement,
-                        motivating this workshop as the next step in an iterative development process. Participants will
-                        be
-                        introduced to the platform architecture, guided through designing their own HMI widget, and
-                        supported in configuring a fully functional user study scenario within the simulator. The
-                        workshop
-                        invites the broader AutomotiveUI community to engage hands-on with SCARline and collectively
-                        inform
-                        its future development.</p>
-            </section>
-
-            <section class="workshop-goal" aria-labelledby="goal-title">
-                <h2 id="goal-title">Workshop goals</h2>
-                <p>The primary goal of this workshop is to introduce SCARline to the automotive HMI research community
-                    and to collectively explore the challenges and opportunities of accessible simulator-based research
-                    tooling.</p>
-
-                <p>Participants will first gain a conceptual understanding of the problem SCARline addresses, namely the
-                    technical overhead that prevents researchers and designers from focusing on their core research
-                    questions when working with driving simulators. They will be walked through the physical and
-                    software architecture of the platform at a level sufficient to evaluate its applicability to their
-                    own research contexts, without requiring prior knowledge of simulator internals.</p>
-
-                <p>Participants will then gain hands-on experience designing and implementing an HMI widget, working in
-                    small groups to produce a functional interface element and observe it running live within the
-                    platform. Building on this, they will configure a simple but fully functional user study scenario
-                    directly within the simulator, experiencing the complete research pipeline that SCARline enables,
-                    from interface design through to study deployment and data collection.</p>
-
-                <p>Finally, the workshop will provide a structured space for discussion around the broader question of
-                    accessible and open HMI research tooling: what researchers need from such platforms, what current
-                    tools still leave unaddressed, and how platforms like SCARline could evolve to better serve the
-                    community. Feedback collected during this session will directly inform the continued development of
-                    SCARline.</p>
-
-                <section class="expected-outcomes" aria-labelledby="outcomes-title">
-                    <h4 id="outcomes-title">What you will get out of it:</h4>
-                    <ul>
-                        <li>Gather first-hand experience of the SCARline research pipeline, including HMI widget design
-                            and study configuration and deployment.</li>
-                        <li>Acquire a concrete mental model of how an abstraction layer over a driving simulator can
-                            lower technical barriers to Automotive UX research.</li>
-                        <li>Create widgets and study scenarios that will serve as a small, diverse corpus of worked
-                            examples to stress-test SCARline against research interests beyond those of its original
-                            developers.</li>
-                        <li>Surface usability issues, missing capabilities, and unmet researcher needs to directly
-                            inform
-                            continued development of our open-source tool.</li>
-                        <li>Participate in a discussion that is intended to advance a shared community understanding of
-                            what accessible and open HMI research tooling should provide, current gaps, and how the
-                            field
-                            might move toward greater standardization and reproducibility.</li>
-                    </ul>
-                </section>
+            <section style="margin-top:50px;">
+                <h2>Welcome to the 1st SCARline Workshop at AutoUI 2026! 😊</h2>
+                <p>
+                    Today, we'll introduce <b>SCARline</b> and explore how it can support the rapid prototyping and evaluation of in-vehicle HMIs in driving simulator studies.
+                    <br>
+                    We've prepared this handout to help you <b>follow along during the workshop</b> and serve as a <b>reference for using SCARline afterward</b>.
+                </p>
             </section>
 
             <section class="workshop-schedule" aria-labelledby="schedule-title">
-                <h2 id="schedule-title">Workshop Schedule</h2>
-                <p class="participant-note">For the successful delivery of this workshop, <b>we recommend bringing
-                        laptops</b> for the session to fully engage with the hands-on widget creation activities, as the interactive
-                    components are optimized for laptop-based work.</p>
+                <h3 id="schedule-title">What we'll do today</h3>
                 <ol class="schedule-grid" role="list">
                     <li class="schedule-item">
                         <div class="schedule-slot">
@@ -579,56 +151,140 @@
                 </ol>
             </section>
 
-            <section class="platform-showcase" aria-labelledby="platform-title">
-                <figure class="platform-figure">
-                    <a class="platform-preview" href="images/admin-panel-user-study.png" target="_blank" rel="noopener"
+            <section style="margin-top:50px;">
+                <h3>How this handout is structured</h3>
+                <p>
+                    <b>Part A: What is SCARline?</b>
+                    <br>
+                    A short introduction to SCARline, its architecture, and how its components work together.
+                    <br>
+                    <b>Part B: Your Task Today</b>
+                    <br>
+                    An exercise where you get to build your own widget and then run it with SCARline.
+                    <br><br>
+                    <i>If you have questions during the workshop, just ask! We're happy to help.</i>
+                </p>
+            </section>
+
+            <section class="part-a" aria-labelledby="what-is-scarline" style="margin-top: 150px;">
+                <h2>Part A: What is SCARline?</h2>
+                <div>
+                    <p><b>SCARline sits on top of a driving simulator and handles the technical complexity underneath, so you can focus on your research question and study design rather than fighting with the tools.</b> You don't need to know how the simulator works internally — just what you're testing and how. That doesn't mean SCARline takes the creative work away from you. You're still the one designing the interaction, the platform just removes the plumbing between your idea and a running study.</p>
+
+                    <p>
+                        <b style="padding-top: 15px;">SCARline at a glance:</b>
+                        <ol>
+                            <li>A plug-and-play UX platform for driving simulation research.</li>
+                            <li>One system to build, configure, run, and review a study from start to finish.</li>
+                            <li>Built for researchers and designers, from no-code builds to full custom code.</li>
+                            <li>Open source and available at <a href="https://github.com/tugcanonbas/SCARline"><svg style="fill:white;margin-left:5px;margin-right:5px;" width="auto" height="20px" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                <path
+                                    d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.65 7.65 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+                            </svg>github.com/tugcanonbas/SCARline</a>.</li>
+                        </ol>
+                    </p>
+                </div>
+
+                <div>
+                    <h3>1. SCARline Architecture</h3>
+                    <figure class="platform-figure">
+                    <a class="platform-preview" href="images/scarline-architecture.png" target="_blank" rel="noopener"
                         aria-label="View the SCARline admin panel screenshot at full size in a new tab">
-                        <img src="images/admin-panel-user-study.png" width="2556" height="1405" loading="lazy"
+                        <img src="images/scarline-architecture.png" width="2556" height="1405" loading="lazy"
                             decoding="async"
-                            alt="Overview of a user study called Auto UI Study inside the SCARline platform. It shows a tab navigation for navigation to the overview, participants, conditions, simulator setup, sensors, participant view, sessions, and active study. Additionally, it shows four boxes with the participant amount, conditions, sessions, and the status. Below it are quick start tips.">
+                            alt="SCARline system architecture diagram showing the CLI starting the SCARline Hub, CARLA Server and Client, and Docker environment. The Hub communicates with the Core API, while Sim-Bridge connects CARLA with RabbitMQ for logs and commands. RabbitMQ also connects to Python I/O sensors and PostgreSQL logs. The Core API communicates with the HMI and overlay, which provide interfaces for UI components UI1-UI4. All components run on the operating system, with Docker providing the containerized runtime environment.">
                     </a>
-                    <figcaption>Overview of a user study called "Auto UI Study" inside the SCARline platform. From here, users can navigate through the different tabs to set up their study, manage the study, or use the quick start tips to quickly get going.</figcaption>
-                </figure>
+                        <figcaption>Figure 1: SCARline's full system architecture — This includes the CLI, SCARline Hub, CARLA simulator, Sim-Bridge, RabbitMQ, Core API, I/O sensors, PostgreSQL logging, and the HMI/overlay layer. Docker provides the underlying containerized runtime environment.</figcaption>
+                    </figure>
+                <h4>Information Flow</h4>
+                <div>
+                    <p>When something changes in the simulation (e.g., the vehicle's speed reaches 80 km/h) CARLA (the driving simulator itself) doesn't talk to your widget directly. It first passes that value to the Sim-Bridge, whose job is to translate raw simulator state into messages the rest of the system understands. The Sim-Bridge publishes that message to RabbitMQ, a message queue that sits between the simulator side and the widget side of the pipeline. The message doesn't go anywhere on its own from there. It waits in the queue until something is ready to pick it up.
+                    <br>
+                    That something is the Core-API, which consumes the message from RabbitMQ, then processes and packages it into the shape your widget actually needs (e.g., turning "speed = 80km/h" into whatever data field your widget is listening for). Once packaged, the Core-API pushes that data to the Overlay over a websocket connection. This is a live, always-open channel rather than a one-off request. The Overlay is what updates the widget on screen in response.
+                    <br><br>
+                    <b>Short version:</b> simulator state flows out through Sim-Bridge → queue → Core-API → live push → your widget on screen, with RabbitMQ acting as a buffer in the middle rather than a direct handoff.</p>
+                    <figure class="platform-figure">
+                    <a class="platform-preview" style="border:none" href="images/scarline-information-flow.png" target="_blank" rel="noopener"
+                        aria-label="View the SCARline admin panel screenshot at full size in a new tab">
+                        <img src="images/scarline-information-flow.png" width="2556" height="1405" loading="lazy"
+                            decoding="async"
+                            alt="SCARline information-flow diagram showing a driving simulator sending an update through Sim-bridge. RabbitMQ then holds the update, and the Core API packages it. The output is displayed in the Speedometer widget.">
+                    </a>
+                        <figcaption>Figure 2: How a single data point travels from the simulator to your widget on screen.</figcaption>
+                    </figure>
+                </div>
+                </div>
+
+                <div>
+                    <h3>2. Widgets</h3>
+                    <p><b>A widget is the piece of interface a driver or passenger actually sees and interacts with inside the car.</b> This could for example be a heart-rate readout on the dashboard, a warning icon that appears when you're following too closely, a passenger-side screen showing trip stats. Widgets are connected to the simulation, so it can change based on what's happening in the drive, e.g., speed, distance to an obstacle, elapsed time, or whatever state you choose to hook it to. Every widget has, at minimum, a resting state (what it looks like normally) and a triggered state (what changes when the condition you define is met).</p>
+                    <figure class="platform-figure">
+                    <a class="platform-preview" href="images/example-widgets.png" target="_blank" rel="noopener"
+                        aria-label="View the SCARline admin panel screenshot at full size in a new tab">
+                        <img src="images/example-widgets.png" width="2556" height="1405" loading="lazy"
+                            decoding="async"
+                            alt="From left to right: First, a gauge-style speedometer graphic displaying vehicle speed at 132 KM/H. A blue arc marks the current reading across a 0–220 scale. Next, an nalogue clock with a digital one below showing 1:38 PM. Below that, the date February 11, Saturday is shown. Lastly, a health-monitoring widget with two panels: a heart-rate panel showing a live graph at 102 bpm, with a normal range of 87–113 bpm below it, and a blood-pressure panel showing a reading of 123/78 mmHg.">
+                    </a>
+                        <figcaption>Figure 3: Example widgets present in SCARline.</figcaption>
+                    </figure>
+
+                    <h4>Widget Structure</h4>
+                    Every widget lives in its own folder inside <code>widgets/components/</code> (e.g., <code>widgets/components/calendar/</code>) and is made up of three files:
+                    <div style="display: flex;">
+                        <img src="images/widget-structure.png" width="200" height="auto" loading="lazy"
+                            decoding="async"
+                            alt="From left to right: First, a gauge-style speedometer graphic displaying vehicle speed at 132 KM/H. A blue arc marks the current reading across a 0–220 scale. Next, an analogue clock with a digital one below showing 1:38 PM. Below that, the date February 11, Saturday is shown. Lastly, a health-monitoring widget with two panels: a heart-rate panel showing a live graph at 102 bpm, with a normal range of 87–113 bpm below it, and a blood-pressure panel showing a reading of 123/78 mmHg.">
+                    </div>
+                    <div style="margin-left: 5px; margin-top: 0;">
+                        <ul>
+                            <li>A preview image (e.g., <code>activecall.png</code>) — a snapshot of the widget shown in the SCARline interface editor, so it's recognizable without loading the live widget.</li>
+                            <li><code>index.html</code> — the widget's visual structure, styled with Tailwind CSS classes.</li>
+                            <li><code>widget.json</code> — the configuration file: it defines the widget's dimensions and, most importantly, the data bindings it expects to receive.</li>
+                        </ul>
+                    </div>
+
+                    <h4>How widgets receive data</h4>
+                    Data binding allows your widget to receive live data from the simulator. This is handled through the <code>data-bind</code> attribute in your html file by connecting it to the matching key in <code>widget.json</code>. For example: <code>&ltspan data-bind="calendar.date_label">11&lt/span></code>
+                    <br>
+                    In your json file this would then be:
+                    <br>
+                    <code><pre>
+"bindings": {
+    "calendar.date_label": {
+        "type": "string",
+        "description": "Current day-of-month label.",
+        "default": "11"
+    },
+}
+                    </pre></code>
+
+                    <h4>Sending actions out</h4>
+                    Buttons or other interactive elements can change what a widget shows through <code>data-action</code>. When clicked, the shared runtime sends that action to the SCARline system:
+                    <br>
+                    <code>&ltbutton type="button" data-action="calendar.add_event">+&lt/button></code>
+                    <br>
+                    Most widgets are read-only, so just displaying data. If a widget needs something more custom, it can also send events directly through the SCARline API, though that's rarely needed for a first widget. You would do this with a custom script:
+                    <code><pre>
+&ltscript>
+    window.SCARline.send("widget.interaction", {
+        widgetId: "appointments",
+        action: "add_event"
+    });
+&lt/script>
+                    </pre></code>
+                    The binding and the action handling runs through a shared runtime script (<code>&ltscript src=”../../widget-runtime.js”>&lt/script></code>) loaded by every widget, so you never have to write that plumbing yourself.
+
+                    <h4>Build or recreate a widget</h4>
+                    Create a new folder inside <code>components/</code>, draft your <code>index.html</code> with Tailwind classes, define what data it expects in <code>widget.json</code>, and <code>run npm run dev</code> inside the widgets folder to preview and tweak it live in your browser — before it's picked up by the rest of the system
+                </div>
             </section>
 
-            <section class="organizers" aria-labelledby="organizers-title">
-                <h2 id="organizers-title">Organizers</h2>
-                <p><b>We're looking forward to seeing you at the 1st SCARline Workshop at AutoUI 2026!</b></p>
-
-                <p><a href="mailto:mos6318@thi.de">Monika Szuban</a> is a Master’s student in User Experience Design at
-                    the Technische Hochschule Ingolstadt. Her research interests lie in gamification and user
-                    engagement, exploring how playful design approaches can shape automotive and in-vehicle experiences.
-                    Her current research addresses the accessibility of simulator-based user studies, with the aim of
-                    supporting designers and researchers across varying levels of technical expertise.</p>
-
-                <p><a href="mailto:lar3406@thi.de">Laura Radetzky</a> is a Master’s student in User Experience Design at
-                    the Technische Hochschule Ingolstadt. Her work focuses on accessibility, neurodiversity, and
-                    gamification in human-computer interaction, including prior research on inclusive gamified
-                    questionnaires for neurodivergent participants and automotive gamification. Currently, she
-                    contributes to the development of tools that facilitate driving simulator studies and support
-                    user-centered automotive research for students and researchers.</p>
-
-                <p><a href="mailto:tuo8203@thi.de">Tuğcan Önbaş</a> is a Master’s student in User Experience Design at
-                    Technische Hochschule Ingolstadt. His work sits at the intersection of UX research, interaction
-                    design and software engineering, with interests in adaptive interfaces, human-centered AI and
-                    mobility-related user experiences. Currently, he designs and develops interactive prototypes and
-                    research tools for human-centered technology research.</p>
-
-                <p><a href="mailto:ignacio.alvarez@thi.de">Dr. Ignacio Alvarez</a> holds the Bavarian Top Professorship
-                    for Human-Centered Intelligent Systems at Technische Hochschule Ingolstadt. His research interests
-                    are at the intersection of agentic AI, systems engineering and human-computer interaction.</p>
-
-                <p><a href="mailto:D.Dey@tue.nl">Dr. Debargha (Dave) Dey</a> is Assistant Professor for Industrial
-                    Design at Eindhoven University of Technology. His research interests are on the human factors of
-                    automated driving and intelligent transportation systems, multimodal interaction, and natural user
-                    interfaces.</p>
-
-                <p><a href="mailto:wendy.ju@cornell.edu">Dr. Wendy Ju</a> is Professor of Information Science and Design
-                    Tech at Cornell Tech University. Her research interests are primarily focused on the design of
-                    interactive systems, particularly human-robot interaction and autonomous car interfaces. She
-                    received her Ph.D. in mechanical engineering from Stanford University and her master’s degree in
-                    media arts and sciences from the Massachusetts Institute of Technology.</p>
+            <section>
+                <a href="your-task.html">
+                    <button style="margin-top: 50px;">Jump to PART B: YOUR TASK TODAY (BUILD YOUR OWN WIDGET)</button>
+                </a>
             </section>
+
         </main>
 
         <footer>
