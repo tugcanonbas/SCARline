@@ -5,18 +5,33 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>SCARline Platform Features</title>
-    <meta name="description" content="What the SCARline platform does: study workflow, capabilities, widgets, simulators and sensors.">
+    <meta name="description" content="What the SCARline platform does: study workflow, capabilities, widgets, simulators and sensors, and how to get started.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
         href="https://fonts.googleapis.com/css2?family=Bitter:ital,wght@0,100..900;1,100..900&amp;family=Source+Code+Pro:ital,wght@0,200..900;1,200..900&amp;family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&amp;display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <script src="components.js"></script>
+    <script src="components.js" defer></script>
 </head>
 
 <body>
-    <site-nav></site-nav>
+    <!-- Main navigation: identical on every page; only the active link differs -->
+    <nav class="top-nav" aria-label="Main navigation">
+        <div class="nav-inner">
+            <a class="nav-brand" href="index.html">SCARline</a>
+            <div class="nav-links" id="nav-links">
+                <a href="index.html">Overview</a>
+                <a class="active" aria-current="page" href="platform.html">Platform</a>
+                <a href="docs.html">Docs</a>
+                <a href="team.html">Team</a>
+            </div>
+            <div class="nav-actions">
+                <a class="nav-icon" href="https://github.com/tugcanonbas/SCARline" target="_blank" rel="noopener" aria-label="SCARline on GitHub" title="SCARline on GitHub"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.65 7.65 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" /></svg></a>
+                <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links" aria-label="Open menu"><span></span><span></span></button>
+            </div>
+        </div>
+    </nav>
     <div class="page">
         <main>
             <header>
@@ -39,6 +54,8 @@
                     <a href="#capabilities"><span>03</span> Capabilities</a>
                     <a href="#widgets"><span>04</span> Widgets</a>
                     <a href="#simulation"><span>05</span> Simulation &amp; sensing</a>
+                    <a href="#under-the-hood"><span>06</span> Under the hood</a>
+                    <a href="#get-started"><span>07</span> Get started</a>
                 </nav>
             </header>
 
@@ -239,7 +256,28 @@
                     </div>
                 </div>
 
-                <p class="more-link"><a href="how-it-works.html#widget-development">Build your own widget: files, data bindings and actions <span aria-hidden="true">→</span></a></p>
+                <h3 class="build-own-title">Build your own</h3>
+                <p class="section-lede">Need something the library doesn't have? A widget is just a folder of three plain web files: no framework, no build step. If you can sketch it, you can build it, or hand the sketch to a teammate or an AI assistant.</p>
+                <div class="anatomy">
+                    <img class="anatomy-img" src="images/widget-structure.png" width="200" loading="lazy" decoding="async"
+                        alt="Folder structure of a widget: a folder named after the widget containing a PNG preview image, index.html and widget.json.">
+                    <ul class="file-grid" role="list">
+                        <li class="file-card">
+                            <code class="file-name">index.html</code>
+                            <p>What the widget looks like, styled with Tailwind CSS.</p>
+                        </li>
+                        <li class="file-card">
+                            <code class="file-name">widget.json</code>
+                            <p>Its name, size and the live data it listens to.</p>
+                        </li>
+                        <li class="file-card">
+                            <code class="file-name">&lt;widget-id&gt;.png</code>
+                            <p>A preview image for the layout editor.</p>
+                        </li>
+                    </ul>
+                </div>
+
+                <p class="more-link"><a href="docs.html#widgets">Widget guide: data bindings, actions and the runtime API <span aria-hidden="true">→</span></a></p>
             </section>
 
             <!-- ============ HARDWARE & SIMULATION ============ -->
@@ -265,11 +303,11 @@
                         <dl class="spec-list">
                             <div>
                                 <dt>Logitech G29</dt>
-                                <dd>Steering wheel and pedal input at 100&nbsp;Hz.</dd>
+                                <dd>Steering wheel and pedal input that drives the simulated car.</dd>
                             </div>
                             <div>
                                 <dt>Heart rate &amp; ECG</dt>
-                                <dd>Heart rate monitor (1&nbsp;Hz) and SiFi Labs ECG (500&nbsp;Hz).</dd>
+                                <dd>A heart rate monitor and the SiFi Labs ECG, recorded alongside the drive.</dd>
                             </div>
                             <div>
                                 <dt>Camera</dt>
@@ -283,17 +321,72 @@
                     </div>
                 </div>
                 <p class="fine-print">Mark a device as <i>required</i> and the study can't go live until it is connected; if it disconnects mid-session, the session stops rather than recording incomplete data.</p>
+                <p class="more-link"><a href="docs.html#simulators">Simulator settings, sensor drivers and sample rates <span aria-hidden="true">→</span></a></p>
             </section>
 
             <!-- ============ UNDER THE HOOD ============ -->
-            <section class="platform-section callout" aria-labelledby="hood-title">
+            <section class="platform-section" id="under-the-hood" aria-labelledby="hood-title">
+                <p class="kicker">Under the hood</p>
+                <h2 id="hood-title">Built so your data doesn't get lost</h2>
+                <p class="section-lede">The simulator never talks to your widgets directly. Every value travels through a small chain of services connected by a message queue, so one part can restart without taking the study down with it.</p>
+                <figure class="platform-figure">
+                    <a class="platform-preview flat" href="images/scarline-information-flow.png" target="_blank" rel="noopener"
+                        aria-label="View the information flow diagram at full size in a new tab">
+                        <img src="images/scarline-information-flow.png" width="1728" height="450" loading="lazy" decoding="async"
+                            alt="Information flow: the driving simulator sends an update to Sim-Bridge, RabbitMQ holds it, the Core API packages it, and the speedometer widget displays it.">
+                    </a>
+                    <figcaption>A speed reading on its way from the simulator to the speedometer on the participant's screen.</figcaption>
+                </figure>
+                <ul class="file-grid principle-grid" role="list">
+                    <li class="file-card">
+                        <p class="principle-title">One command</p>
+                        <p>A single CLI checks your setup, starts every service and tells you whether everything is healthy.</p>
+                    </li>
+                    <li class="file-card">
+                        <p class="principle-title">Nothing half-starts</p>
+                        <p>Simulator and sensors must confirm every start, pause and condition change. If they don't, the session stops cleanly.</p>
+                    </li>
+                    <li class="file-card">
+                        <p class="principle-title">Never a stale number</p>
+                        <p>When data stops arriving, a widget shows a dash instead of an old value, and the operator sees why.</p>
+                    </li>
+                </ul>
+                <p class="more-link"><a href="docs.html#architecture">Architecture, data flow and session lifecycle in the docs <span aria-hidden="true">→</span></a></p>
+            </section>
+
+            <!-- ============ GET STARTED ============ -->
+            <section class="platform-section" id="get-started" aria-labelledby="start-title">
+                <p class="kicker">Get started</p>
+                <h2 id="start-title">Running in four commands</h2>
+                <div class="teaser-steps">
+                    <div>
+                        <p class="section-lede">SCARline is open source. Clone it, install it and start it with the mock simulator and synthetic sensors to try a complete study on your own laptop, no driving rig or GPU required.</p>
+                        <ul class="chip-list" role="list">
+                            <li class="chip">Node.js 22+</li>
+                            <li class="chip">Docker</li>
+                            <li class="chip">CARLA 0.9.16 (optional)</li>
+                        </ul>
+                    </div>
+                    <div class="code-panel">
+                        <p class="code-label">Terminal</p>
+<pre><code>git clone https://github.com/tugcanonbas/SCARline.git
+cd SCARline && npm install
+scarline setup
+scarline start --simulator mock --mock-io</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============ DOCS CALLOUT ============ -->
+            <section class="platform-section callout" aria-labelledby="docs-title">
                 <div>
-                    <p class="kicker">Under the hood</p>
-                    <h2 id="hood-title">How it works</h2>
-                    <p>The architecture, how a single value travels from the simulator to a widget on screen, the widget code, and every install command, all on one page.</p>
+                    <p class="kicker">Documentation</p>
+                    <h2 id="docs-title">Everything technical, in one place</h2>
+                    <p>Step-by-step installation, CLI commands, architecture, the widget API, simulator and sensor setup, configuration and troubleshooting.</p>
                 </div>
                 <div class="callout-actions">
-                    <a class="button-link primary" href="how-it-works.html">Read the technical overview</a>
+                    <a class="button-link primary" href="docs.html#install">Install guide</a>
+                    <a class="button-link" href="docs.html">Read the docs</a>
                 </div>
             </section>
 
@@ -305,7 +398,7 @@
                     <div class="footer-brand">
                         <a class="nav-brand" href="index.html">SCARline</a>
                         <p class="footer-tagline">The plug-and-play platform for building, running and reviewing driving simulator studies of in-vehicle HMIs.</p>
-                        <p class="footer-institutions">Technische Hochschule Ingolstadt · Eindhoven University of Technology · Cornell Tech</p>
+                        <p class="footer-institutions">Technische Hochschule Ingolstadt</p>
                         <a class="footer-github" href="https://github.com/tugcanonbas/SCARline" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.65 7.65 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" /></svg><span>Star on GitHub</span></a>
                     </div>
                     <nav class="footer-col" aria-label="Explore">
@@ -313,7 +406,7 @@
                         <ul role="list">
                             <li><a href="index.html">Overview</a></li>
                             <li><a href="platform.html" aria-current="page">Platform</a></li>
-                            <li><a href="how-it-works.html">How it works</a></li>
+                            <li><a href="docs.html">Docs</a></li>
                             <li><a href="team.html">Team</a></li>
                         </ul>
                     </nav>
@@ -321,20 +414,18 @@
                         <h2>Resources</h2>
                         <ul role="list">
                             <li><a href="https://github.com/tugcanonbas/SCARline" target="_blank" rel="noopener">GitHub repository<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 17 17 7M8 7h9v9" /></svg></a></li>
-                            <li><a href="how-it-works.html#install">Install guide</a></li>
-                            <li><a href="how-it-works.html#widget-development">Build a widget</a></li>
+                            <li><a href="docs.html#install">Install guide</a></li>
+                            <li><a href="docs.html#widgets">Build a widget</a></li>
                             <li><a href="https://camps.aptaracorp.com/ACM_PMS/PMS/ACM/AUTOMOTIVEUIADJUNCT26/20/2303e427-8b5b-11f1-b513-16ffd757ba29/OUT/automotiveuiadjunct26-20.html" target="_blank" rel="noopener">AutoUI 2026 paper<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 17 17 7M8 7h9v9" /></svg></a></li>
                         </ul>
                     </nav>
                     <div class="footer-col">
-                        <h2>Questions? Email us</h2>
+                        <h2>Questions?</h2>
                         <ul role="list">
                             <li><a href="mailto:mos6318@thi.de">Monika Szuban</a></li>
                             <li><a href="mailto:tuo8203@thi.de">Tuğcan Önbaş</a></li>
                             <li><a href="mailto:lar3406@thi.de">Laura Radetzky</a></li>
                             <li><a href="mailto:ignacio.alvarez@thi.de">Ignacio Alvarez</a></li>
-                            <li><a href="mailto:wendy.ju@cornell.edu">Wendy Ju</a></li>
-                            <li><a href="mailto:D.Dey@tue.nl">Debargha Dey</a></li>
                         </ul>
                     </div>
                 </div>
