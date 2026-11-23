@@ -1325,12 +1325,23 @@
 
         /* --- Cinematic hero video (index.html) --- */
         .hero {
+            --hero-height: min(88vh, 960px);
+            --hero-fade: 65%;   /* the video starts dissolving into the page here */
             position: relative;
             display: flex;
             align-items: flex-end;
-            min-height: min(88vh, 960px);
+            min-height: var(--hero-height);
             overflow: hidden;
-            background: #070809;
+            background: linear-gradient(to bottom, #070809 var(--hero-fade), rgba(7, 8, 9, 0) 100%);
+        }
+
+        /* Fade the video and its overlay out towards the bottom, so the hero
+           dissolves into the page background instead of ending in a hard edge.
+           The text stays fully opaque. */
+        .hero-video,
+        .hero-scrim {
+            -webkit-mask-image: linear-gradient(to bottom, #000 var(--hero-fade), transparent 100%);
+                    mask-image: linear-gradient(to bottom, #000 var(--hero-fade), transparent 100%);
         }
 
         .hero-video {
@@ -1886,8 +1897,22 @@
             min-height: min(80vh, 760px);
             margin-top: clamp(5rem, 9vw, 9rem);
             overflow: hidden;
+        }
+
+        /* The still image lives on its own layer so its top can fade into
+           the page (same idea as the hero), without fading the text. */
+        .cta-band::before {
+            content: "";
+            position: absolute;
+            inset: 0;
             background: url(media/scarline-hero-static.png);
-            text-align: center;
+        }
+
+        .cta-band::before,
+        .cta-scrim {
+            --cta-fade: 40%;   /* fully visible from here down */
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 var(--cta-fade));
+                    mask-image: linear-gradient(to bottom, transparent 0%, #000 var(--cta-fade));
         }
 
         .cta-video {
@@ -2616,4 +2641,101 @@
 
         .build-own-title {
             margin-top: clamp(3rem, 5vw, 4.5rem) !important;
+        }
+
+        /* =========================================================
+           Page background: ambient glow (every page)
+           ---------------------------------------------------------
+           Soft blue light along the page edges, repeating every
+           1600px, plus a very fine grain that prevents colour banding
+           on dark screens. It fades in below the page header, so
+           titles sit on the plain background. On the homepage the
+           hero and the closing band cover it with their own video.
+           ========================================================= */
+        .page {
+            --bg-glow: rgba(29, 144, 185, 0.17);
+            --bg-glow-soft: rgba(29, 144, 185, 0.13);
+            --bg-fade-start: 300px;   /* plain background above this */
+            --bg-fade-end: 800px;     /* full strength from here */
+            position: relative;
+            isolation: isolate;
+            overflow-x: clip;         /* keeps .dot-bg bleed from causing sideways scroll */
+        }
+
+        .page::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            pointer-events: none;
+            background:
+                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E") 0 0 / 180px 180px repeat,
+                radial-gradient(ellipse 45% 32% at 0% 45%, var(--bg-glow), transparent 70%) 0 0 / 100% 1600px repeat-y,
+                radial-gradient(ellipse 40% 30% at 100% 76%, var(--bg-glow-soft), transparent 70%) 0 0 / 100% 1600px repeat-y;
+            -webkit-mask-image: linear-gradient(to bottom, transparent var(--bg-fade-start), #000 var(--bg-fade-end));
+                    mask-image: linear-gradient(to bottom, transparent var(--bg-fade-start), #000 var(--bg-fade-end));
+        }
+
+        /* Homepage: let the glow rise through the hero's fading bottom edge */
+        .page:has(.hero) {
+            --bg-fade-start: calc(min(88vh, 960px) * 0.6);
+            --bg-fade-end: calc(min(88vh, 960px) + 500px);
+        }
+
+        /* =========================================================
+           Dot background template: .dot-bg
+           ---------------------------------------------------------
+           A faded patch of blue particle dots behind one element,
+           echoing the hero. Not used anywhere by default; add the
+           class to a section to switch it on:
+
+               <section class="platform-section dot-bg"> ... </section>
+
+           Position the patch with a modifier, or tune it inline:
+
+               .dot-bg--left / .dot-bg--right / .dot-bg--center
+               style="--dot-x: 20%; --dot-y: 40%; --dot-size: 50% 60%;"
+
+           Variables (all optional):
+               --dot-x, --dot-y   centre of the patch     (default 15% 50%)
+               --dot-size         patch width and height  (default 45% 70%)
+               --dot-gap          distance between dots   (default 24px)
+               --dot-color        dot colour              (default brand blue)
+               --dot-bleed        how far it extends past the element
+                                  into the page margins   (default up to 4rem)
+
+           It uses ::before, so don't combine it with an element that
+           already has one (e.g. .legal-notice, .site-footer, .cta-band).
+           ========================================================= */
+        .dot-bg {
+            --dot-x: 15%;
+            --dot-y: 50%;
+            --dot-size: 45% 70%;
+            --dot-gap: 24px;
+            --dot-color: rgba(40, 172, 220, 0.5);
+            --dot-bleed: clamp(1rem, 4vw, 4rem);
+            position: relative;
+            isolation: isolate;
+        }
+
+        .dot-bg::before {
+            content: "";
+            position: absolute;
+            inset: calc(var(--dot-bleed) * -1);
+            z-index: -1;
+            pointer-events: none;
+            background: radial-gradient(circle, var(--dot-color) 1.1px, transparent 1.7px) 0 0 / var(--dot-gap) var(--dot-gap);
+            -webkit-mask-image: radial-gradient(ellipse var(--dot-size) at var(--dot-x) var(--dot-y), #000 0%, rgba(0, 0, 0, 0.35) 45%, transparent 100%);
+                    mask-image: radial-gradient(ellipse var(--dot-size) at var(--dot-x) var(--dot-y), #000 0%, rgba(0, 0, 0, 0.35) 45%, transparent 100%);
+        }
+
+        .dot-bg--left   { --dot-x: 10%; }
+        .dot-bg--right  { --dot-x: 90%; }
+        .dot-bg--center { --dot-x: 50%; --dot-size: 60% 80%; }
+
+        @media (max-width: 600px) {
+            .dot-bg {
+                --dot-gap: 20px;
+                --dot-size: 80% 60%;
+            }
         }
