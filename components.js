@@ -9,6 +9,8 @@
  * This script only adds behaviour to that markup:
  *   - a background on the nav bar once the page is scrolled
  *   - the open/close menu button on small screens
+ *   - the hero background video on index.html (see initHeroVideo)
+ *   - the sticky workflow tracker on platform.html (see initStageTracker)
  *
  * Load it in the <head> of every page:
  *
@@ -42,9 +44,104 @@
         });
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
+    /*
+     * Hero background video
+     * The <video class="hero-video"> has no <source>; its file is in data-src.
+     * It is only attached on larger screens, without reduced motion and
+     * without data saver, so everyone else just sees the poster image.
+     * While playing, the video pauses when scrolled out of view, and the nav
+     * bar drops its backdrop blur while it sits over the video.
+     */
+    function initHeroVideo(nav) {
+        var video = document.querySelector('.hero-video[data-src]');
+        if (!video) return;
+
+        var mq = function (q) { return window.matchMedia && window.matchMedia(q).matches; };
+        var conn = navigator.connection || {};
+        var staticOnly =
+            mq('(prefers-reduced-motion: reduce)') ||
+            mq('(max-width: 768px), (max-height: 500px)') ||   // phones, portrait or landscape
+            conn.saveData === true ||
+            /(^|-)2g$/.test(conn.effectiveType || '');
+        if (staticOnly) return;
+
+        var source = document.createElement('source');
+        source.src = video.getAttribute('data-src');
+        source.type = 'video/mp4';
+        video.appendChild(source);
+        video.load();
+
+        function tryPlay() {
+            var p = video.play();
+            if (p && p.catch) p.catch(function () { /* autoplay blocked: poster stays */ });
+        }
+
+        var hero = video.closest('.hero') || video;
+        if ('IntersectionObserver' in window) {
+            new IntersectionObserver(function (entries) {
+                if (entries[0].isIntersecting) tryPlay(); else video.pause();
+            }).observe(hero);
+        } else {
+            tryPlay();
+        }
+
+        if (nav) {
+            var update = function () {
+                var overVideo = !video.paused && hero.getBoundingClientRect().bottom > nav.offsetHeight;
+                nav.classList.toggle('is-over-video', overVideo);
+            };
+            ['playing', 'pause'].forEach(function (ev) { video.addEventListener(ev, update); });
+            window.addEventListener('scroll', update, { passive: true });
+            window.addEventListener('resize', update);
+        }
+    }
+
+    /*
+     * Workflow stage tracker (platform.html)
+     * <nav class="stage-tracker"> links to the stage <article>s by id. While
+     * the stages scroll past, the stage in the middle of the screen gets
+     * .is-active and aria-current="step"; earlier stages get .is-done.
+     */
+    function initStageTracker() {
+        var tracker = document.querySelector('.stage-tracker');
+        if (!tracker || !('IntersectionObserver' in window)) return;
+
+        var links = Array.prototype.slice.call(tracker.querySelectorAll('a[href^="#"]'));
+        var ids = links.map(function (a) { return a.getAttribute('href').slice(1); });
+        var current = -1;
+
+        function setActive(index) {
+            if (index === current) return;
+            current = index;
+            links.forEach(function (a, i) {
+                a.classList.toggle('is-active', i === index);
+                a.classList.toggle('is-done', index >= 0 && i < index);
+                if (i === index) a.setAttribute('aria-current', 'step');
+                else a.removeAttribute('aria-current');
+            });
+        }
+
+        var observer = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (entry.isIntersecting) setActive(ids.indexOf(entry.target.id));
+            });
+        }, { rootMargin: '-45% 0px -50% 0px' });
+
+        ids.forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) observer.observe(el);
+        });
+    }
+
+    function initAll() {
         init();
+        initHeroVideo(document.querySelector('.top-nav'));
+        initStageTracker();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initAll);
+    } else {
+        initAll();
     }
 })();

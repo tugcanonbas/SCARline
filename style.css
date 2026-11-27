@@ -89,9 +89,22 @@
             transition: background var(--scarline-transition), box-shadow var(--scarline-transition), border-color var(--scarline-transition);
         }
 
+        /* While the bar sits over the playing hero video, drop the backdrop blur
+           (it would have to be recomputed on every video frame) and use a more
+           opaque background instead. components.js sets .is-over-video. */
+        .top-nav.is-over-video .nav-inner {
+            -webkit-backdrop-filter: none;
+            backdrop-filter: none;
+            background: rgba(21, 23, 24, 0.78);
+        }
+
+        /* Once the page is scrolled the bar is almost opaque, so the backdrop blur
+           is barely visible but would be recomputed on every scroll frame. */
         .top-nav.is-scrolled .nav-inner {
             border-color: var(--scarline-grey-16);
-            background: rgba(21, 23, 24, 0.82);
+            background: rgba(21, 23, 24, 0.9);
+            -webkit-backdrop-filter: none;
+            backdrop-filter: none;
             box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
         }
 
@@ -186,6 +199,12 @@
         .nav-icon:hover {
             background: var(--scarline-grey-16);
             color: var(--scarline-white);
+        }
+
+        .nav-icon.active {
+            background: var(--scarline-grey-24);
+            color: var(--scarline-white);
+            box-shadow: inset 0 0 0 1px var(--scarline-border);
         }
 
         .nav-icon svg {
@@ -840,81 +859,6 @@
             line-height: 1.45;
         }
 
-        /* --- Intro split --- */
-        .split-intro {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
-            gap: clamp(1.5rem, 4vw, 5rem);
-            align-items: start;
-        }
-
-        /* --- Pipeline (reuses .schedule-grid) --- */
-        .pipeline-grid {
-            margin-top: 2.5rem;
-        }
-
-        .pipeline-grid .schedule-duration {
-            color: var(--scarline-main);
-            font-family: "Source Code Pro", monospace;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-        }
-
-        .pipeline-grid .schedule-item h3 {
-            margin-top: 1.5rem !important;
-        }
-
-        .pipeline-grid .schedule-description {
-            margin-top: 0.6rem;
-            font-size: 0.95rem;
-            line-height: 1.5;
-        }
-
-        /* --- Feature cards --- */
-        .feature-grid {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: clamp(1rem, 1.8vw, 1.75rem);
-            margin: 2.5rem 0 0;
-            padding: 0;
-            list-style: none;
-        }
-
-        .feature-card {
-            padding: clamp(1.25rem, 2vw, 2rem);
-            border: 0.5px solid rgba(240, 236, 230, 0.2);
-            border-radius: clamp(0.75rem, 1vw, 1.25rem);
-            background-color: rgba(41, 42, 44, 0.85);
-            transition: border-color 0.2s ease, transform 0.2s ease;
-        }
-
-        .feature-card:hover {
-            border-color: var(--scarline-main);
-            transform: translateY(-2px);
-        }
-
-        .feature-icon {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 3rem;
-            height: 3rem;
-            border-radius: 50%;
-            background: var(--scarline-main-muted);
-            color: var(--scarline-main);
-        }
-
-        .feature-icon svg {
-            width: 1.5rem;
-            height: 1.5rem;
-            fill: none;
-            stroke: currentColor;
-            stroke-width: 1.8;
-            stroke-linecap: round;
-            stroke-linejoin: round;
-        }
-
-        .feature-card h3,
         .panel h3,
         .lifecycle h3 {
             margin-top: 1.25rem !important;
@@ -922,12 +866,6 @@
             color: var(--scarline-white);
             font-size: clamp(1rem, 1.1vw, 1.25rem);
             line-height: 1.3;
-        }
-
-        .feature-card p {
-            color: rgba(240, 236, 230, 0.8);
-            font-size: 0.95rem;
-            line-height: 1.55;
         }
 
         /* --- Session lifecycle --- */
@@ -1148,27 +1086,6 @@
             color: var(--scarline-main);
         }
 
-        .spec-list {
-            margin: 0;
-        }
-
-        .spec-list > div {
-            padding: 0.9rem 0;
-            border-top: 0.5px solid rgba(240, 236, 230, 0.15);
-        }
-
-        .spec-list dt {
-            color: var(--scarline-white);
-            font-weight: 600;
-        }
-
-        .spec-list dd {
-            margin: 0.25rem 0 0;
-            color: rgba(240, 236, 230, 0.8);
-            font-size: 0.95rem;
-            line-height: 1.5;
-        }
-
         /* --- Information flow --- */
         .flow-steps {
             display: grid;
@@ -1252,8 +1169,7 @@
         }
 
         @media (max-width: 1100px) {
-            .stat-grid,
-            .feature-grid {
+            .stat-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
 
@@ -1264,7 +1180,6 @@
         }
 
         @media (max-width: 850px) {
-            .split-intro,
             .split-grid,
             .code-grid,
             .file-grid {
@@ -1290,7 +1205,6 @@
             }
 
             .stat-grid,
-            .feature-grid,
             .flow-steps {
                 grid-template-columns: 1fr;
             }
@@ -1322,7 +1236,6 @@
             }
         }
 
-
         /* --- Cinematic hero video (index.html) --- */
         .hero {
             --hero-height: min(88vh, 960px);
@@ -1352,7 +1265,8 @@
             object-fit: cover;
             object-position: 62% 50%;
             opacity: 50%;
-            filter: blur(1px);
+            /* The soft-focus blur is baked into scarline-hero.mp4 and its poster;
+               a CSS filter here would be recomputed on every video frame. */
         }
 
         .hero-scrim {
@@ -1474,6 +1388,19 @@
             font-family: "Source Code Pro", monospace;
             font-weight: 700;
             letter-spacing: 0.04em;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* A photo fills the circle and covers the initials */
+        .team-avatar img {
+            position: absolute;
+            inset: 0;
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: 50% 30%;
         }
 
         .team-card h3 {
@@ -1529,37 +1456,6 @@
         }
 
         /* --- How it works page --- */
-        .toc {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.75rem;
-            margin-top: 2.5rem;
-        }
-
-        .toc a {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.6rem;
-            padding: 0.6rem 1.1rem;
-            border: 0.5px solid rgba(40, 172, 220, 0.6);
-            border-radius: 999px;
-            background: rgba(19, 40, 48, 0.6);
-            color: var(--scarline-white);
-            font-family: "Source Code Pro", monospace;
-            font-size: 0.95rem;
-            text-decoration: none;
-            transition: background 0.2s ease, border-color 0.2s ease;
-        }
-
-        .toc a span {
-            color: var(--scarline-main);
-            font-weight: 700;
-        }
-
-        .toc a:hover {
-            border-color: var(--scarline-main);
-            background: var(--scarline-main-muted);
-        }
 
         .principle-grid {
             grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1696,7 +1592,6 @@
             overflow-wrap: anywhere;
         }
 
-
         /* =========================================================
            Cinematic landing (index.html)
            ========================================================= */
@@ -1740,7 +1635,7 @@
             position: absolute;
             inset: 10% 5% -5%;
             z-index: 0;
-            background: radial-gradient(ellipse at center, rgba(40, 172, 220, 0.35) 0%, rgba(40, 172, 220, 0) 65%);
+            background: radial-gradient(ellipse at center, rgba(40, 172, 220, 0.552) 0%, rgba(40, 172, 220, 0) 65%);
             filter: blur(40px);
             pointer-events: none;
         }
@@ -1875,7 +1770,6 @@
         }
 
         .org-names {
-            display: flex;
             flex-wrap: wrap;
             justify-content: center;
             gap: 0.5rem clamp(1.5rem, 4vw, 4rem);
@@ -1883,9 +1777,6 @@
             padding: 0;
             list-style: none;
             color: var(--scarline-white);
-            font-family: "Bitter", Georgia, serif;
-            font-size: clamp(1.15rem, 1.7vw, 1.6rem);
-            line-height: 1.3;
         }
 
         /* Closing CTA with background loop */
@@ -1905,7 +1796,7 @@
             content: "";
             position: absolute;
             inset: 0;
-            background: url(media/scarline-hero-static.png);
+            background: url(media/scarline-hero-poster.jpg);
         }
 
         .cta-band::before,
@@ -2001,7 +1892,6 @@
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
         }
-
 
         /* =========================================================
            Shared components (nav and footer: plain HTML in each page)
@@ -2278,7 +2168,6 @@
             overflow-wrap: break-word;
             hyphens: auto;
         }
-
 
         /* =========================================================
            Documentation (docs.html)
@@ -2616,29 +2505,6 @@
             }
         }
 
-        /* --- Platform teaser additions (platform.html) --- */
-        .teaser-steps {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-            gap: clamp(1.5rem, 3vw, 3rem);
-            align-items: center;
-            margin-top: 2rem;
-        }
-
-        .teaser-steps .code-panel {
-            margin-top: 0;
-        }
-
-        .teaser-steps .chip-list {
-            margin-top: 0.75rem;
-        }
-
-        @media (max-width: 850px) {
-            .teaser-steps {
-                grid-template-columns: 1fr;
-            }
-        }
-
         .build-own-title {
             margin-top: clamp(3rem, 5vw, 4.5rem) !important;
         }
@@ -2653,8 +2519,8 @@
            hero and the closing band cover it with their own video.
            ========================================================= */
         .page {
-            --bg-glow: rgba(29, 144, 185, 0.17);
-            --bg-glow-soft: rgba(29, 144, 185, 0.13);
+            --bg-glow: rgba(29, 144, 185, 0.35);
+            --bg-glow-soft: rgba(29, 144, 185, 0.30);
             --bg-fade-start: 300px;   /* plain background above this */
             --bg-fade-end: 800px;     /* full strength from here */
             position: relative;
@@ -2668,12 +2534,14 @@
             inset: 0;
             z-index: -1;
             pointer-events: none;
+            /* The first layer fades the glow in below the header. It is the page
+               colour (html background) painted on top, which looks the same as a
+               mask-image fade but avoids an extra full-page masked layer. */
             background:
+                linear-gradient(to bottom, #111213 var(--bg-fade-start), rgba(17, 18, 19, 0) var(--bg-fade-end)) 0 0 / 100% 100% no-repeat,
                 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E") 0 0 / 180px 180px repeat,
                 radial-gradient(ellipse 45% 32% at 0% 45%, var(--bg-glow), transparent 70%) 0 0 / 100% 1600px repeat-y,
                 radial-gradient(ellipse 40% 30% at 100% 76%, var(--bg-glow-soft), transparent 70%) 0 0 / 100% 1600px repeat-y;
-            -webkit-mask-image: linear-gradient(to bottom, transparent var(--bg-fade-start), #000 var(--bg-fade-end));
-                    mask-image: linear-gradient(to bottom, transparent var(--bg-fade-start), #000 var(--bg-fade-end));
         }
 
         /* Homepage: let the glow rise through the hero's fading bottom edge */
@@ -2737,5 +2605,301 @@
             .dot-bg {
                 --dot-gap: 20px;
                 --dot-size: 80% 60%;
+            }
+        }
+
+        /* =========================================================
+           Platform product page (platform.html)
+           ---------------------------------------------------------
+           Hero, a sticky workflow tracker, one row per stage (text
+           and screenshot, mirrored on every other row), a hardware
+           grid and the shared closing CTA band.
+           ========================================================= */
+        html:has(.stage-tracker) {
+            scroll-padding-top: 9rem;   /* main nav + stage tracker */
+        }
+
+        .platform-hero {
+            text-align: center;
+            padding-top: clamp(1.5rem, 4vw, 4rem);
+        }
+
+        .platform-hero h1 {
+            font-size: clamp(2.25rem, 5vw, 4.5rem);
+            line-height: 1.08;
+            letter-spacing: -0.02em;
+        }
+
+        .platform-hero .showcase-text {
+            margin-inline: auto;
+        }
+
+        /* --- Sticky workflow tracker --- */
+        .stage-tracker {
+            position: sticky;
+            top: 4.75rem;
+            z-index: 40;
+            display: flex;
+            justify-content: center;
+            margin-top: clamp(2.5rem, 4vw, 4rem);
+            pointer-events: none;
+        }
+
+        .stage-tracker ol {
+            display: flex;
+            align-items: center;
+            max-width: 100%;
+            margin: 0;
+            padding: 0.35rem;
+            overflow-x: auto;
+            list-style: none;
+            border: 1px solid var(--scarline-grey-24);
+            border-radius: 999px;
+            background: rgba(21, 23, 24, 0.9);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+            pointer-events: auto;
+            scrollbar-width: none;
+        }
+
+        .stage-tracker li {
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .stage-tracker li + li::before {
+            content: "";
+            width: clamp(0.35rem, 1.5vw, 1.25rem);
+            height: 1px;
+            background: rgba(240, 236, 230, 0.25);
+        }
+
+        .stage-tracker a {
+            display: block;
+            padding: 0.45rem 0.95rem;
+            border-radius: 999px;
+            color: rgba(240, 236, 230, 0.65);
+            font-family: "Source Code Pro", monospace;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            text-decoration: none;
+            white-space: nowrap;
+            transition: color var(--scarline-transition), background var(--scarline-transition), box-shadow var(--scarline-transition);
+        }
+
+        .stage-tracker a:hover {
+            color: var(--scarline-white);
+        }
+
+        .stage-tracker a.is-done {
+            color: var(--scarline-main);
+        }
+
+        .stage-tracker a.is-active {
+            background: var(--scarline-main-muted);
+            color: var(--scarline-main);
+            box-shadow: inset 0 0 0 1px var(--scarline-main);
+        }
+
+        .stage-tracker a:focus-visible {
+            outline: 2px solid var(--scarline-white);
+            outline-offset: 2px;
+        }
+
+        /* --- Stage rows --- */
+        .stage {
+            display: grid;
+            grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+            gap: clamp(2rem, 5vw, 5rem);
+            align-items: center;
+            margin-top: clamp(5rem, 9vw, 9rem);
+        }
+
+        .stage:nth-of-type(even) {
+            grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+        }
+
+        .stage:nth-of-type(even) .stage-text {
+            order: 2;
+        }
+
+        .stage h2 {
+            font-size: clamp(1.6rem, 2.6vw, 2.6rem);
+            line-height: 1.15;
+        }
+
+        .stage-lede {
+            color: rgba(240, 236, 230, 0.85);
+            font-size: clamp(1.05rem, 1.2vw, 1.2rem);
+            line-height: 1.6;
+        }
+
+        .stage-features {
+            margin: 2rem 0 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .stage-features li {
+            padding: 1rem 0;
+            border-top: 0.5px solid rgba(240, 236, 230, 0.15);
+        }
+
+        .stage-features h3 {
+            margin: 0 0 0.35rem !important;
+            color: var(--scarline-white);
+            font-size: 0.95rem;
+            letter-spacing: 0.04em;
+            line-height: 1.35;
+        }
+
+        .stage-features p {
+            color: rgba(240, 236, 230, 0.75);
+            font-size: 0.95rem;
+            line-height: 1.55;
+        }
+
+        .stage-features a {
+            color: var(--scarline-main);
+        }
+
+        .stage-media {
+            position: relative;
+            margin: 0;
+        }
+
+        .stage-media .showcase-glow {
+            opacity: 0.55;
+        }
+
+        .stage-media .platform-preview {
+            position: relative;
+            z-index: 1;
+            box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(40, 172, 220, 0.25);
+        }
+
+        /* Stand-in for a screenshot that hasn't been taken yet.
+           Same aspect ratio as the Hub screenshots, so swapping in
+           the real image doesn't shift the layout. */
+        .shot-placeholder {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.6rem;
+            aspect-ratio: 2530 / 1407;
+            padding: 2rem;
+            border: 1px dashed rgba(40, 172, 220, 0.55);
+            border-radius: clamp(0.5rem, 1vw, 1rem);
+            background:
+                repeating-linear-gradient(135deg, rgba(29, 144, 185, 0.05) 0 12px, transparent 12px 24px),
+                #141617;
+            text-align: center;
+        }
+
+        .shot-placeholder-label {
+            color: var(--scarline-main);
+            font-family: "Source Code Pro", monospace;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .shot-placeholder strong {
+            font-family: "Source Code Pro", monospace;
+            font-size: clamp(1rem, 1.4vw, 1.3rem);
+            text-transform: uppercase;
+        }
+
+        .shot-placeholder span:last-child {
+            max-width: 26rem;
+            color: rgba(240, 236, 230, 0.6);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        /* --- Hardware grid --- */
+        .hw-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: clamp(1rem, 1.8vw, 1.75rem);
+            margin: 2.5rem 0 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .hw-tile {
+            padding: clamp(1.25rem, 2vw, 1.75rem);
+            border: 0.5px solid rgba(240, 236, 230, 0.2);
+            border-radius: clamp(0.75rem, 1vw, 1.25rem);
+            background-color: rgba(41, 42, 44, 0.85);
+            transition: border-color 0.2s ease;
+        }
+
+        .hw-tile:hover {
+            border-color: var(--scarline-main);
+        }
+
+        .hw-type {
+            color: var(--scarline-main);
+            font-family: "Source Code Pro", monospace;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .hw-tile h3 {
+            margin: 0.5rem 0 !important;
+            color: var(--scarline-white);
+            font-size: 1.1rem;
+            line-height: 1.3;
+        }
+
+        .hw-tile p {
+            color: rgba(240, 236, 230, 0.75);
+            font-size: 0.95rem;
+            line-height: 1.55;
+        }
+
+        @media (max-width: 1100px) {
+            .hw-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 900px) {
+            .stage,
+            .stage:nth-of-type(even) {
+                grid-template-columns: 1fr;
+            }
+
+            .stage:nth-of-type(even) .stage-text {
+                order: 0;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .hw-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stage-tracker a {
+                padding: 0.4rem 0.55rem;
+                font-size: 0.7rem;
+                letter-spacing: 0.03em;
+            }
+
+            .shot-placeholder {
+                padding: 1rem;
+            }
+
+            .shot-placeholder span:last-child {
+                display: none;
             }
         }

@@ -4,8 +4,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>SCARline Platform Features</title>
-    <meta name="description" content="What the SCARline platform does: study workflow, capabilities, widgets, simulators and sensors, and how to get started.">
+    <title>SCARline Platform</title>
+    <meta name="description" content="What SCARline does at each stage of a driving simulator study: design, compose, check, run and review. Plus the widget library, supported simulators and sensors.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -23,198 +23,199 @@
             <div class="nav-links" id="nav-links">
                 <a href="index.html">Overview</a>
                 <a class="active" aria-current="page" href="platform.html">Platform</a>
-                <a href="docs.html">Docs</a>
                 <a href="team.html">Team</a>
             </div>
             <div class="nav-actions">
+                <a class="nav-icon" href="docs.html" aria-label="SCARline documentation" title="Documentation"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M0 1.75A.75.75 0 0 1 .75 1h4.253c1.227 0 2.317.59 3 1.501A3.743 3.743 0 0 1 11.006 1h4.245a.75.75 0 0 1 .75.75v10.5a.75.75 0 0 1-.75.75h-4.507a2.25 2.25 0 0 0-1.591.659l-.622.621a.75.75 0 0 1-1.06 0l-.622-.621A2.25 2.25 0 0 0 5.258 13H.75a.75.75 0 0 1-.75-.75Zm7.251 10.324.004-5.073-.002-2.253A2.25 2.25 0 0 0 5.003 2.5H1.5v9h3.757a3.75 3.75 0 0 1 1.994.574ZM8.755 4.75l-.004 7.322a3.752 3.752 0 0 1 1.992-.572H14.5v-9h-3.495a2.25 2.25 0 0 0-2.25 2.25Z" /></svg></a>
                 <a class="nav-icon" href="https://github.com/tugcanonbas/SCARline" target="_blank" rel="noopener" aria-label="SCARline on GitHub" title="SCARline on GitHub"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.65 7.65 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" /></svg></a>
                 <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links" aria-label="Open menu"><span></span><span></span></button>
             </div>
         </div>
     </nav>
     <div class="page">
-        <main>
-            <header>
-                <div class="eyebrow-row">
-                    <p class="eyebrow">Platform &nbsp;•&nbsp; Features &amp; capabilities</p>
-                    <div class="eyebrow-links">
-                        <a class="github-link" href="https://github.com/tugcanonbas/SCARline"
-                            aria-label="SCARline on GitHub" title="SCARline on GitHub" target="_blank" rel="noopener">
-                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.65 7.65 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
-                            </svg>
-                        </a>
-                    </div>
-                </div>
-                <h1>The platform</h1>
-                <p class="subtitle">Everything SCARline handles for you, from study design and live sessions to widgets, simulators and sensors.</p>
-                <nav class="toc" aria-label="On this page">
-                    <a href="#why"><span>01</span> Why SCARline</a>
-                    <a href="#workflow"><span>02</span> Workflow</a>
-                    <a href="#capabilities"><span>03</span> Capabilities</a>
-                    <a href="#widgets"><span>04</span> Widgets</a>
-                    <a href="#simulation"><span>05</span> Simulation &amp; sensing</a>
-                    <a href="#under-the-hood"><span>06</span> Under the hood</a>
-                    <a href="#get-started"><span>07</span> Get started</a>
-                </nav>
+        <main class="platform-page">
+            <!-- ============ HERO ============ -->
+            <header class="platform-hero dot-bg dot-bg--center">
+                <p class="kicker">The platform</p>
+                <h1>From first idea to clean dataset</h1>
+                <p class="showcase-text">SCARline covers every stage of a driving simulator study in one workspace. Here is what it does for you at each one, from setting up conditions to exporting the data.</p>
             </header>
 
-            <!-- ============ WHY ============ -->
-            <section class="platform-section split-intro" id="why" aria-labelledby="why-title">
-                <div>
-                    <p class="kicker">Why SCARline</p>
-                    <h2 id="why-title">Your study, not the plumbing</h2>
-                </div>
-                <div class="section-lede">
-                    <p>Evaluating an in-vehicle interface means juggling driving simulation software, interaction design and user study methodology at the same time&nbsp;— a steep learning curve for anyone without a deep technical background.</p>
-                    <p>SCARline abstracts that complexity into one system. You don't need to know how the simulator works internally, only what you are testing and how. You still design the interaction; the platform removes everything between your idea and a running study.</p>
-                </div>
-            </section>
-
-            <!-- ============ PIPELINE ============ -->
-            <section class="platform-section" id="workflow" aria-labelledby="pipeline-title">
-                <p class="kicker">One pipeline</p>
-                <h2 id="pipeline-title">From idea to dataset</h2>
-                <p class="section-lede">One system covers the full research workflow. Each step lives in its own tab of the study workspace.</p>
-                <ol class="schedule-grid pipeline-grid" role="list">
-                    <li class="schedule-item">
-                        <div class="schedule-slot">
-                            <div>
-                                <p class="schedule-session">Step 1</p>
-                                <span class="schedule-duration">Study</span>
-                            </div>
-                        </div>
-                        <h3>Design</h3>
-                        <div class="schedule-description">
-                            <p>Create a study, add anonymised participants and define conditions&nbsp;— the experimental variants you want to compare.</p>
-                        </div>
-                    </li>
-                    <li class="schedule-item">
-                        <div class="schedule-slot">
-                            <div>
-                                <p class="schedule-session">Step 2</p>
-                                <span class="schedule-duration">Simulator &amp; sensors</span>
-                            </div>
-                        </div>
-                        <h3>Configure</h3>
-                        <div class="schedule-description">
-                            <p>Per condition, pick map, weather, vehicle and traffic, and attach the sensors you want to record.</p>
-                        </div>
-                    </li>
-                    <li class="schedule-item">
-                        <div class="schedule-slot">
-                            <div>
-                                <p class="schedule-session">Step 3</p>
-                                <span class="schedule-duration">Participant view</span>
-                            </div>
-                        </div>
-                        <h3>Compose</h3>
-                        <div class="schedule-description">
-                            <p>Drag widgets onto the participant's displays, size them and bind them to live data.</p>
-                        </div>
-                    </li>
-                    <li class="schedule-item">
-                        <div class="schedule-slot">
-                            <div>
-                                <p class="schedule-session">Step 4</p>
-                                <span class="schedule-duration">Readiness</span>
-                            </div>
-                        </div>
-                        <h3>Check</h3>
-                        <div class="schedule-description">
-                            <p>Readiness checks confirm that everything required is configured and connected, and link straight to the fix.</p>
-                        </div>
-                    </li>
-                    <li class="schedule-item">
-                        <div class="schedule-slot">
-                            <div>
-                                <p class="schedule-session">Step 5</p>
-                                <span class="schedule-duration">Active study</span>
-                            </div>
-                        </div>
-                        <h3>Run</h3>
-                        <div class="schedule-description">
-                            <p>Start sessions, move through conditions, trigger widgets and take notes while watching live data.</p>
-                        </div>
-                    </li>
-                    <li class="schedule-item">
-                        <div class="schedule-slot">
-                            <div>
-                                <p class="schedule-session">Step 6</p>
-                                <span class="schedule-duration">Logs &amp; exports</span>
-                            </div>
-                        </div>
-                        <h3>Review</h3>
-                        <div class="schedule-description">
-                            <p>Browse the full event stream and export pseudonymised CSV or JSON archives for analysis.</p>
-                        </div>
-                    </li>
-                </ol>
-            </section>
-
-            <!-- ============ CAPABILITIES ============ -->
-            <section class="platform-section" id="capabilities" aria-labelledby="capabilities-title">
-                <p class="kicker">Capabilities</p>
-                <h2 id="capabilities-title">What the platform does for you</h2>
-                <ul class="feature-grid" role="list">
-                    <li class="feature-card">
-                        <span class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2 2 7l10 5 10-5Z" /><path d="m2 12 10 5 10-5" /><path d="m2 17 10 5 10-5" /></svg></span>
-                        <h3>Condition-based study design</h3>
-                        <p>Simulator settings, sensors, layouts and trigger rules all belong to a condition. Set one variant up properly, then clone it as a template for the next.</p>
-                    </li>
-                    <li class="feature-card">
-                        <span class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="13" rx="2" /><path d="M8 21h8M12 17v4M3 9h18M9 9v8" /></svg></span>
-                        <h3>Drag-and-drop participant view</h3>
-                        <p>Place widgets on a canvas, assign each one to a display, and preview the whole layout with sample data before a participant ever sits down.</p>
-                    </li>
-                    <li class="feature-card">
-                        <span class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><path d="M17.5 14v7M14 17.5h7" /></svg></span>
-                        <h3>Ready-made &amp; custom widgets</h3>
-                        <p>Start from the widget library or build your own from plain HTML, Tailwind CSS and a JSON manifest&nbsp;— no framework, no build step.</p>
-                    </li>
-                    <li class="feature-card">
-                        <span class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="2.5" /><path d="M3.5 10.5 9.6 11.4M14.4 11.4l6.1-.9M12 14.5V21" /></svg></span>
-                        <h3>Simulator integration</h3>
-                        <p>Drive CARLA with a steering wheel, autopilot or external control, or use the mock simulator to develop and test without a GPU.</p>
-                    </li>
-                    <li class="feature-card">
-                        <span class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 12h4.5l2-5 4 10 2.5-5H22" /></svg></span>
-                        <h3>Sensors &amp; physiological data</h3>
-                        <p>Record steering input, heart rate, ECG, camera-based gaze and blink data alongside the drive, each at its own sample rate.</p>
-                    </li>
-                    <li class="feature-card">
-                        <span class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z" /></svg></span>
-                        <h3>Trigger rules</h3>
-                        <p>Make widgets react to the drive: show, hide or highlight them when speed, distance or any other value crosses the threshold you define.</p>
-                    </li>
-                    <li class="feature-card">
-                        <span class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9" /><path d="m10 8.5 5.5 3.5-5.5 3.5Z" /></svg></span>
-                        <h3>Live session control</h3>
-                        <p>Watch telemetry, events, sensor health and widget data in real time. Pause, advance to the next condition, trigger widgets or add notes on the fly.</p>
-                    </li>
-                    <li class="feature-card">
-                        <span class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v12M7 10l5 5 5-5" /><path d="M4 16v4h16v-4" /></svg></span>
-                        <h3>Logs &amp; privacy-aware exports</h3>
-                        <p>Every event is logged per session. Export by study, participant or session as CSV or JSON, pseudonymised by default.</p>
-                    </li>
-                    <li class="feature-card">
-                        <span class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg></span>
-                        <h3>Reproducible by design</h3>
-                        <p>When a session starts, its configuration is frozen as a snapshot. Later edits can never change what a completed session actually ran.</p>
-                    </li>
-                </ul>
-
-                <div class="lifecycle" aria-labelledby="lifecycle-title">
-                    <h3 id="lifecycle-title">An auditable session lifecycle</h3>
-                    <p>Every session moves through the same states. Each transition is a command that the simulator and sensor services must confirm before it takes effect, so a session never ends up half-started.</p>
-                    <ol class="lifecycle-row" role="list">
-                        <li class="state-pill">Created</li>
-                        <li class="state-pill">Ready</li>
-                        <li class="state-pill active">Running <span aria-hidden="true">⇄</span> Paused</li>
-                        <li class="state-pill">Completed</li>
+            <!-- ============ WORKFLOW STAGES ============
+                 The tracker sticks below the main nav while the stages scroll past
+                 and highlights the current one (components.js, initStageTracker).
+                 Each stage: text on one side, screenshot on the other; even stages
+                 are mirrored in CSS. -->
+            <section class="stages" aria-label="The study workflow">
+                <nav class="stage-tracker" aria-label="Workflow stages">
+                    <ol role="list">
+                        <li><a href="#design">Design</a></li>
+                        <li><a href="#compose">Compose</a></li>
+                        <li><a href="#check">Check</a></li>
+                        <li><a href="#run">Run</a></li>
+                        <li><a href="#review">Review</a></li>
                     </ol>
-                    <p class="lifecycle-note">Sessions can also be aborted with a reason, or fail automatically if a required device or the simulator drops out.</p>
-                </div>
+                </nav>
+
+                <!-- DESIGN -->
+                <article class="stage" id="design" aria-labelledby="design-title">
+                    <div class="stage-text">
+                        <p class="kicker">Design</p>
+                        <h2 id="design-title">Every variant, fully defined</h2>
+                        <p class="stage-lede">Create a study, add anonymised participants and define the conditions you want to compare. Each condition carries its own simulator settings, sensors, layout and trigger rules.</p>
+                        <ul class="stage-features" role="list">
+                            <li>
+                                <h3>Condition-based study design</h3>
+                                <p>Set one variant up properly, then clone it as a template for the next.</p>
+                            </li>
+                            <li>
+                                <h3>A simulator setup per condition</h3>
+                                <p>Pick map, weather, ego vehicle, traffic and pedestrians for each condition.</p>
+                            </li>
+                            <li>
+                                <h3>Sensors per condition</h3>
+                                <p>Attach the sensors you want to record, each at its own sample rate.</p>
+                            </li>
+                        </ul>
+                    </div>
+                    <figure class="stage-media">
+                        <div class="showcase-glow" aria-hidden="true"></div>
+                        <!-- SCREENSHOT PLACEHOLDER: replace this div with
+                             <a class="platform-preview" href="images/FILE.png" target="_blank" rel="noopener" aria-label="View the screenshot at full size in a new tab"><img src="images/FILE.png" width="…" height="…" loading="lazy" decoding="async" alt="…"></a> -->
+                        <div class="shot-placeholder">
+                            <span class="shot-placeholder-label">Screenshot needed</span>
+                            <strong>Conditions tab</strong>
+                            <span>Two conditions side by side, with their simulator and sensor settings visible.</span>
+                        </div>
+                    </figure>
+                </article>
+
+                <!-- COMPOSE -->
+                <article class="stage" id="compose" aria-labelledby="compose-title">
+                    <div class="stage-text">
+                        <p class="kicker">Compose</p>
+                        <h2 id="compose-title">Build the interface the driver sees</h2>
+                        <p class="stage-lede">Drag widgets onto the participant's displays, size them and bind them to live data from the drive.</p>
+                        <ul class="stage-features" role="list">
+                            <li>
+                                <h3>Drag-and-drop participant view</h3>
+                                <p>Place widgets on a canvas, assign each one to a display, and preview the whole layout with sample data before a participant ever sits down.</p>
+                            </li>
+                            <li>
+                                <h3>Trigger rules</h3>
+                                <p>Show, hide or highlight widgets when speed, distance or any other value crosses the threshold you define.</p>
+                            </li>
+                            <li>
+                                <h3>Ready-made &amp; custom widgets</h3>
+                                <p>Start from the <a href="#widgets">widget library</a> or build your own from plain HTML, Tailwind CSS and a JSON manifest.</p>
+                            </li>
+                        </ul>
+                    </div>
+                    <figure class="stage-media">
+                        <div class="showcase-glow" aria-hidden="true"></div>
+                        <!-- SCREENSHOT PLACEHOLDER (see the Design stage for the markup) -->
+                        <div class="shot-placeholder">
+                            <span class="shot-placeholder-label">Screenshot needed</span>
+                            <strong>Participant view editor</strong>
+                            <span>A layout with a few widgets placed on a display, ideally with the trigger rule panel open.</span>
+                        </div>
+                    </figure>
+                </article>
+
+                <!-- CHECK -->
+                <article class="stage" id="check" aria-labelledby="check-title">
+                    <div class="stage-text">
+                        <p class="kicker">Check</p>
+                        <h2 id="check-title">Know it works before anyone sits down</h2>
+                        <p class="stage-lede">Readiness checks confirm that everything required is configured and connected, and link straight to the fix.</p>
+                        <ul class="stage-features" role="list">
+                            <li>
+                                <h3>Readiness checklist</h3>
+                                <p>See exactly what's missing before a study can go live, one click away from the setting that fixes it.</p>
+                            </li>
+                            <li>
+                                <h3>Required devices</h3>
+                                <p>Mark a device as required and the study can't go live until it is connected.</p>
+                            </li>
+                            <li>
+                                <h3>Rehearse without a lab</h3>
+                                <p>Run the whole study with the mock simulator and synthetic sensors on any laptop, no driving rig or GPU required.</p>
+                            </li>
+                        </ul>
+                    </div>
+                    <figure class="stage-media">
+                        <div class="showcase-glow" aria-hidden="true"></div>
+                        <a class="platform-preview" href="images/admin-panel-user-study.png" target="_blank" rel="noopener"
+                            aria-label="View the SCARline Hub screenshot at full size in a new tab">
+                            <img src="images/admin-panel-user-study.png" width="2530" height="1407" loading="lazy" decoding="async"
+                                alt="The SCARline Hub showing a study called Auto UI Study. A tab strip links to Overview, Participants, Simulator Setup, Sensors, Participant View, Conditions, Sessions and Active Study. A Quick Start checklist lists nine readiness steps, and four summary tiles show participants, conditions, sessions and the study status.">
+                        </a>
+                    </figure>
+                </article>
+
+                <!-- RUN -->
+                <article class="stage" id="run" aria-labelledby="run-title">
+                    <div class="stage-text">
+                        <p class="kicker">Run</p>
+                        <h2 id="run-title">Stay in control during every session</h2>
+                        <p class="stage-lede">Start sessions, move through conditions, trigger widgets and take notes while watching live data.</p>
+                        <ul class="stage-features" role="list">
+                            <li>
+                                <h3>Live session view</h3>
+                                <p>Watch telemetry, events, sensor health and widget data in real time.</p>
+                            </li>
+                            <li>
+                                <h3>Operator controls</h3>
+                                <p>Pause, advance to the next condition, trigger widgets or add notes on the fly.</p>
+                            </li>
+                            <li>
+                                <h3>A clear session lifecycle</h3>
+                                <p>Every session moves from Created to Ready, Running or Paused, and Completed. It can be aborted with a reason, and fails automatically if a required device or the simulator drops out.</p>
+                            </li>
+                        </ul>
+                    </div>
+                    <figure class="stage-media">
+                        <div class="showcase-glow" aria-hidden="true"></div>
+                        <!-- SCREENSHOT PLACEHOLDER (see the Design stage for the markup) -->
+                        <div class="shot-placeholder">
+                            <span class="shot-placeholder-label">Screenshot needed</span>
+                            <strong>Active study</strong>
+                            <span>A running session with live telemetry, sensor health and the operator controls.</span>
+                        </div>
+                    </figure>
+                </article>
+
+                <!-- REVIEW -->
+                <article class="stage" id="review" aria-labelledby="review-title">
+                    <div class="stage-text">
+                        <p class="kicker">Review</p>
+                        <h2 id="review-title">Leave with a clean dataset</h2>
+                        <p class="stage-lede">Browse the full event stream and export pseudonymised CSV or JSON archives for analysis.</p>
+                        <ul class="stage-features" role="list">
+                            <li>
+                                <h3>Every event logged</h3>
+                                <p>Each session keeps its complete event stream, ready to browse.</p>
+                            </li>
+                            <li>
+                                <h3>Privacy-aware exports</h3>
+                                <p>Export by study, participant or session as CSV or JSON, pseudonymised by default.</p>
+                            </li>
+                            <li>
+                                <h3>Reproducible by design</h3>
+                                <p>When a session starts, its configuration is frozen as a snapshot. Later edits can never change what a completed session actually ran.</p>
+                            </li>
+                        </ul>
+                    </div>
+                    <figure class="stage-media">
+                        <div class="showcase-glow" aria-hidden="true"></div>
+                        <!-- SCREENSHOT PLACEHOLDER (see the Design stage for the markup) -->
+                        <div class="shot-placeholder">
+                            <span class="shot-placeholder-label">Screenshot needed</span>
+                            <strong>Logs &amp; exports</strong>
+                            <span>The event log of a completed session, with the export options visible.</span>
+                        </div>
+                    </figure>
+                </article>
             </section>
 
             <!-- ============ WIDGETS ============ -->
@@ -284,47 +285,42 @@
             <section class="platform-section" id="simulation" aria-labelledby="hardware-title">
                 <p class="kicker">Simulation &amp; sensing</p>
                 <h2 id="hardware-title">Works with your lab&nbsp;— or without one</h2>
-                <div class="split-grid">
-                    <div class="panel">
-                        <h3>Simulators</h3>
-                        <dl class="spec-list">
-                            <div>
-                                <dt>CARLA 0.9.16</dt>
-                                <dd>Choose map, weather, ego vehicle, traffic and pedestrians per condition. The ego vehicle is driven by the participant's steering wheel, by autopilot or externally. A fixed simulation step keeps runs reproducible.</dd>
-                            </div>
-                            <div>
-                                <dt>Mock simulator</dt>
-                                <dd>Deterministic telemetry for building widgets and rehearsing studies on any laptop, no GPU required.</dd>
-                            </div>
-                        </dl>
-                    </div>
-                    <div class="panel">
-                        <h3>Sensor drivers</h3>
-                        <dl class="spec-list">
-                            <div>
-                                <dt>Logitech G29</dt>
-                                <dd>Steering wheel and pedal input that drives the simulated car.</dd>
-                            </div>
-                            <div>
-                                <dt>Heart rate &amp; ECG</dt>
-                                <dd>A heart rate monitor and the SiFi Labs ECG, recorded alongside the drive.</dd>
-                            </div>
-                            <div>
-                                <dt>Camera</dt>
-                                <dd>Video plus blink and gaze features.</dd>
-                            </div>
-                            <div>
-                                <dt>Synthetic sensor suite</dt>
-                                <dd>Simulated heart rate, ECG, blood pressure, SpO₂, respiration, steering and eye tracking, clearly labelled as simulated.</dd>
-                            </div>
-                        </dl>
-                    </div>
-                </div>
-                <p class="fine-print">Mark a device as <i>required</i> and the study can't go live until it is connected; if it disconnects mid-session, the session stops rather than recording incomplete data.</p>
+                <ul class="hw-grid" role="list">
+                    <li class="hw-tile">
+                        <span class="hw-type">Simulator</span>
+                        <h3>CARLA 0.9.16</h3>
+                        <p>Driven by the participant's steering wheel, by autopilot or externally. A fixed simulation step keeps runs reproducible.</p>
+                    </li>
+                    <li class="hw-tile">
+                        <span class="hw-type">Simulator</span>
+                        <h3>Mock simulator</h3>
+                        <p>Deterministic telemetry for building widgets and rehearsing studies on any laptop, no GPU required.</p>
+                    </li>
+                    <li class="hw-tile">
+                        <span class="hw-type">Driving input</span>
+                        <h3>Logitech G29</h3>
+                        <p>Steering wheel and pedal input that drives the simulated car.</p>
+                    </li>
+                    <li class="hw-tile">
+                        <span class="hw-type">Physiology</span>
+                        <h3>Heart rate &amp; ECG</h3>
+                        <p>A heart rate monitor and the SiFi Labs ECG, recorded alongside the drive.</p>
+                    </li>
+                    <li class="hw-tile">
+                        <span class="hw-type">Vision</span>
+                        <h3>Camera</h3>
+                        <p>Video plus blink and gaze features.</p>
+                    </li>
+                    <li class="hw-tile">
+                        <span class="hw-type">Simulated</span>
+                        <h3>Synthetic sensor suite</h3>
+                        <p>Heart rate, ECG, blood pressure, SpO₂, respiration, steering and eye tracking, clearly labelled as simulated.</p>
+                    </li>
+                </ul>
                 <p class="more-link"><a href="docs.html#simulators">Simulator settings, sensor drivers and sample rates <span aria-hidden="true">→</span></a></p>
             </section>
 
-            <!-- ============ UNDER THE HOOD ============ -->
+            <!-- ============ RELIABILITY ============ -->
             <section class="platform-section" id="under-the-hood" aria-labelledby="hood-title">
                 <p class="kicker">Under the hood</p>
                 <h2 id="hood-title">Built so your data doesn't get lost</h2>
@@ -353,44 +349,21 @@
                 </ul>
                 <p class="more-link"><a href="docs.html#architecture">Architecture, data flow and session lifecycle in the docs <span aria-hidden="true">→</span></a></p>
             </section>
+        </main>
 
-            <!-- ============ GET STARTED ============ -->
-            <section class="platform-section" id="get-started" aria-labelledby="start-title">
-                <p class="kicker">Get started</p>
-                <h2 id="start-title">Running in four commands</h2>
-                <div class="teaser-steps">
-                    <div>
-                        <p class="section-lede">SCARline is open source. Clone it, install it and start it with the mock simulator and synthetic sensors to try a complete study on your own laptop, no driving rig or GPU required.</p>
-                        <ul class="chip-list" role="list">
-                            <li class="chip">Node.js 22+</li>
-                            <li class="chip">Docker</li>
-                            <li class="chip">CARLA 0.9.16 (optional)</li>
-                        </ul>
-                    </div>
-                    <div class="code-panel">
-                        <p class="code-label">Terminal</p>
-<pre><code>git clone https://github.com/tugcanonbas/SCARline.git
-cd SCARline && npm install
-scarline setup
-scarline start --simulator mock --mock-io</code></pre>
-                    </div>
-                </div>
-            </section>
-
-            <!-- ============ DOCS CALLOUT ============ -->
-            <section class="platform-section callout" aria-labelledby="docs-title">
-                <div>
-                    <p class="kicker">Documentation</p>
-                    <h2 id="docs-title">Everything technical, in one place</h2>
-                    <p>Step-by-step installation, CLI commands, architecture, the widget API, simulator and sensor setup, configuration and troubleshooting.</p>
-                </div>
-                <div class="callout-actions">
+        <!-- ============ CLOSING CTA (same band as the homepage) ============ -->
+        <section class="cta-band" id="get-started" aria-labelledby="cta-title">
+            <div class="cta-scrim" aria-hidden="true"></div>
+            <div class="cta-content">
+                <h2 id="cta-title" class="display-title">Try it on your laptop</h2>
+                <p class="showcase-text" style="text-align:center;">SCARline is open source. Start it with the mock simulator and synthetic sensors to run a complete study, no driving rig or GPU required.</p>
+                <div class="hero-actions center">
                     <a class="button-link primary" href="docs.html#install">Install guide</a>
                     <a class="button-link" href="docs.html">Read the docs</a>
                 </div>
-            </section>
+            </div>
+        </section>
 
-        </main>
 
         <footer class="site-footer">
             <div class="footer-inner">

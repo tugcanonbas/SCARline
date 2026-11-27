@@ -1,0 +1,767 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SCARline Docs</title>
+    <meta name="description" content="SCARline documentation: installation, CLI, troubleshooting, architecture, study and session lifecycle, widget development, simulators, sensors, configuration and ports.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Bitter:ital,wght@0,100..900;1,100..900&amp;family=Source+Code+Pro:ital,wght@0,200..900;1,200..900&amp;family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&amp;display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="components.js" defer></script>
+</head>
+
+<body>
+    <!-- Main navigation: identical on every page; only the active link differs -->
+    <nav class="top-nav" aria-label="Main navigation">
+        <div class="nav-inner">
+            <a class="nav-brand" href="index.html">SCARline</a>
+            <div class="nav-links" id="nav-links">
+                <a href="index.html">Overview</a>
+                <a href="platform.html">Platform</a>
+                <a class="active" aria-current="page" href="docs.html">Docs</a>
+                <a href="team.html">Team</a>
+            </div>
+            <div class="nav-actions">
+                <a class="nav-icon" href="https://github.com/tugcanonbas/SCARline" target="_blank" rel="noopener" aria-label="SCARline on GitHub" title="SCARline on GitHub"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.65 7.65 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" /></svg></a>
+                <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links" aria-label="Open menu"><span></span><span></span></button>
+            </div>
+        </div>
+    </nav>
+    <div class="page">
+        <main class="docs-main">
+            <header>
+                <div class="eyebrow-row">
+                    <p class="eyebrow">Documentation &nbsp;•&nbsp; SCARline platform</p>
+                </div>
+                <h1>Docs</h1>
+                <p class="subtitle">Install and run SCARline, understand how it works, and build your own widgets, simulator setups and sensor configurations.</p>
+            </header>
+
+            <div class="docs-layout">
+                <!-- ============ SIDEBAR ============ -->
+                <aside class="docs-sidebar">
+                    <details class="docs-menu" open>
+                        <summary>On this page</summary>
+                        <nav class="docs-nav" aria-label="Documentation">
+                            <div class="docs-nav-group">
+                                <p class="docs-nav-label">Getting started</p>
+                                <ul role="list">
+                                    <li><a href="#install">Install &amp; first run</a></li>
+                                    <li><a href="#cli">CLI commands</a></li>
+                                    <li><a href="#troubleshooting">Troubleshooting</a></li>
+                                </ul>
+                            </div>
+                            <div class="docs-nav-group">
+                                <p class="docs-nav-label">Concepts</p>
+                                <ul role="list">
+                                    <li><a href="#architecture">Architecture</a></li>
+                                    <li><a href="#data-flow">Data flow</a></li>
+                                    <li><a href="#lifecycle">Studies &amp; sessions</a></li>
+                                    <li><a href="#access">Accounts &amp; roles</a></li>
+                                </ul>
+                            </div>
+                            <div class="docs-nav-group">
+                                <p class="docs-nav-label">Building</p>
+                                <ul role="list">
+                                    <li><a href="#widgets">Widgets</a></li>
+                                    <li><a href="#simulators">Simulators</a></li>
+                                    <li><a href="#sensors">Sensors</a></li>
+                                </ul>
+                            </div>
+                            <div class="docs-nav-group">
+                                <p class="docs-nav-label">Reference</p>
+                                <ul role="list">
+                                    <li><a href="#configuration">Configuration</a></li>
+                                    <li><a href="#ports">Ports &amp; endpoints</a></li>
+                                </ul>
+                            </div>
+                        </nav>
+                    </details>
+                </aside>
+
+                <div class="docs-content">
+
+                    <!-- ============ INSTALL ============ -->
+                    <section class="docs-section" id="install" aria-labelledby="install-title">
+                        <p class="kicker">Getting started</p>
+                        <h2 id="install-title">Install &amp; first run</h2>
+                        <p class="section-lede">From a clean machine to a running platform and a signed-in administrator.</p>
+
+                        <p class="chip-group-label requirements-label">Requirements</p>
+                        <ul class="chip-list" role="list">
+                            <li class="chip"><a href="https://nodejs.org/en/download/" target="_blank" rel="noopener">Node.js 22+</a></li>
+                            <li class="chip">npm 10+</li>
+                            <li class="chip"><a href="https://docs.docker.com/get-started/get-docker/" target="_blank" rel="noopener">Docker</a> with Docker Compose</li>
+                            <li class="chip"><a href="https://git-scm.com/install/" target="_blank" rel="noopener">Git</a> (optional)</li>
+                            <li class="chip">CARLA 0.9.16 (optional, Linux or Windows)</li>
+                            <li class="chip">Python 3.12+ (only for the host-run IO Client)</li>
+                        </ul>
+
+                        <h3><span class="step-num">1</span> Get the code</h3>
+                        <div class="split-grid docs-split">
+                            <div>
+                                <p><b>With Git:</b></p>
+                                <div class="code-panel inline"><pre><code>git clone https://github.com/tugcanonbas/SCARline.git</code></pre></div>
+                                <p><b>Without Git:</b> on the <a href="https://github.com/tugcanonbas/SCARline" target="_blank" rel="noopener">GitHub repository</a>, choose <i>Code → Download ZIP</i> and unzip the folder.</p>
+                            </div>
+                            <img class="install-img" src="images/github_download.png" width="2213" height="1987" loading="lazy" decoding="async"
+                                alt="The GitHub repository page with the Code button opened and the Download ZIP option highlighted.">
+                        </div>
+
+                        <h3><span class="step-num">2</span> Install the workspace</h3>
+                        <div class="code-panel inline"><pre><code>cd SCARline
+npm install</code></pre></div>
+                        <p><code>npm install</code> installs the workspaces, builds the shared contracts and the CLI, builds the desktop overlay and links the <code>scarline</code> command globally. Check it with <code>scarline --help</code>. If the command isn't found, npm's global folder isn't on your <code>PATH</code>; you can run the CLI without the link as <code>npm run dev:cli -- --help</code>.</p>
+
+                        <h3><span class="step-num">3</span> Run setup</h3>
+                        <div class="code-panel inline"><pre><code>scarline setup</code></pre></div>
+                        <p>Setup is safe to run repeatedly. It:</p>
+                        <ul class="docs-list">
+                            <li>validates <code>config.yml</code> against the shared schema,</li>
+                            <li>creates or completes <code>.env</code>, generating any missing secret without overwriting or printing existing ones,</li>
+                            <li>creates the <code>.runtime/</code> folder,</li>
+                            <li>creates the IO Client's Python environment when the IO Client is configured to run on the host.</li>
+                        </ul>
+
+                        <h3><span class="step-num">4</span> Check the host</h3>
+                        <div class="code-panel inline"><pre><code>scarline doctor</code></pre></div>
+                        <p>A read-only check of Node.js, npm, Docker and its daemon, <code>config.yml</code>, secrets, the runtime folder, free ports, the desktop overlay build and, if autostart is on, the CARLA executable. Each check reports <code>PASS</code>, <code>WARN</code> or <code>FAIL</code>. A port reported as <code>WARN</code> is usually a SCARline service that is already running.</p>
+
+                        <h3><span class="step-num">5</span> Start the platform</h3>
+                        <div class="code-panel inline"><pre><code>scarline start --simulator mock --mock-io</code></pre></div>
+                        <p>This starts the Docker services, waits until they are healthy, then starts the processes that run on the host (desktop overlay, and the IO Client when it runs on the host) and prints a status table.</p>
+                        <div class="table-wrap">
+                            <table class="component-table compact">
+                                <tr><th>Command</th><th>Result</th></tr>
+                                <tr><td><code>scarline start</code></td><td>Uses <code>simulator.default</code> when <code>simulator.autostart</code> is <code>true</code>; otherwise starts no simulator</td></tr>
+                                <tr><td><code>--simulator mock</code></td><td>Starts the mock simulator</td></tr>
+                                <tr><td><code>--simulator carla</code></td><td>Starts the CARLA server on the host and the CARLA adapter</td></tr>
+                                <tr><td><code>--no-sim</code></td><td>Forces the mock simulator, for hosts that can't run CARLA</td></tr>
+                                <tr><td><code>--mock-io</code></td><td>Enables the synthetic sensor suite</td></tr>
+                            </table>
+                        </div>
+                        <p class="fine-print">No GPU or driving hardware? <code>--simulator mock --mock-io</code> runs the whole platform with simulated driving and sensor data. CARLA needs a Linux or Windows host; on macOS use <code>--no-sim</code>. To switch simulators, run <code>scarline stop</code> first.</p>
+
+                        <h3><span class="step-num">6</span> Sign in</h3>
+                        <p>Open the SCARline Hub at <a href="http://localhost:5173" target="_blank" rel="noopener">localhost:5173</a> and sign in as <b>admin</b> with the password <b>scarline</b>. You'll be asked to set a new password of at least 12 characters before anything else is reachable, then sign in again.</p>
+                        <div class="docs-note warning">
+                            <p><b>The first password is not random.</b> It is copied from <code>.env.example</code> and only exists to create the first administrator. Change <code>BOOTSTRAP_ADMIN_PASSWORD</code> in <code>.env</code> before exposing the platform beyond your own machine.</p>
+                        </div>
+
+                        <h3><span class="step-num">7</span> Stop</h3>
+                        <div class="code-panel inline"><pre><code>scarline stop</code></pre></div>
+                        <p>Stops the host processes and the Docker services. Study data under <code>.runtime/</code> is kept, so the database survives a stop and start.</p>
+                    </section>
+
+                    <!-- ============ CLI ============ -->
+                    <section class="docs-section" id="cli" aria-labelledby="cli-title">
+                        <p class="kicker">Getting started</p>
+                        <h2 id="cli-title">CLI commands</h2>
+                        <p class="section-lede">The <code>scarline</code> command finds the repository by itself, so you can run it from any subfolder. <code>scarline &lt;command&gt; --help</code> prints the usage of each command.</p>
+                        <div class="table-wrap">
+                            <table class="component-table">
+                                <tr><th>Command</th><th>What it does</th></tr>
+                                <tr><td><code>scarline setup</code></td><td>Validates <code>config.yml</code>, generates secrets and prepares the runtime folder. Safe to run repeatedly.</td></tr>
+                                <tr><td><code>scarline doctor</code></td><td>Read-only diagnostics of the host and configuration. Exits non-zero if any check fails.</td></tr>
+                                <tr><td><code>scarline start</code></td><td>Starts the platform. Options: <code>--simulator carla|mock</code>, <code>--no-sim</code>, <code>--mock-io</code>. Re-running it on a healthy stack is safe.</td></tr>
+                                <tr><td><code>scarline status</code></td><td>Shows each service and host process and the overall state: <code>running</code>, <code>starting</code>, <code>stopped</code> or <code>degraded</code>.</td></tr>
+                                <tr><td><code>scarline stop</code></td><td>Stops the platform while keeping all study data.</td></tr>
+                                <tr><td><code>scarline restart</code>, <code>logs</code></td><td>Not implemented yet. Use <code>scarline stop &amp;&amp; scarline start</code> and the commands below.</td></tr>
+                            </table>
+                        </div>
+                        <h3>Logs</h3>
+                        <div class="code-panel inline"><pre><code>docker compose -p scarline logs -f core-api</code></pre></div>
+                        <p>Host-process logs are written to <code>.runtime/logs/</code>: <code>desktop-overlay.log</code>, <code>io-client.log</code>, <code>carla-server.log</code> and <code>carla-driver.log</code>.</p>
+                    </section>
+
+                    <!-- ============ TROUBLESHOOTING ============ -->
+                    <section class="docs-section" id="troubleshooting" aria-labelledby="troubleshooting-title">
+                        <p class="kicker">Getting started</p>
+                        <h2 id="troubleshooting-title">Troubleshooting</h2>
+                        <p class="section-lede">Start with <code>scarline doctor</code> and <code>scarline status</code>; they answer most questions. Error output has secrets removed, so it is safe to paste into an issue.</p>
+
+                        <h3>Startup fails</h3>
+                        <div class="table-wrap">
+                            <table class="component-table compact">
+                                <tr><th>Message</th><th>Fix</th></tr>
+                                <tr><td><code>Invalid config.yml: …</code></td><td>The message names the key; compare it with <a href="#configuration">Configuration</a>.</td></tr>
+                                <tr><td><code>.env does not exist</code></td><td>Run <code>scarline setup</code>.</td></tr>
+                                <tr><td>A secret is too short</td><td>Delete that line from <code>.env</code> and re-run <code>scarline setup</code>.</td></tr>
+                                <tr><td>Compose could not start the infrastructure</td><td>A service failed its health check: <code>docker compose -p scarline logs &lt;service&gt;</code>.</td></tr>
+                                <tr><td>Simulator is already running</td><td><code>scarline stop</code>, then start with the other simulator.</td></tr>
+                                <tr><td>CARLA requires Linux or Windows</td><td>Use <code>scarline start --no-sim</code>.</td></tr>
+                            </table>
+                        </div>
+
+                        <h3>Sign-in or access fails</h3>
+                        <div class="table-wrap">
+                            <table class="component-table compact">
+                                <tr><th>Symptom</th><th>Cause</th></tr>
+                                <tr><td>Every page redirects to <code>/startup</code></td><td>The Core API isn't ready yet: PostgreSQL, RabbitMQ or the admin account is still starting.</td></tr>
+                                <tr><td>Stuck on <code>/change-password</code></td><td>Set a new password of at least 12 characters.</td></tr>
+                                <tr><td><code>403 STUDY_ACCESS_DENIED</code></td><td>The account isn't a member of that study. Add it to the study's users.</td></tr>
+                                <tr><td><code>403 ORIGIN_DENIED</code> at login</td><td>The browser address is missing from <code>api.allowed_origins</code> in <code>config.yml</code>.</td></tr>
+                            </table>
+                        </div>
+
+                        <h3>Widgets or overlay misbehave</h3>
+                        <div class="table-wrap">
+                            <table class="component-table compact">
+                                <tr><th>Symptom</th><th>Where to look</th></tr>
+                                <tr><td>No participant windows open</td><td>Is the desktop overlay running? Check <code>scarline status</code>, or start the session in browser renderer mode.</td></tr>
+                                <tr><td>Widget shows <code>—</code> for every value</td><td>The data source isn't streaming. Check <i>Active Study → Widget data sources</i>.</td></tr>
+                                <tr><td><code>WIDGET_CATALOGUE_INVALID</code></td><td>A <code>widget.json</code> failed validation; the response lists the problems.</td></tr>
+                                <tr><td>Window on the wrong screen</td><td>The saved display no longer exists. Reassign it in Participant View.</td></tr>
+                            </table>
+                        </div>
+
+                        <h3>Simulator or sensors</h3>
+                        <ul class="docs-list">
+                            <li><code>SIMULATOR_UNAVAILABLE</code> in the readiness checks means Sim-Bridge isn't reporting a heartbeat (status goes stale after 15&nbsp;seconds).</li>
+                            <li><code>missingSimulatorCapabilities</code> means Sim-Bridge is up but no adapter of the configured type has registered. Check that you started the right simulator.</li>
+                            <li><code>REQUIRED_SENSOR_UNAVAILABLE</code> means a device marked <i>required</i> isn't connected, or the IO Client isn't reporting.</li>
+                        </ul>
+                    </section>
+
+                    <!-- ============ ARCHITECTURE ============ -->
+                    <section class="docs-section" id="architecture" aria-labelledby="architecture-title">
+                        <p class="kicker">Concepts</p>
+                        <h2 id="architecture-title">Architecture</h2>
+                        <p class="section-lede">The <code>scarline</code> CLI validates the configuration, starts the Docker services and the processes that run on the host machine, and reports their health. Everything else&nbsp;— study design, live sessions, participant displays, simulator and sensor integration, data export&nbsp;— runs on top of that stack.</p>
+
+                        <figure class="platform-figure">
+                            <a class="platform-preview" href="images/scarline-architecture.png" target="_blank" rel="noopener"
+                                aria-label="View the SCARline architecture diagram at full size in a new tab">
+                                <img src="images/scarline-architecture.png" width="1796" height="961" loading="lazy" decoding="async"
+                                    alt="SCARline system architecture diagram. The CLI starts the SCARline Hub, the CARLA server and client, and the Docker environment. The Hub uses the Core API. Sim-Bridge controls CARLA and exchanges logs and commands with RabbitMQ, which also connects to the Python I/O sensors and PostgreSQL logs. The Core API exchanges logs and commands with the overlay and HMI, which render UI components UI1 to UI4. Everything runs in Docker on the operating system.">
+                            </a>
+                            <figcaption>SCARline's system architecture. Docker provides the containerised runtime underneath.</figcaption>
+                        </figure>
+
+                        <h3>Design principles</h3>
+                        <ul class="file-grid principle-grid docs-principles" role="list">
+                            <li class="file-card">
+                                <p class="principle-title">Services talk through a queue</p>
+                                <p>Backend components exchange commands and events over RabbitMQ instead of calling each other directly. A simulator or overlay can restart without disturbing study data.</p>
+                            </li>
+                            <li class="file-card">
+                                <p class="principle-title">One owner for study data</p>
+                                <p>Only the Core API writes to the database. A state change and the message announcing it are saved together, so neither can get lost.</p>
+                            </li>
+                            <li class="file-card">
+                                <p class="principle-title">Configuration is snapshotted</p>
+                                <p>When a session becomes ready, each condition's simulator, device and sensor settings are frozen. Completed sessions stay reproducible.</p>
+                            </li>
+                            <li class="file-card">
+                                <p class="principle-title">Transitions are confirmed</p>
+                                <p>Starting, pausing or advancing a session is a command the simulator and sensor services must acknowledge. If they don't in time, the session fails cleanly instead of half-starting.</p>
+                            </li>
+                            <li class="file-card">
+                                <p class="principle-title">Widgets are plain web files</p>
+                                <p>Static HTML, CSS and vanilla JavaScript, with no framework and no build step. New widgets are picked up without rebuilding anything.</p>
+                            </li>
+                            <li class="file-card">
+                                <p class="principle-title">Roles are enforced on the server</p>
+                                <p>Admins, researchers, operators and observers each see and do only what their role allows, checked by the server rather than hidden in the interface.</p>
+                            </li>
+                        </ul>
+
+                        <h3>Components</h3>
+                        <div class="table-wrap">
+                            <table class="component-table">
+                                <tr><th>Component</th><th>Responsibility</th></tr>
+                                <tr><td><code>scarline</code> CLI</td><td>Validates configuration, generates secrets, starts and stops the stack, runs diagnostics.</td></tr>
+                                <tr><td>SCARline Hub</td><td>The web app for researchers and operators (the Admin Panel): study setup, layout editor, live operation, logs and exports.</td></tr>
+                                <tr><td>Core API</td><td>Accounts and roles, persistence, real-time updates, session lifecycle, trigger rules and exports.</td></tr>
+                                <tr><td>Sim-Bridge</td><td>Connects simulator adapters, dispatches commands, journals results and publishes telemetry.</td></tr>
+                                <tr><td>CARLA client / Mock simulator</td><td>Simulator adapters that bind to a session condition and emit vehicle and scene events.</td></tr>
+                                <tr><td>IO Client</td><td>Discovers sensor hardware, runs drivers and batches samples.</td></tr>
+                                <tr><td>Overlay Web</td><td>Renders participant widgets and serves widget assets.</td></tr>
+                                <tr><td>Desktop Overlay</td><td>Places widgets as transparent, display-targeted windows on the participant's screens.</td></tr>
+                                <tr><td>PostgreSQL &amp; RabbitMQ</td><td>Durable study data and the message queue between services.</td></tr>
+                            </table>
+                        </div>
+                    </section>
+
+                    <!-- ============ DATA FLOW ============ -->
+                    <section class="docs-section" id="data-flow" aria-labelledby="flow-title">
+                        <p class="kicker">Concepts</p>
+                        <h2 id="flow-title">Data flow</h2>
+                        <p class="section-lede">The simulator never talks to your widget directly. Follow a single speed reading on its way to the participant's display.</p>
+                        <figure class="platform-figure">
+                            <a class="platform-preview flat" href="images/scarline-information-flow.png" target="_blank" rel="noopener"
+                                aria-label="View the information flow diagram at full size in a new tab">
+                                <img src="images/scarline-information-flow.png" width="1728" height="450" loading="lazy" decoding="async"
+                                    alt="Information flow: the driving simulator sends an update to Sim-Bridge, RabbitMQ holds it, the Core API packages it, and the speedometer widget displays it.">
+                            </a>
+                        </figure>
+                        <ol class="flow-steps" role="list">
+                            <li><b>Simulator</b><span>The vehicle reaches 80&nbsp;km/h in CARLA.</span></li>
+                            <li><b>Sim-Bridge</b><span>Translates raw simulator state into messages the rest of the system understands.</span></li>
+                            <li><b>RabbitMQ</b><span>Holds the message in a queue until something is ready to pick it up.</span></li>
+                            <li><b>Core API</b><span>Consumes it and packages it into the data field your widget is listening for.</span></li>
+                            <li><b>Overlay</b><span>Receives it over an always-open WebSocket and updates the widget on screen.</span></li>
+                        </ol>
+                        <div class="split-grid">
+                            <div class="panel">
+                                <h3>Why a queue in the middle?</h3>
+                                <p class="panel-text">RabbitMQ acts as a buffer rather than a direct handoff. The simulator side and the widget side never depend on each other being up at the same moment, and a component that restarts mid-command replays its recorded result instead of running it twice.</p>
+                            </div>
+                            <div class="panel">
+                                <h3>Fresh, not stale</h3>
+                                <p class="panel-text">Live values reach each widget at most ten times per second. Each binding declares how long a value stays fresh; when data stops arriving, the widget shows <code>—</code> instead of an old number, and the operator can see why in the live session view.</p>
+                            </div>
+                        </div>
+                        <p class="fine-print">Steering input takes a separate, faster path: the IO Client publishes throttle, steer and brake straight to Sim-Bridge, bypassing the durable event pipeline, because control input can't tolerate that latency.</p>
+                    </section>
+
+                    <!-- ============ LIFECYCLE ============ -->
+                    <section class="docs-section" id="lifecycle" aria-labelledby="lifecycle-title">
+                        <p class="kicker">Concepts</p>
+                        <h2 id="lifecycle-title">Studies &amp; sessions</h2>
+                        <p class="section-lede">Two state machines run side by side: a study moves through design and execution phases, and each session runs one or more conditions in a fixed order.</p>
+
+                        <h3>Study status</h3>
+                        <div class="table-wrap">
+                            <table class="component-table compact">
+                                <tr><th>Status</th><th>Configuration editable</th><th>Sessions can be created</th></tr>
+                                <tr><td><code>draft</code></td><td>Yes</td><td>No</td></tr>
+                                <tr><td><code>configured</code></td><td>Yes</td><td>Yes</td></tr>
+                                <tr><td><code>ready</code></td><td>No</td><td>Yes</td></tr>
+                                <tr><td><code>running</code></td><td>No</td><td>Yes</td></tr>
+                                <tr><td><code>completed</code></td><td>No</td><td>No</td></tr>
+                                <tr><td><code>archived</code></td><td>No</td><td>No</td></tr>
+                            </table>
+                        </div>
+                        <p class="fine-print">Moving to <code>ready</code> re-runs the readiness checks and is refused if any blocking check fails. A study becomes <code>running</code> automatically when its first session starts. Configuration also locks as soon as any session is ready, running or paused.</p>
+
+                        <h3>Session status</h3>
+                        <ol class="lifecycle-row" role="list">
+                            <li class="state-pill">Created</li>
+                            <li class="state-pill">Ready</li>
+                            <li class="state-pill active">Running <span aria-hidden="true">⇄</span> Paused</li>
+                            <li class="state-pill">Completed</li>
+                        </ol>
+                        <p>Any session that isn't finished can also be <code>aborted</code> (a reason is required) or <code>failed</code>. <code>completed</code>, <code>aborted</code> and <code>failed</code> are final.</p>
+                        <div class="table-wrap">
+                            <table class="component-table compact">
+                                <tr><th>Action</th><th>Effect</th></tr>
+                                <tr><td><code>ready</code></td><td>Freezes each queued condition's configuration as a snapshot.</td></tr>
+                                <tr><td><code>start</code></td><td>Activates the first condition and opens the participant's windows.</td></tr>
+                                <tr><td><code>pause</code> / <code>resume</code></td><td>Pauses and resumes the session and its active condition.</td></tr>
+                                <tr><td><code>advance</code></td><td>Completes the active condition and starts the next one; the session stays running.</td></tr>
+                                <tr><td><code>complete</code></td><td>Completes the active condition and marks the remaining ones <code>skipped</code>.</td></tr>
+                                <tr><td><code>abort</code> / <code>fail</code></td><td>Ends the session and closes all participant windows.</td></tr>
+                            </table>
+                        </div>
+
+                        <h3>How a command runs</h3>
+                        <ol class="docs-list numbered">
+                            <li>The Hub sends the action; the Core API checks the transition is allowed and queues a command with a deadline.</li>
+                            <li>The command goes to Sim-Bridge and, when devices are configured, to the IO Client. <code>start</code> and <code>advance</code> carry the snapshot of the next condition.</li>
+                            <li>Each component acknowledges with <i>completed</i> or <i>failed</i>.</li>
+                            <li>Once every required acknowledgement is in, the Core API applies the change and opens or closes participant windows.</li>
+                            <li>If the deadline passes first, the command times out and the session fails.</li>
+                        </ol>
+                        <p class="fine-print">Only one command can be in flight per session. The deadline is <code>api.command_timeout_seconds</code> in <code>config.yml</code>.</p>
+                    </section>
+
+                    <!-- ============ ACCESS ============ -->
+                    <section class="docs-section" id="access" aria-labelledby="access-title">
+                        <p class="kicker">Concepts</p>
+                        <h2 id="access-title">Accounts &amp; roles</h2>
+                        <p class="section-lede">There is no onboarding wizard. When the database has no users, the Core API creates the first administrator from <code>bootstrap.admin_username</code> in <code>config.yml</code> and <code>BOOTSTRAP_ADMIN_PASSWORD</code> in <code>.env</code>. Further accounts are created under <i>Settings → User Accounts</i>.</p>
+                        <div class="table-wrap">
+                            <table class="component-table compact">
+                                <tr><th>Role</th><th>Can do</th></tr>
+                                <tr><td><code>admin</code></td><td>System administration and every study, without needing membership</td></tr>
+                                <tr><td><code>researcher</code></td><td>Design and operate studies they are a member of; queue exports</td></tr>
+                                <tr><td><code>operator</code></td><td>Operate sessions on studies they are a member of; add notes and trigger widgets</td></tr>
+                                <tr><td><code>observer</code></td><td>Read the studies, sessions and events they have access to</td></tr>
+                            </table>
+                        </div>
+                        <p class="fine-print">Roles add up, so one account can hold several; an account created without roles is an observer. Roles say <i>what</i> someone may do, study membership says <i>which studies</i>: an operator who can't see a study usually needs to be added to it, not a different role. Every new or reset account must set its own password at first sign-in.</p>
+                    </section>
+
+                    <!-- ============ WIDGETS ============ -->
+                    <section class="docs-section" id="widgets" aria-labelledby="widgets-title">
+                        <p class="kicker">Building</p>
+                        <h2 id="widgets-title">Widgets</h2>
+                        <p class="section-lede">A widget is a folder of static files inside <code>widgets/components/</code>, for example <code>widgets/components/calendar/</code>. There is no framework and no bundler; a shared runtime script handles data binding and interactions for you.</p>
+
+                        <div class="anatomy">
+                            <img class="anatomy-img" src="images/widget-structure.png" width="200" loading="lazy" decoding="async"
+                                alt="Folder structure of a widget: a folder named after the widget containing a PNG preview image, index.html and widget.json.">
+                            <ul class="file-grid" role="list">
+                                <li class="file-card">
+                                    <code class="file-name">index.html</code>
+                                    <p>The widget's visual structure, styled with Tailwind CSS classes.</p>
+                                </li>
+                                <li class="file-card">
+                                    <code class="file-name">widget.json</code>
+                                    <p>The manifest: name, category, size and, most importantly, the data bindings the widget expects.</p>
+                                </li>
+                                <li class="file-card">
+                                    <code class="file-name">&lt;widget-id&gt;.png</code>
+                                    <p>A preview image shown in the layout editor, so the widget is recognisable without loading it live.</p>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <h3>The manifest</h3>
+                        <div class="table-wrap">
+                            <table class="component-table compact">
+                                <tr><th>Field</th><th>Meaning</th></tr>
+                                <tr><td><code>id</code></td><td>Must match the folder name</td></tr>
+                                <tr><td><code>name</code>, <code>description</code>, <code>version</code></td><td>Shown in the widget catalogue</td></tr>
+                                <tr><td><code>category</code></td><td>Groups the catalogue, e.g. <code>driving</code>, <code>health</code>, <code>communication</code>, <code>study</code>, <code>general</code></td></tr>
+                                <tr><td><code>entry</code></td><td>The HTML file to load; defaults to <code>index.html</code></td></tr>
+                                <tr><td><code>bindings</code></td><td>The data the widget receives (see below)</td></tr>
+                                <tr><td><code>actions</code></td><td>The actions the widget can send out</td></tr>
+                                <tr><td><code>ui.minSize</code>, <code>ui.preferredSize</code></td><td>Width and height enforced by the layout editor</td></tr>
+                                <tr><td><code>window</code></td><td><code>frame</code> (<code>none</code> or <code>default</code>) and <code>transparent</code> for overlay use</td></tr>
+                            </table>
+                        </div>
+
+                        <h3>Receiving live data</h3>
+                        <p>Give an element a <code>data-bind</code> attribute and declare the same key in <code>widget.json</code>. The runtime fills the element with live values as they arrive.</p>
+                        <div class="code-grid">
+                            <div class="code-panel">
+                                <p class="code-label">index.html</p>
+<pre><code>&lt;script src="../../widget-runtime.js"&gt;&lt;/script&gt;
+
+&lt;div data-scarline-widget-root&gt;
+  &lt;span data-bind="vehicle.speed"
+        data-format="number"
+        data-decimals="0"&gt;—&lt;/span&gt;
+  &lt;span data-bind="vehicle.speed_unit"&gt;km/h&lt;/span&gt;
+&lt;/div&gt;</code></pre>
+                            </div>
+                            <div class="code-panel">
+                                <p class="code-label">widget.json</p>
+<pre><code>"bindings": {
+  "vehicle.speed": {
+    "type": "number",
+    "unit": "km/h",
+    "source": "live",
+    "staleAfterMs": 5000,
+    "preview": 132
+  },
+  "vehicle.speed_unit": {
+    "type": "string",
+    "default": "km/h",
+    "source": "presentation"
+  }
+}</code></pre>
+                            </div>
+                        </div>
+                        <div class="table-wrap">
+                            <table class="component-table compact">
+                                <tr><th>Binding field</th><th>Meaning</th></tr>
+                                <tr><td><code>type</code></td><td><code>number</code>, <code>string</code>, <code>boolean</code>, <code>object</code> or <code>array</code></td></tr>
+                                <tr><td><code>source</code></td><td><code>live</code> from the running session, <code>study</code> from the condition's configuration, or <code>presentation</code> for display settings such as a unit label</td></tr>
+                                <tr><td><code>preview</code></td><td>Example value used when you preview the widget in the layout editor</td></tr>
+                                <tr><td><code>default</code></td><td>Value used when nothing else is configured</td></tr>
+                                <tr><td><code>staleAfterMs</code></td><td>How long a value stays fresh: about 5&nbsp;s for continuous readings, 2&nbsp;s for ECG, 60&nbsp;s for blood pressure</td></tr>
+                                <tr><td><code>unit</code>, <code>label</code>, <code>description</code>, <code>required</code></td><td>Presentation metadata, and whether the widget needs the value</td></tr>
+                            </table>
+                        </div>
+                        <p class="fine-print"><code>default</code> and <code>preview</code> are checked against <code>type</code>, so a mistake fails validation instead of showing up as <code>NaN</code>. Use <code>—</code> as the initial content of every value element: missing, stale or disconnected values reset to it.</p>
+
+                        <h3>Declarative attributes</h3>
+                        <div class="table-wrap">
+                            <table class="component-table compact">
+                                <tr><th>Attribute</th><th>Effect</th></tr>
+                                <tr><td><code>data-scarline-widget-root</code></td><td>The element the runtime applies the visual state to</td></tr>
+                                <tr><td><code>data-bind</code></td><td>Binding key for this element</td></tr>
+                                <tr><td><code>data-format="number"</code> + <code>data-decimals</code></td><td>Numeric formatting</td></tr>
+                                <tr><td><code>data-bind-attr</code></td><td>Write the value to this attribute instead of the text</td></tr>
+                                <tr><td><code>data-bind-class</code>, <code>data-bind-class-false</code></td><td>Toggle classes on truthy or falsy values</td></tr>
+                                <tr><td><code>data-bind-style</code>, <code>data-style-unit</code></td><td>Write the value to a CSS property, with an optional unit</td></tr>
+                                <tr><td><code>data-bind-label-true</code>, <code>data-bind-label-false</code></td><td>Swap label text on a boolean</td></tr>
+                                <tr><td><code>data-chart</code>, <code>data-chart-window</code>, …</td><td>Draw a time series, e.g. ECG or heart rate</td></tr>
+                                <tr><td><code>data-action</code></td><td>Send this action when clicked</td></tr>
+                            </table>
+                        </div>
+
+                        <h3>Sending actions out</h3>
+                        <p>Buttons and other controls report interactions through <code>data-action</code>. Most widgets only display data, but for anything the attributes can't express there is a small JavaScript API.</p>
+                        <div class="code-grid">
+                            <div class="code-panel">
+                                <p class="code-label">Declarative</p>
+<pre><code>&lt;button type="button" data-action="call.decline"&gt;
+  Decline
+&lt;/button&gt;</code></pre>
+                            </div>
+                            <div class="code-panel">
+                                <p class="code-label">Runtime API</p>
+<pre><code>&lt;script type="module"&gt;
+  const { SCARline } = window;
+
+  SCARline.onBinding("vitals.heart_rate", (v) =&gt; {
+    document.querySelector("#bpm").textContent = v ?? "—";
+  });
+
+  document.querySelector("#mute")
+    .addEventListener("click", () =&gt;
+      SCARline.send("call.mute", { muted: true }));
+
+  SCARline.ready();
+&lt;/script&gt;</code></pre>
+                            </div>
+                        </div>
+                        <div class="table-wrap">
+                            <table class="component-table compact">
+                                <tr><th>Runtime API</th><th>Purpose</th></tr>
+                                <tr><td><code>ready()</code></td><td>Signal that the widget has mounted; call it last</td></tr>
+                                <tr><td><code>getBinding(key)</code></td><td>Current value of a binding</td></tr>
+                                <tr><td><code>onBinding(key, fn)</code></td><td>Subscribe to a binding; returns an unsubscribe function</td></tr>
+                                <tr><td><code>getState()</code>, <code>onStateChange(fn)</code></td><td>Visibility: <code>visible</code>, <code>hidden</code> or <code>highlighted</code></td></tr>
+                                <tr><td><code>onTrigger(fn)</code></td><td>Trigger and interaction-result events</td></tr>
+                                <tr><td><code>getMetadata()</code></td><td>The widget's manifest</td></tr>
+                                <tr><td><code>send(action, payload)</code></td><td>Send a declared action</td></tr>
+                            </table>
+                        </div>
+                        <p class="fine-print">Widgets run in a sandboxed frame with no other access to the page, the Core API or cookies. Actions are round trips: the control is disabled until the result arrives, and a retry never applies the same action twice.</p>
+
+                        <h3>From idea to running widget</h3>
+                        <ol class="flow-steps six" role="list">
+                            <li><b>Create</b><span>Add a folder in <code>widgets/components/</code> named after your widget.</span></li>
+                            <li><b>Design</b><span>Draft <code>index.html</code> with Tailwind classes and <code>data-bind</code> attributes.</span></li>
+                            <li><b>Declare</b><span>List the bindings and actions in <code>widget.json</code>, plus a preview image.</span></li>
+                            <li><b>Refresh</b><span>Run <code>npm run widgets:build-css</code> if you used new Tailwind classes, then refresh the catalogue in Participant View.</span></li>
+                            <li><b>Preview</b><span>Place it in a layout and launch a preview with your <code>preview</code> values.</span></li>
+                            <li><b>Test</b><span>Check it in a real session with live data and run <code>npm run test:widgets</code>.</span></li>
+                        </ol>
+
+                        <h3>Guidelines</h3>
+                        <ul class="docs-list">
+                            <li>Keep the widget legible at its minimum size; it is read on a driving display, in motion.</li>
+                            <li>Never fabricate a value. An absent reading is <code>—</code>, not <code>0</code>.</li>
+                            <li>Label simulated data as simulated; the synthetic sensor suite is a test signal.</li>
+                            <li>Don't derive clinical claims from a signal: a BPM value is a number, not a diagnosis.</li>
+                        </ul>
+                        <p class="fine-print">No coding background? Sketch the widget and its resting and triggered states, then let a teammate or an AI assistant turn it into the three files above.</p>
+                    </section>
+
+                    <!-- ============ SIMULATORS ============ -->
+                    <section class="docs-section" id="simulators" aria-labelledby="simulators-title">
+                        <p class="kicker">Building</p>
+                        <h2 id="simulators-title">Simulators</h2>
+                        <p class="section-lede">Simulators connect through Sim-Bridge, the only component they talk to. It registers simulator adapters, turns session commands into adapter messages, journals every result so a restart never runs a command twice, and limits how fast telemetry is published. An adapter can disconnect, crash or be swapped without touching study or session records.</p>
+
+                        <div class="split-grid">
+                            <div class="panel">
+                                <h3>CARLA 0.9.16</h3>
+                                <ul class="docs-list">
+                                    <li>Runs on the host operating system (Linux or Windows); only the adapter runs in Docker.</li>
+                                    <li><code>scarline start --simulator carla</code> starts the server, or attaches to one that is already running.</li>
+                                    <li>Synchronous mode with a fixed 0.05&nbsp;s step, so runs are reproducible.</li>
+                                    <li>A keyboard driver is started alongside for manual control.</li>
+                                </ul>
+                            </div>
+                            <div class="panel">
+                                <h3>Mock simulator</h3>
+                                <ul class="docs-list">
+                                    <li>Deterministic telemetry (smooth speed, throttle and steering) at up to 20&nbsp;Hz.</li>
+                                    <li>Runs on any laptop, no GPU required.</li>
+                                    <li>The right choice for widget development, automated tests and rehearsing a study.</li>
+                                    <li>If both are connected, CARLA takes priority.</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <h3>CARLA settings per condition</h3>
+                        <div class="table-wrap">
+                            <table class="component-table compact">
+                                <tr><th>Group</th><th>Settings</th></tr>
+                                <tr><td>World</td><td>Map, weather preset or custom weather (clouds, precipitation, wind), sun altitude</td></tr>
+                                <tr><td>Ego vehicle</td><td>Vehicle blueprint and control mode: <code>io</code> (steering wheel), <code>autopilot</code> or <code>external</code></td></tr>
+                                <tr><td>Determinism</td><td>Synchronous mode, 0.05&nbsp;s fixed step, random seed</td></tr>
+                                <tr><td>Traffic</td><td>Number of other vehicles, speed difference, optional speed-limit override</td></tr>
+                                <tr><td>Pedestrians</td><td>Number of pedestrians</td></tr>
+                                <tr><td>Spectator</td><td>Camera position and orientation</td></tr>
+                                <tr><td>Recording</td><td>On or off, and a relative output folder</td></tr>
+                                <tr><td>Sensors</td><td>Up to 100 CARLA <code>sensor.*</code> blueprints with attributes and position</td></tr>
+                            </table>
+                        </div>
+                        <p class="fine-print">If an adapter stops sending heartbeats it is treated as disconnected. Its session is held for a short grace period so a brief reconnect goes unnoticed; after that the session fails.</p>
+                    </section>
+
+                    <!-- ============ SENSORS ============ -->
+                    <section class="docs-section" id="sensors" aria-labelledby="sensors-title">
+                        <p class="kicker">Building</p>
+                        <h2 id="sensors-title">Sensors</h2>
+                        <p class="section-lede">The IO Client is a Python service that owns every sensor. It discovers hardware, starts the drivers a session needs and sends samples in batches over RabbitMQ. It runs either in Docker or directly on the host; host mode is what you need when the hardware is plugged into that machine (<code>services.io_client.runtime: host</code>).</p>
+
+                        <h3>Shipped drivers</h3>
+                        <div class="table-wrap">
+                            <table class="component-table compact">
+                                <tr><th>Driver</th><th>Device</th><th>Channels</th></tr>
+                                <tr><td><code>logitech_g29</code></td><td>Steering wheel and pedals (Linux)</td><td>Controls, 100&nbsp;Hz</td></tr>
+                                <tr><td><code>heart_rate</code></td><td>Heart rate monitor</td><td>Heart rate in bpm, 1&nbsp;Hz</td></tr>
+                                <tr><td><code>ecg</code></td><td>SiFi Labs ECG</td><td>ECG in mV, 500&nbsp;Hz</td></tr>
+                                <tr><td><code>camera</code></td><td>Camera and face features</td><td>Video 30&nbsp;Hz, blink 10&nbsp;Hz, gaze 10&nbsp;Hz</td></tr>
+                                <tr><td><code>mock</code></td><td>Synthetic sensor suite</td><td>Steering, heart rate, ECG, blood pressure, SpO₂, respiration, eye tracking</td></tr>
+                            </table>
+                        </div>
+                        <p class="fine-print">Hardware drivers need an optional Python dependency. Without it the driver appears in the catalogue but can't connect. Everything from the synthetic suite is labelled as simulated.</p>
+
+                        <h3>Devices in a study</h3>
+                        <p>Devices are registered globally, either by an administrator under <i>Settings → Devices</i> or automatically when the IO Client discovers hardware. You then attach a device to a <i>condition</i> and choose which of its channels to record.</p>
+                        <ul class="docs-list">
+                            <li>Mark a device <b>required</b> and the study can't go live until it is connected.</li>
+                            <li>The <b>on disconnect</b> policy decides what happens mid-session: <code>fail</code> stops the session (the default for required devices), <code>continue</code> keeps it running and records the loss.</li>
+                            <li>Each channel samples at its own rate; slow channels such as heart rate are sent immediately rather than waiting for a batch.</li>
+                        </ul>
+                    </section>
+
+                    <!-- ============ CONFIGURATION ============ -->
+                    <section class="docs-section" id="configuration" aria-labelledby="configuration-title">
+                        <p class="kicker">Reference</p>
+                        <h2 id="configuration-title">Configuration</h2>
+                        <p class="section-lede"><code>config.yml</code> in the repository root holds all non-secret configuration; secrets live in <code>.env</code>, which <code>scarline setup</code> generates. The schema is strict, so an unknown key is an error. Nothing reloads it at run time.</p>
+                        <div class="table-wrap">
+                            <table class="component-table compact">
+                                <tr><th>Section</th><th>What it controls</th></tr>
+                                <tr><td><code>bootstrap</code></td><td>Username of the first administrator</td></tr>
+                                <tr><td><code>api</code></td><td>Allowed browser origins, command timeout, token lifetimes, and the widget, sensor and export folders</td></tr>
+                                <tr><td><code>platform</code></td><td>Environment, Core API port, runtime folder, start-up and shutdown timeouts</td></tr>
+                                <tr><td><code>docker</code></td><td>Compose file and project name</td></tr>
+                                <tr><td><code>database</code>, <code>rabbitmq</code></td><td>Hosts, ports and users (passwords come from <code>.env</code>)</td></tr>
+                                <tr><td><code>sim_bridge</code></td><td>Port, adapter timeouts, heartbeat and reconnect windows, telemetry rate limit</td></tr>
+                                <tr><td><code>simulator</code></td><td>Default simulator, autostart, CARLA path and quality, mock telemetry rate</td></tr>
+                                <tr><td><code>services</code></td><td>Which services run, their ports, and whether the IO Client runs in <code>docker</code> or on the <code>host</code></td></tr>
+                                <tr><td><code>logging</code></td><td>Log level and log folder</td></tr>
+                            </table>
+                        </div>
+                        <h3>Changing configuration safely</h3>
+                        <div class="code-panel inline"><pre><code># 1. edit config.yml, then
+scarline doctor
+scarline stop &amp;&amp; scarline start</code></pre></div>
+                        <p class="fine-print">The current values are visible read-only in the Hub under <i>Settings → System Settings</i>.</p>
+                    </section>
+
+                    <!-- ============ PORTS ============ -->
+                    <section class="docs-section" id="ports" aria-labelledby="ports-title">
+                        <p class="kicker">Reference</p>
+                        <h2 id="ports-title">Ports &amp; endpoints</h2>
+                        <p class="section-lede">Every published port binds to <code>127.0.0.1</code>, so nothing in the default setup is reachable from another machine.</p>
+                        <div class="table-wrap">
+                            <table class="component-table compact">
+                                <tr><th>Port</th><th>Service</th><th>Health check</th></tr>
+                                <tr><td><code>5173</code></td><td>SCARline Hub</td><td><code>/healthz</code>; documentation at <code>/docs/</code></td></tr>
+                                <tr><td><code>8088</code></td><td>Core API (REST and WebSocket)</td><td><code>/health</code>, <code>/ready</code></td></tr>
+                                <tr><td><code>4000</code></td><td>Overlay Web</td><td><code>/healthz</code></td></tr>
+                                <tr><td><code>9000</code></td><td>Sim-Bridge</td><td><code>/health</code>, <code>/ready</code></td></tr>
+                                <tr><td><code>5432</code></td><td>PostgreSQL</td><td></td></tr>
+                                <tr><td><code>5672</code>, <code>15672</code></td><td>RabbitMQ and its management UI</td><td></td></tr>
+                                <tr><td><code>8081</code></td><td>IO Client (host only)</td><td><code>/health</code></td></tr>
+                                <tr><td><code>8082</code></td><td>CARLA adapter (host only)</td><td><code>/health</code></td></tr>
+                                <tr><td><code>2000</code>–<code>2002</code></td><td>CARLA server</td><td></td></tr>
+                            </table>
+                        </div>
+                        <p class="fine-print">To change a port, edit it in <code>config.yml</code>. If the browser-visible address changes, also update <code>api.allowed_origins</code>, or sign-in fails with <code>ORIGIN_DENIED</code>.</p>
+                    </section>
+
+                    <!-- ============ FULL REFERENCE ============ -->
+                    <section class="docs-section callout" aria-labelledby="reference-title">
+                        <div>
+                            <p class="kicker">Full reference</p>
+                            <h2 id="reference-title">Going deeper?</h2>
+                            <p>The complete developer documentation, including the API, messaging, database and error codes, ships with SCARline. Once the platform is running it is served at <code>localhost:5173/docs</code>, and it lives in the <code>docs/</code> folder of the repository.</p>
+                        </div>
+                        <div class="callout-actions">
+                            <a class="button-link primary" href="https://github.com/tugcanonbas/SCARline/tree/main/docs" target="_blank" rel="noopener">Docs on GitHub</a>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </main>
+
+        <footer class="site-footer">
+            <div class="footer-inner">
+                <div class="footer-grid">
+                    <div class="footer-brand">
+                        <a class="nav-brand" href="index.html">SCARline</a>
+                        <p class="footer-tagline">The plug-and-play platform for building, running and reviewing driving simulator studies of in-vehicle HMIs.</p>
+                        <p class="footer-institutions">Technische Hochschule Ingolstadt</p>
+                        <a class="footer-github" href="https://github.com/tugcanonbas/SCARline" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.65 7.65 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" /></svg><span>Star on GitHub</span></a>
+                    </div>
+                    <nav class="footer-col" aria-label="Explore">
+                        <h2>Explore</h2>
+                        <ul role="list">
+                            <li><a href="index.html">Overview</a></li>
+                            <li><a href="platform.html">Platform</a></li>
+                            <li><a href="docs.html" aria-current="page">Docs</a></li>
+                            <li><a href="team.html">Team</a></li>
+                        </ul>
+                    </nav>
+                    <nav class="footer-col" aria-label="Resources">
+                        <h2>Resources</h2>
+                        <ul role="list">
+                            <li><a href="https://github.com/tugcanonbas/SCARline" target="_blank" rel="noopener">GitHub repository<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 17 17 7M8 7h9v9" /></svg></a></li>
+                            <li><a href="docs.html#install">Install guide</a></li>
+                            <li><a href="docs.html#widgets">Build a widget</a></li>
+                            <li><a href="https://camps.aptaracorp.com/ACM_PMS/PMS/ACM/AUTOMOTIVEUIADJUNCT26/20/2303e427-8b5b-11f1-b513-16ffd757ba29/OUT/automotiveuiadjunct26-20.html" target="_blank" rel="noopener">AutoUI 2026 paper<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 17 17 7M8 7h9v9" /></svg></a></li>
+                        </ul>
+                    </nav>
+                    <div class="footer-col">
+                        <h2>Questions?</h2>
+                        <ul role="list">
+                            <li><a href="mailto:mos6318@thi.de">Monika Szuban</a></li>
+                            <li><a href="mailto:tuo8203@thi.de">Tuğcan Önbaş</a></li>
+                            <li><a href="mailto:lar3406@thi.de">Laura Radetzky</a></li>
+                            <li><a href="mailto:ignacio.alvarez@thi.de">Ignacio Alvarez</a></li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="footer-bottom">
+                    <p>&copy; 2026 SCARline team</p>
+                    <nav class="footer-legal" aria-label="Legal">
+                        <a href="impressum.html">Impressum</a>
+                        <a href="datenschutz.html">Datenschutz</a>
+                    </nav>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        /* Docs sidebar: collapse on small screens, highlight the section in view */
+        (function () {
+            var menu = document.querySelector('.docs-menu');
+            var mq = window.matchMedia('(max-width: 1000px)');
+            function syncMenu() { menu.open = !mq.matches; }
+            syncMenu();
+            if (mq.addEventListener) mq.addEventListener('change', syncMenu);
+            menu.querySelectorAll('a').forEach(function (a) {
+                a.addEventListener('click', function () { if (mq.matches) menu.open = false; });
+            });
+
+            if (!('IntersectionObserver' in window)) return;
+            var links = {};
+            menu.querySelectorAll('a[href^="#"]').forEach(function (a) { links[a.getAttribute('href').slice(1)] = a; });
+            var sections = Array.prototype.filter.call(document.querySelectorAll('.docs-section[id]'), function (s) { return links[s.id]; });
+            var visible = {};
+            var observer = new IntersectionObserver(function (entries) {
+                entries.forEach(function (e) { visible[e.target.id] = e.isIntersecting; });
+                var current = sections.find(function (s) { return visible[s.id]; });
+                if (!current) return;
+                Object.keys(links).forEach(function (id) {
+                    var on = id === current.id;
+                    links[id].classList.toggle('is-active', on);
+                    if (on) links[id].setAttribute('aria-current', 'location'); else links[id].removeAttribute('aria-current');
+                });
+            }, { rootMargin: '-20% 0px -65% 0px' });
+            sections.forEach(function (s) { observer.observe(s); });
+        })();
+    </script>
+</body>
+
+</html>
